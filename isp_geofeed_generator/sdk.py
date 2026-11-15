@@ -4,10 +4,11 @@ from .client import GeofeedError, JsonHTTP, https_url
 from .publish import publish_file, publish_wordpress, atomic_write
 from .locations import LOCATION_FIELDS, COARSE_FIELDS
 from .records import publish_records_file
+from .adapters import source_url
 
 __all__ = ['ADAPTER_API_VERSION', 'SourceAdapter', 'TargetAdapter', 'Source', 'Target',
            'GeofeedError', 'JsonHTTP', 'https_url', 'publish_file', 'publish_wordpress', 'atomic_write',
-           'builtin_source', 'builtin_target', 'LOCATION_FIELDS', 'COARSE_FIELDS', 'publish_records_file']
+           'builtin_source', 'builtin_target', 'LOCATION_FIELDS', 'COARSE_FIELDS', 'publish_records_file', 'source_url']
 
 
 def builtin_source(name, settings, credentials):

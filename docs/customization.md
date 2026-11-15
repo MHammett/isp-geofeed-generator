@@ -83,6 +83,9 @@ For richer provider data, declare output capabilities and use normalized records
 in [output formats](output-formats.md). The CLI applies current fullbogon checks before calling
 the selected target. Direct SDK callers must apply that policy themselves.
 Keep module imports free of network calls and credential reads; do that work only when the selected factory runs.
+For named input instances, use SDK `source_url(credentials, environment_name, default)` rather
+than reading a process-wide endpoint. Built-in wrappers already honor the instance's URL.
+See [multiple inputs](multiple-inputs.md) for credential aliases and ID scope.
 
 ## Update and recover
 

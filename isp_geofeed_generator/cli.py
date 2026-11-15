@@ -16,6 +16,7 @@ from .bogons import load_policy
 from .locations import COARSE_FIELDS
 import ipaddress
 from .publish import atomic_write
+from .inputs import validate_source, validate_inputs, read_inputs, combine_inputs
 
 
 def shared_module(name):
@@ -37,14 +38,30 @@ class LoadedConfig(dict):
         self.sources, self.targets = sources, targets
 
 
+class UniqueKeyLoader(yaml.SafeLoader):
+    """A repeated input or policy key must not silently replace an earlier one."""
+    def construct_mapping(self, node, deep=False):
+        self.flatten_mapping(node)
+        seen = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                if key in seen:
+                    raise yaml.YAMLError('Duplicate configuration key')
+                seen.add(key)
+            except TypeError:
+                raise yaml.YAMLError('Invalid configuration key') from None
+        return super().construct_mapping(node, deep=deep)
+
+
 def load_config(path):
     try:
-        config = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        config = yaml.load(Path(path).read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
     except (OSError, yaml.YAMLError):
         raise GeofeedError("Cannot read YAML configuration") from None
     if not isinstance(config, dict):
         raise GeofeedError("Configuration must be a YAML mapping")
-    allowed = {"source", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "extensions", "bogons"}
+    allowed = {"source", "inputs", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "extensions", "bogons"}
     if set(config) - allowed:
         raise GeofeedError("Unknown configuration keys: " + ", ".join(sorted(set(config) - allowed)))
     limit = config.get("max_removed_fraction", 0.10)
@@ -56,17 +73,11 @@ def load_config(path):
     if not isinstance(config.get("allowed_prefixes", []), list):
         raise GeofeedError("allowed_prefixes must be a list")
     sources, targets = load_extensions(config.get('extensions'), SOURCES, TARGETS)
-    source = config.get("source")
-    if not isinstance(source, dict) or source.get("type") not in sources:
-        raise GeofeedError("Choose source.type from: " + ", ".join(sorted(sources)))
-    source_keys = {"type", "allow_initial"} | sources[source["type"]].settings
-    if set(source) - source_keys:
-        raise GeofeedError("Unknown source configuration keys")
-    CredentialStore(config.get("credentials"))
-    if sources[source['type']].validate is not None:
-        sources[source['type']].validate(source)
-    if "allow_initial" in source and not isinstance(source["allow_initial"], bool):
-        raise GeofeedError("source.allow_initial must be true or false")
+    parent = CredentialStore(config.get('credentials'))
+    if 'inputs' in config:
+        validate_inputs(config, sources, parent)
+    else:
+        validate_source(config.get('source'), sources)
     target = config.get('publish', {})
     if 'allow_initial' in target and not isinstance(target['allow_initial'], bool):
         raise GeofeedError('publish.allow_initial must be true or false')
@@ -163,18 +174,25 @@ def main(argv=None):
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
         with publication_run(directory, credentials, lambda: stage) if args.command == "publish" else nullcontext():
-            source_kind = config["source"]["type"]
-            adapter = config.sources[source_kind]
-            stage = f"reading {source_kind} inventory"
-            source = adapter.create(config["source"], credentials)
-            snapshot = source.snapshot()
+            inputs = None
+            if 'inputs' in config:
+                stage = 'reading required input inventories'
+                inputs = read_inputs(config, credentials, args.command, assignments=args.assignment_candidates, controllers=args.controller_candidates)
+            else:
+                source_kind = config["source"]["type"]
+                adapter = config.sources[source_kind]
+                stage = f"reading {source_kind} inventory"
+                source = adapter.create(config["source"], credentials)
+                snapshot = source.snapshot()
             if args.command == "discover":
-                if args.assignment_candidates:
+                if inputs is not None:
+                    snapshot = {'schema_version': 1, 'inputs': inputs}
+                if args.assignment_candidates and inputs is None:
                     if source_kind != "sonar":
                         raise GeofeedError("--assignment-candidates applies to Sonar; NetBox reports native scopes")
                     snapshot["assignment_candidates"] = source.assignment_candidates(snapshot["sites"])
                     snapshot["candidate_warning"] = "Observed address use is not proof of pool hosting or ownership. Review before mapping."
-                if args.controller_candidates:
+                if args.controller_candidates and inputs is None:
                     if source_kind != "sonar":
                         raise GeofeedError("--controller-candidates applies to Sonar")
                     snapshot["controller_candidates"] = source.controller_candidates(snapshot)
@@ -184,10 +202,11 @@ def main(argv=None):
                 else:
                     print(data.decode(), end="")
                 return 0
-            stage = f"selecting {source_kind} records"
-            snapshot = source.for_publication(snapshot)
-            if args.command == "publish" and adapter.initial and config["source"].get("allow_initial") is not True:
-                raise GeofeedError("Initial adapter: run discovery and candidate checks, then explicitly set source.allow_initial: true before publishing")
+            if inputs is None:
+                stage = f"selecting {source_kind} records"
+                snapshot = source.for_publication(snapshot)
+                if args.command == "publish" and adapter.initial and config["source"].get("allow_initial") is not True:
+                    raise GeofeedError("Initial adapter: run discovery and candidate checks, then explicitly set source.allow_initial: true before publishing")
             settings = config.get('publish', {})
             target = config.targets.get(settings.get('type'))
             payload_format = getattr(target, 'payload_format', 'csv')
@@ -200,7 +219,7 @@ def main(argv=None):
             if not fields or fields - available or required - fields or (payload_format == 'csv' and fields != COARSE_FIELDS):
                 raise GeofeedError('Selected output cannot accept those fields or is missing required location fields')
             stage = 'validating selected pools and required location fields'
-            records, report = build_records(snapshot, config, fields)
+            records, report = combine_inputs(inputs, config, fields) if inputs is not None else build_records(snapshot, config, fields)
             if payload_format == 'records' and any(not row['location'].get(field) and row['location'].get(field) != 0
                                                    for row in records for field in required):
                 raise GeofeedError('Selected output needs nonempty required location values')
@@ -230,7 +249,8 @@ def main(argv=None):
                 raise GeofeedError('Initial output adapter: explicitly set publish.allow_initial: true after testing')
             stage = f"publishing to {target_kind}"
             result = target(settings, credentials).publish(payload, directory, **kwargs)
-            status(directory, {"healthy": True, **result, "pools": report})
+            input_status = {'inputs': {name: {k: v for k, v in item.items() if k != 'snapshot'} for name, item in inputs.items()}} if inputs is not None else {}
+            status(directory, {"healthy": True, **result, "pools": report, **input_status})
             print(json.dumps(result))
         return 0
     except Exception as exc:

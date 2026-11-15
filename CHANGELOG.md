@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Named required inputs combine selected inventories, including Sonar customer subnets and NetBox infrastructure prefixes, with scoped credentials, private provenance and shared output guards.
+
 - Initial public implementation of ISP Geofeed Generator (development version 0.2.0).
 - Read-only Sonar and NetBox sources with explicit selection, native site links and reviewed mapping options.
 - Sonar IPv6 through explicitly selected subnets, including inline-device management-IP inventory links to network sites, IPv6-only runs and namespaced subnet mappings.

@@ -130,6 +130,7 @@ def build_records(snapshot, config, fields=COARSE_FIELDS):
                 raise GeofeedError(f"Pool {pid} is outside allowed_prefixes")
             entries.append((net, loc, pid))
         report.append({"pool_id": pid, "site_id": sid, "result": "mapped", "prefixes": len(nets),
+                       "cidrs": [str(net) for net in nets],
                        "mapping_source": "configuration" if pid in mappings else "native_scope"})
     if not entries:
         raise GeofeedError("No public mapped prefixes; refusing an empty feed")

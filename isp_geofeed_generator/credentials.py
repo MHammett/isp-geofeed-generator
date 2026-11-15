@@ -126,3 +126,27 @@ class CredentialStore:
         for value in sorted(set(self._values), key=len, reverse=True):
             message = message.replace(value, "[REDACTED]")
         return message
+
+
+class InputCredentialStore(CredentialStore):
+    """Explicit per-input references; all resolved values share the run's redactor."""
+    def __init__(self, selectors, parent, url=None):
+        super().__init__(selectors, environ={k: v for k, v in parent.environ.items() if k == 'CREDENTIALS_DIRECTORY'})
+        self.parent, self.url = parent, url
+        self._values = parent._values
+        for name, selector in self.selectors.items():
+            backend, argument = selector.split(':', 1)
+            if backend == 'env' and (not valid_name(argument) or (argument != name and not argument.startswith('EXT_'))):
+                raise GeofeedError('Input environment references must use their own credential name or an EXT_ alias')
+
+    def get(self, name):
+        if not valid_name(name) or name not in self.selectors:
+            raise GeofeedError('Input needs an explicit credential-store reference for ' + (name if valid_name(name) else 'the requested credential'))
+        selector = self.selectors[name]
+        backend, argument = selector.split(':', 1)
+        alias = argument if backend == 'env' else name
+        store = CredentialStore({alias: selector}, environ=self.parent.environ)
+        store._values = self._values
+        value = store.get(alias)
+        self.backends[name] = backend
+        return value

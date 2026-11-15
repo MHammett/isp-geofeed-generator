@@ -1,5 +1,34 @@
 # Verification
 
+## Multiple input inventories
+
+Observed on 2026-11-15. The branch builds on the independently reviewed Sonar subnet head
+`ef2b8e3`. Windows ran 136 tests: 135 passed and one POSIX-only skip. Fourteen new tests
+exercise real built-in Sonar/NetBox adapters with synthetic API replies through the actual
+CLI. They generate and publish one combined feed, check per-input IDs and site policies,
+and preserve the last good bytes on authentication refusal, missing records, incomplete
+paging, empty selection, bad site evidence, overlaps, conflicting locations, bogons and
+loss of IPv6. Rich JSON field requirements are tested across both inputs too.
+
+Credential checks cover different endpoints and tokens for two instances of one adapter,
+explicit store references, no ambient endpoint/credential fallback, no environment mutation
+and shared redaction in errors and failure status. Duplicate YAML keys are rejected so a
+repeated input name cannot silently remove an inventory.
+
+Actual core and example extension wheels built and installed in an isolated environment.
+Outside the checkout, the installed CLI published a combined fixture using two instances
+of the separately installed source extension and the separately installed output extension.
+The existing single-source extension/update-preservation tests still pass.
+
+Read-only combined discovery also succeeded using separate existing credential slots:
+44 Sonar subnet records and 19 sites, plus 230 NetBox inventory records and 10 sites.
+These are inventory measurements, not proof that all selected records have usable public
+geolocation. Live combined generation/publication was not attempted. No production data,
+service, website or schedule was changed. Consult this branch's PR checks for hosted results.
+
+Recovery and migration are in [multiple inputs](multiple-inputs.md). Site/location enrichment
+is not part of this inventory union. The open systemd and WordPress deployment findings remain.
+
 ## Sonar subnet and IPv6 follow-up
 
 Observed on 2026-11-15. The branch starts from `f9cfa8a`, the head independently reviewed

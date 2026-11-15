@@ -1,6 +1,6 @@
 # Input and output adapters
 
-Choose an input with `source.type`. Choose an output with `publish.type`.
+Choose an input with `source.type`, or several named inputs with `inputs`. Choose an output with `publish.type`.
 Both choices are required for publication. No Sonar account or WordPress site is required when using other adapters.
 
 ```mermaid
@@ -28,11 +28,10 @@ methods may expose extra evidence. They must not change publication policy.
 
 The model can come from billing, IPAM, network management or a reviewed export.
 An API that provides subscriber addresses alone does not prove where a hosting pool belongs.
-Joining several input systems is future work. A join must use reviewed stable IDs and report
-conflicts. The current CLI selects one source per run.
-[Issue #38](https://github.com/MHammett/isp-geofeed-generator/issues/38) tracks combining
-inventories, including Sonar customer subnets with NetBox infrastructure subnets, followed
-by a separate mode for explicit site/location enrichment.
+[Named inputs](multiple-inputs.md) can combine selected inventories in one run. Validation
+keeps each input's IDs and mappings separate and rejects cross-input overlaps. A missing
+required input stops the whole run. Explicit site/location enrichment remains future work;
+such a join must use reviewed stable IDs and report conflicts.
 
 ## Output contract
 

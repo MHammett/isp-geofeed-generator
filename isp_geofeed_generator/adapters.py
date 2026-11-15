@@ -10,6 +10,22 @@ from .powercode import Powercode
 from .gaiia import Gaiia
 from .publish import WordPress, publish_file, publish_wordpress
 from .locations import LOCATION_FIELDS
+from .credentials import InputCredentialStore
+
+
+def source_url(credentials, environment_name, default=''):
+    """Use the named input endpoint; retain environment setup for legacy runs."""
+    if isinstance(credentials, InputCredentialStore):
+        return credentials.url or default
+    return os.environ.get(environment_name, default)
+
+
+def phpipam_source(settings, credentials):
+    app_id = settings.get('app_id')
+    if app_id is None:
+        app_id = '' if isinstance(credentials, InputCredentialStore) else os.environ.get('PHPIPAM_APP_ID', '')
+    return PhpIPAM(source_url(credentials, 'PHPIPAM_URL'), app_id,
+                  credentials.get('PHPIPAM_API_TOKEN'), settings)
 
 
 def validate_settings(kind, settings):
@@ -68,17 +84,17 @@ class RecordFileTarget:
 # Factories read only the credentials needed by that adapter. No configuration
 # value is treated as an import path, executable command or arbitrary plugin.
 SOURCES = {
-    "sonar": SourceAdapter(lambda s, c: Sonar(os.environ.get("SONAR_URL", ""), c.get("SONAR_API_TOKEN"), settings=s), initial=False,
+    "sonar": SourceAdapter(lambda s, c: Sonar(source_url(c, "SONAR_URL"), c.get("SONAR_API_TOKEN"), settings=s), initial=False,
                            settings=frozenset({"site_resolution", "pool_ids", "subnet_ids"}), validate=lambda s: validate_settings('sonar', s)),
-    "netbox": SourceAdapter(lambda s, c: NetBox(os.environ.get("NETBOX_URL", ""), c.get("NETBOX_API_TOKEN"), s), initial=False,
+    "netbox": SourceAdapter(lambda s, c: NetBox(source_url(c, "NETBOX_URL"), c.get("NETBOX_API_TOKEN"), s), initial=False,
                             settings=frozenset({"allow_http", "auth_scheme", "tag", "prefix_ids", "range_ids", "statuses", "vrf_ids", "location_fields"}), validate=lambda s: validate_settings('netbox', s)),
-    "splynx": SourceAdapter(lambda s, c: Splynx(os.environ.get("SPLYNX_URL", ""), c.get("SPLYNX_API_KEY"), c.get("SPLYNX_API_SECRET"), s), initial=True,
+    "splynx": SourceAdapter(lambda s, c: Splynx(source_url(c, "SPLYNX_URL"), c.get("SPLYNX_API_KEY"), c.get("SPLYNX_API_SECRET"), s), initial=True,
                             settings=frozenset({"network_ids", "location_sites"}), validate=lambda s: validate_settings('splynx', s)),
-    "phpipam": SourceAdapter(lambda s, c: PhpIPAM(os.environ.get("PHPIPAM_URL", ""), os.environ.get("PHPIPAM_APP_ID", ""), c.get("PHPIPAM_API_TOKEN"), s), initial=True,
-                             settings=frozenset({"subnet_ids"}), validate=lambda s: validate_settings('phpipam', s)),
-    "powercode": SourceAdapter(lambda s, c: Powercode(os.environ.get("POWERCODE_URL", ""), c.get("POWERCODE_API_KEY"), s), initial=True,
+    "phpipam": SourceAdapter(phpipam_source, initial=True,
+                             settings=frozenset({"subnet_ids", "app_id"}), validate=lambda s: validate_settings('phpipam', s)),
+    "powercode": SourceAdapter(lambda s, c: Powercode(source_url(c, "POWERCODE_URL"), c.get("POWERCODE_API_KEY"), s), initial=True,
                                settings=frozenset({"range_ids", "facility_ids"})),
-    "gaiia": SourceAdapter(lambda s, c: Gaiia(os.environ.get("GAIIA_URL", "https://api.gaiia.com/api/v1"), c.get("GAIIA_API_KEY"), s), initial=True,
+    "gaiia": SourceAdapter(lambda s, c: Gaiia(source_url(c, "GAIIA_URL", "https://api.gaiia.com/api/v1"), c.get("GAIIA_API_KEY"), s), initial=True,
                            settings=frozenset({"site_ids", "block_ids", "include_coordinates"})),
 }
 

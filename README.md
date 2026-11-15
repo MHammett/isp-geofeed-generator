@@ -6,6 +6,7 @@ Publish to WordPress or write a file. Rich JSON supports separately selected loc
 
 This is an independent community project. Contributions are welcome.
 Built-in source adapters are read-only.
+Combine Sonar customer space and NetBox infrastructure space with [named inputs](docs/multiple-inputs.md).
 No customer records or street addresses are published. Coordinates require explicit output selection.
 
 ## Sources and verification
@@ -26,7 +27,7 @@ VISP, Azotel and other platforms can be added when their needed API operations a
 
 ## How it works
 
-Read-only source -> exact public prefixes and site links -> validation -> WordPress or file.
+Read-only inputs -> selected exact public prefixes and site links -> validation -> one output.
 
 - Handles each API's documented pagination and bounded responses.
 - Uses native site links or reviewed configuration; never guesses from names.
