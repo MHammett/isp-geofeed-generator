@@ -22,7 +22,9 @@ from isp_geofeed_generator.records import encode_records, parse_records, publish
 class BogonTests(unittest.TestCase):
     def test_special_space_fixture_matches_python_and_wordpress_contract(self):
         fixture = json.loads((Path(__file__).parent/'fixtures/special-prefixes.json').read_text())
-        self.assertEqual(fixture, [str(net) for net in SPECIAL])
+        # Newer Python patch releases render mapped IPv6 with dotted IPv4 text.
+        # Compare address coverage, while PHP checks the literal shared list.
+        self.assertEqual([ipaddress.ip_network(value) for value in fixture], SPECIAL)
     def test_interior_overlap_and_unallocated_space_are_refused(self):
         guard = policy()
         for value in ('14.102.240.0/20', '14.0.0.0/8', '4000::/3', 'fc00::/7'):
