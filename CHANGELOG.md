@@ -1,16 +1,14 @@
 # Changelog
 
-## 0.2.0 - 2026-11-15
+## Unreleased
 
-- Renamed the project, package, service and WordPress plugin to ISP Geofeed Generator.
+- Initial public implementation of ISP Geofeed Generator (development version 0.2.0).
 - Added Sonar controller management-IP to site discovery through inventory.
 - Added NetBox prefixes, ranges, native scopes and explicit publication selection.
 - Added initial Splynx and phpIPAM adapters, with publication opt-in and clear test limits.
 - Added systemd credential, protected-file and Windows Credential Manager readers.
 - Added an encrypted-credential setup helper, error redaction and pinned CI actions.
 - Added operator setup, platform capability and security guides.
-
-## 0.1.0 - 2026-11-15
 
 - Added read-only Sonar pool and network-site discovery.
 - Added optional assignment-based site candidates with an explicit ownership warning.

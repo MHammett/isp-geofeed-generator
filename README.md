@@ -113,7 +113,7 @@ If recovery cannot be verified, the result says so and exits with failure.
 
 For a file target, set `publish.type: file` and `publish.path`.
 Local write/read-back does not prove public HTTPS access; check the web-server path separately.
-[The optional systemd runbook](docs/scripting1.md) uses a dedicated account and restricted state directory.
+[The optional systemd runbook](docs/systemd.md) uses a dedicated account and restricted state directory.
 Enable a schedule only after the actual workload succeeds.
 
 The default withdrawal limit is 10% of previous address coverage, checked separately for IPv4 and IPv6.
@@ -136,6 +136,7 @@ REQUIRE_PHP=1 bash tests/test.sh
 The full harness needs PHP 8.0+ CLI. Offline tests do not replace a real WordPress staging trial.
 See [verification evidence](docs/verification.md) and [review issues](https://github.com/MHammett/isp-geofeed-generator/issues).
 New adapters need public source docs, synthetic fixtures, failure tests, setup instructions and an honest verification level.
+See [adapter contracts](docs/adapters.md), [prior art](docs/prior-art.md), and [platform research](docs/platform-research.md).
 Feedback should include platform version and sanitized response shapes. Never include credentials or raw customer exports.
 
 Source code is under `isp_geofeed_generator/`; the plugin is under `wordpress/`.

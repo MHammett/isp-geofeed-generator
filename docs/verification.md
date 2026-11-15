@@ -4,6 +4,13 @@
 
 Evidence updated November 15, 2026.
 
+The table below records the initial implementation at revision
+`048ce92164099fe31b425de27687ddeb28e8f4a8`, not later follow-up commits.
+The review follow-up adds 11 regression/contract tests: Windows ran 69 tests, with
+68 passing and one POSIX-only skip. Consult the [PR checks](https://github.com/MHammett/isp-geofeed-generator/pull/7/checks)
+for the current Linux, Windows, PHP and deploy-harness results.
+See [the follow-up record](review-followup.md) for the failure cases and remaining limits.
+
 | Check | Result |
 | --- | --- |
 | Python suite on scripting1 | 58 tests passed, including POSIX secret-file checks |
@@ -17,7 +24,7 @@ Evidence updated November 15, 2026.
 | Encrypted credential enrollment/decryption under a new service | Not measured |
 | Real WordPress activation, public publication, timer and alerts | Not measured |
 | Sonar web interface | Not measured; browser helper failed twice; tracked in issue 6 |
-| GitHub Actions | Prepared; consult the PR checks for actual results |
+| GitHub Actions | Initial revision passed all five jobs; [run evidence](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43751996141). Consult PR checks for later commits. |
 
 The credential readers were tested for secret redaction, literal-secret rejection, authoritative systemd lookup,
 file permissions, symlinks and size limits. The configured operator instance is not assumed to be the ideal data model.
