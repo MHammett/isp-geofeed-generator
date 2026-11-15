@@ -4,6 +4,8 @@ state_dir: /var/lib/isp-geofeed-generator
 source:
   type: sonar
   site_resolution: controllers # Or configured, for explicit pool_sites mappings only.
+  # subnet_ids: ["201"]  # Explicit native IPv4/IPv6 subnet IDs. Maps use subnet:201.
+  # pool_ids: []  # Skip IPv4 pools for a subnet-only run. Omit to keep existing pools.
 credentials:
   SONAR_API_TOKEN: systemd:SONAR_API_TOKEN
   WP_APP_PASSWORD: systemd:WP_APP_PASSWORD

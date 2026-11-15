@@ -1,5 +1,30 @@
 # Verification
 
+## Sonar subnet and IPv6 follow-up
+
+Observed on 2026-11-15. The branch starts from `f9cfa8a`, the head independently reviewed
+by Claude Code in PR #37. That review verified five prior fixes and tested fullbogon lists
+and refresh behavior; it did not review this new subnet implementation.
+
+Windows ran 122 tests: 121 passed, with one POSIX-only skip. Sixteen new tests cover exact
+IPv6 and IPv4 subnet output, mixed-family and IPv6-only selection, legacy behavior, colliding
+native IDs, missing IDs, EXCLUDED subnets, owner types, exact management-IP assignments,
+global/disabled controllers, missing/conflicting sites and nested relation paging/count drift.
+The CLI workload generates and publishes a dual-stack fixture. It proves missing IDs, lost
+site evidence, bogons and withdrawal of the IPv6 family stop publication and retain prior bytes.
+
+A bounded read-only query verified the live Subnet fields and SubnetType values. The new
+reader returned 28 pools, 44 subnets and 19 sites. It found 20 dedicated inline-device links
+across subnets; seven subnets resolved to one site through management-IP inventory evidence.
+The instance had zero IPv6 subnets. Thus the subnet API and site path have live evidence,
+while positive IPv6 source data and publication remain synthetic, not measured live.
+No Sonar objects, production files, WordPress data or schedules were changed.
+
+Recovery: stop the schedule, keep the last good feed and restore the prior approved package
+and configuration. Generate a candidate before any write. Removing the IPv6 family can
+trigger the withdrawal guard; a package rollback does not authorize a silent withdrawal.
+The current fullbogon check remains mandatory. See [Sonar setup](operator-setup.md#sonar).
+
 ## Powercode, gaiia and local extension follow-up
 
 Observed on 2026-11-15. Windows ran 106 tests: 105 passed, one POSIX-only check skipped.

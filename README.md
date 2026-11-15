@@ -12,7 +12,7 @@ No customer records or street addresses are published. Coordinates require expli
 
 | Source | Status |
 | --- | --- |
-| Sonar v2 | IPv4 pools only; read-only live checks; explicit mapping and optional DHCP/inline-controller site discovery |
+| Sonar v2 | IPv4 pools and explicitly selected IPv4/IPv6 subnets; controller-to-site discovery. Subnet API/site links checked live; IPv6 output fixture-tested |
 | NetBox | Read-only live 4.7.3 checks; native site/location scope and range-parent resolution |
 | Splynx API v2 | Initial support, based on vendor schema and synthetic fixtures; not live-tested |
 | phpIPAM | Initial support, based on public docs and synthetic fixtures; not live-tested |
@@ -79,7 +79,7 @@ See [local customization](docs/customization.md) for separately installed input/
 
 The example allocation `192.0.2.0/24` is documentation space and cannot be published. Replace it.
 Do not select a parent prefix and overlapping children together.
-Record IDs are digit strings for Sonar, `prefix:<id>`/`range:<id>` for NetBox,
+Record IDs are digit strings for Sonar pools and `subnet:<id>` for Sonar subnets, `prefix:<id>`/`range:<id>` for NetBox,
 `ipv4:<id>`/`ipv6:<id>` for Splynx, `subnet:<id>` for phpIPAM and `range:<id>` for Powercode.
 gaiia uses native GlobalID values for selection and normalized IDs for overrides; discovery reports both.
 
@@ -89,6 +89,10 @@ Sonar links pools directly to DHCP servers and links parent subnets to inline de
 The generator can follow a controller's management IP through its assignment and inventory holder to a network site.
 Inventory may belong directly to a site or to a site's address.
 Use `source.site_resolution: controllers` after those records are set up correctly.
+For IPv6, explicitly choose `source.subnet_ids`. Sonar assigns IPv6 directly from subnets,
+not pools. The generator follows each subnet's dedicated inline-device links through exact
+management-IP assignments to site inventory. See [Sonar subnet setup](docs/operator-setup.md#sonar)
+and [the IPv6 example](config.sonar-ipv6.yaml.example). Use `source.pool_ids: []` for IPv6-only runs.
 
 In bash on Linux, inspect evidence:
 

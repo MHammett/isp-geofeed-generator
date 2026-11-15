@@ -29,6 +29,9 @@ def validate_settings(kind, settings):
             raise GeofeedError('source.location_fields supports country, region and city')
     if kind == 'sonar' and settings.get('site_resolution', 'configured') not in ('configured', 'controllers'):
         raise GeofeedError('Sonar site_resolution must be configured or controllers')
+    if kind == 'sonar':
+        for key in ('pool_ids', 'subnet_ids'):
+            Sonar.selected_ids(settings, key)
     if kind == 'splynx' and not isinstance(settings.get('location_sites', {}), dict):
         raise GeofeedError('source.location_sites must be a mapping')
 
@@ -66,7 +69,7 @@ class RecordFileTarget:
 # value is treated as an import path, executable command or arbitrary plugin.
 SOURCES = {
     "sonar": SourceAdapter(lambda s, c: Sonar(os.environ.get("SONAR_URL", ""), c.get("SONAR_API_TOKEN"), settings=s), initial=False,
-                           settings=frozenset({"site_resolution"}), validate=lambda s: validate_settings('sonar', s)),
+                           settings=frozenset({"site_resolution", "pool_ids", "subnet_ids"}), validate=lambda s: validate_settings('sonar', s)),
     "netbox": SourceAdapter(lambda s, c: NetBox(os.environ.get("NETBOX_URL", ""), c.get("NETBOX_API_TOKEN"), s), initial=False,
                             settings=frozenset({"allow_http", "auth_scheme", "tag", "prefix_ids", "range_ids", "statuses", "vrf_ids", "location_fields"}), validate=lambda s: validate_settings('netbox', s)),
     "splynx": SourceAdapter(lambda s, c: Splynx(os.environ.get("SPLYNX_URL", ""), c.get("SPLYNX_API_KEY"), c.get("SPLYNX_API_SECRET"), s), initial=True,

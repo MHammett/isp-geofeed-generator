@@ -4,6 +4,7 @@
 
 - Initial public implementation of ISP Geofeed Generator (development version 0.2.0).
 - Read-only Sonar and NetBox sources with explicit selection, native site links and reviewed mapping options.
+- Sonar IPv6 through explicitly selected subnets, including inline-device management-IP inventory links to network sites, IPv6-only runs and namespaced subnet mappings.
 - Initial Splynx, phpIPAM, Powercode legacy and gaiia sources, with publication opt-in and clear verification limits.
 - Exact-range RFC 8805 output, owned-space checks, withdrawal limits and private status records.
 - Mandatory current IPv4/IPv6 fullbogon checks before CLI generation and publication.

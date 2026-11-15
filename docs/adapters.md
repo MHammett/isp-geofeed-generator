@@ -30,6 +30,9 @@ The model can come from billing, IPAM, network management or a reviewed export.
 An API that provides subscriber addresses alone does not prove where a hosting pool belongs.
 Joining several input systems is future work. A join must use reviewed stable IDs and report
 conflicts. The current CLI selects one source per run.
+[Issue #38](https://github.com/MHammett/isp-geofeed-generator/issues/38) tracks combining
+inventories, including Sonar customer subnets with NetBox infrastructure subnets, followed
+by a separate mode for explicit site/location enrichment.
 
 ## Output contract
 

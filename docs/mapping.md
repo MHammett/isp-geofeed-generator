@@ -37,6 +37,15 @@ and missing or conflicting site assignments require explicit configuration.
 This describes the controller's hosting facility, which can differ from the customer service area.
 See [operator setup](operator-setup.md) for the records needed and provisioning considerations.
 
+Explicitly selected IPv4/IPv6 subnets follow the same inline-device path without needing an
+IP pool. They use `subnet:<id>` mapping keys. Pool IDs stay unchanged. A DHCP link to pool
+`101` does not apply to subnet `101`; only the latter's inline-device relationships count.
+An exact management-IP assignment can be directly on a network site, on its inventory item,
+or on a model field whose inventory holder is the site or one of its addresses.
+Global/disabled inline devices are not used. Every relevant dedicated controller must resolve
+to the same known site; missing or conflicting evidence leaves automatic resolution unset.
+An explicit reviewed `pool_sites` mapping can resolve that policy decision.
+
 All paginated results must be complete. Nested results use a bounded first page and a separately paginated
 query when needed. Duplicate records, changing totals and count mismatches stop the run.
 Sonar is not a transactional snapshot API, so an edit that preserves all counts can still occur during a read.

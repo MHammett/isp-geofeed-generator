@@ -1,6 +1,7 @@
 """Small, bounded GraphQL reader; no mutation API and no automatic retries."""
 import json
 import ipaddress
+import re
 from . import __version__
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlencode
@@ -55,7 +56,32 @@ class JsonHTTP:
 
 class Sonar:
     def for_publication(self, snapshot):
-        return snapshot
+        pools = snapshot['pools']
+        selected = []
+        for kind, ids in (('pool', self.pool_ids), ('subnet', self.subnet_ids)):
+            rows = [row for row in pools if row.get('source_kind', 'pool') == kind]
+            if ids is not None:
+                found = {row.get('source_id', str(row['id'])) for row in rows}
+                if ids - found:
+                    raise GeofeedError(f'Configured Sonar {kind} IDs no longer exist or are not visible')
+                rows = [row for row in rows if row.get('source_id', str(row['id'])) in ids]
+            for row in rows:
+                if kind == 'subnet' and row['subnet_type'] == 'EXCLUDED':
+                    raise GeofeedError(f"Sonar {row['id']} is EXCLUDED; select an active service subnet")
+            selected.extend(rows)
+        if not selected:
+            raise GeofeedError('No Sonar pools or explicitly selected subnets; publication stopped')
+        return {**snapshot, 'pools': selected}
+
+    @staticmethod
+    def selected_ids(settings, key):
+        if key not in settings:
+            return None
+        values = settings[key]
+        if (not isinstance(values, list) or any(not isinstance(value, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', value) for value in values)
+                or len(values) != len(set(values))):
+            raise GeofeedError(f'Sonar source.{key} must contain unique positive digit-string IDs')
+        return set(values)
 
     def __init__(self, url, token, http=None, page_size=100, settings=None):
         if not token or any(c.isspace() for c in token):
@@ -66,6 +92,9 @@ class Sonar:
         self.http = http or JsonHTTP()
         self.page_size = page_size
         self.settings = settings or {}
+        self.pool_ids = self.selected_ids(self.settings, 'pool_ids')
+        self.subnet_ids = self.selected_ids(self.settings, 'subnet_ids') or set()
+        self.read_subnets = 'subnet_ids' in self.settings
 
     def query(self, query, variables=None):
         result = self.http.request(self.url, body={"query": query, "variables": variables or {}}, headers=self.headers)
@@ -106,9 +135,23 @@ class Sonar:
         raise GeofeedError("Pagination limit exceeded")
 
     def snapshot(self):
-        pools = self.pages("ip_pools", "id name ip_range subnet_id subnet { id subnet }")
+        pools = self.pages("ip_pools", "id name ip_range subnet_id subnet { id subnet }") if self.pool_ids != set() else []
+        if self.read_subnets:
+            for row in self.pages('subnets', 'id name subnet type'):
+                sid = str(row.get('id', ''))
+                if not re.fullmatch(r'[1-9][0-9]{0,19}', sid):
+                    raise GeofeedError('Sonar subnet has a missing or invalid ID')
+                try:
+                    network = ipaddress.ip_network(row['subnet'], strict=True)
+                except (KeyError, TypeError, ValueError):
+                    raise GeofeedError(f'Sonar subnet:{sid} has an invalid or noncanonical prefix') from None
+                if row.get('type') not in ('ACCOUNT', 'MIXED', 'NETWORK', 'EXCLUDED'):
+                    raise GeofeedError(f'Sonar subnet:{sid} has an invalid subnet type')
+                pools.append({'id': 'subnet:' + sid, 'source_id': sid, 'source_kind': 'subnet',
+                    'name': row.get('name'), 'subnet_type': row['type'],
+                    'ip_range': str(network), 'subnet_id': sid, 'subnet': {'id': sid, 'subnet': str(network)}})
         if not pools:
-            raise GeofeedError("Sonar returned zero IP pools; not measured, publication stopped")
+            raise GeofeedError("Sonar returned zero pools/subnets for the requested inventory; not measured, publication stopped")
         sites = self.pages("network_sites", """id name addresses(paginator: {page: 1, records_per_page: 100}) {
             page_info {total_count} entities {id city country subdivision}}""")
         for site in sites:
@@ -131,7 +174,7 @@ class Sonar:
                     pool["scope_error"] = candidate["reason"]
         return snapshot
 
-    def _related_pages(self, root, entity_id, relation, fields):
+    def _related_pages(self, root, entity_id, relation, fields, *, expected_total=None):
         rows, seen, total = [], set(), None
         for page in range(1, 10001):
             q = f'''query Related($id: Int64Bit!, $page: Int!, $size: Int!) {{
@@ -143,14 +186,16 @@ class Sonar:
             conn = parent[0][relation]
             info, batch = conn["page_info"], conn["entities"]
             count = int(info["total_count"])
+            if expected_total is not None and count != expected_total:
+                raise GeofeedError('Sonar controller relation count changed after inventory read')
             if total is None:
                 total = count
             if count != total or int(info["page"]) != page:
                 raise GeofeedError("Sonar controller relation changed during pagination")
             for row in batch:
                 key = str(row["id"])
-                if key in seen:
-                    raise GeofeedError("Duplicate Sonar controller relation record")
+                if not re.fullmatch(r'[1-9][0-9]{0,19}', key) or key in seen:
+                    raise GeofeedError("Invalid or duplicate Sonar controller relation record")
                 seen.add(key); rows.append(row)
             if page >= int(info["total_pages"]):
                 if len(rows) != total:
@@ -205,13 +250,26 @@ class Sonar:
 
         for root, relation, flag, kind in (("dhcp_servers", "ip_pools", "serves_all_pools", "dhcp"),
                                             ("inline_devices", "subnets", "all_subnets", "inline")):
+            if kind == 'dhcp' and not any(p.get('source_kind', 'pool') == 'pool' for p in snapshot['pools']):
+                continue
             fields = f'''id name ip_address enabled {flag} {relation}(paginator: {{page: 1, records_per_page: 100}}) {{
                 page_info {{total_count}} entities {{id}} }}'''
             for controller in self.pages(root, fields):
+                if type(controller.get('enabled')) is not bool or type(controller.get(flag)) is not bool:
+                    raise GeofeedError('Sonar controller has invalid enabled/global flags')
                 if not controller["enabled"] or controller[flag]:
                     continue
                 conn = controller[relation]
-                linked = conn["entities"] if len(conn["entities"]) == int(conn["page_info"]["total_count"]) else self._related_pages(root, controller["id"], relation, "id")
+                try:
+                    batch, count = conn['entities'], conn['page_info']['total_count']
+                    if type(count) is not int or count < 0 or not isinstance(batch, list) or len(batch) > count:
+                        raise ValueError()
+                    ids = [str(row['id']) for row in batch]
+                    if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[1-9][0-9]{0,19}', value) for value in ids):
+                        raise ValueError()
+                except (KeyError, TypeError, ValueError):
+                    raise GeofeedError('Sonar controller link metadata is missing, invalid or duplicated') from None
+                linked = batch if len(batch) == count else self._related_pages(root, controller['id'], relation, 'id', expected_total=count)
                 pool_ids = [str(row["id"]) for row in linked] if kind == "dhcp" else [pid for row in linked for pid in subnets.get(str(row["id"]), [])]
                 if not pool_ids:
                     continue

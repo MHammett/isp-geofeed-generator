@@ -5,25 +5,52 @@ Use your platform's normal change process for the setup below.
 
 ## Sonar
 
-The current adapter publishes IPv4 pools only. Sonar's pool range scalar is IPv4-only;
-changing instance setup cannot make this reader export IPv6. Sonar itself supports IPv6
-directly through subnets and DHCP/RADIUS, as its [IPAM setup guide](https://docs.sonar.expert/networking/ipam-policy-best-practices)
-explains. Our adapter needs a subnet-reading path and verified site resolution, tracked
-in issue #17. The subnet API exposes inline-device relationships, so this remains an
-adapter gap rather than evidence that Sonar cannot provide IPv6 geofeed data. Subnets without pools are also outside
-the current reader, tracked in issue #34.
+Sonar uses IPv4 pools and assigns IPv6 directly from subnets through DHCP/RADIUS, as its
+[IPAM setup guide](https://docs.sonar.expert/networking/ipam-policy-best-practices) explains.
+The adapter reads IPv4 pools by default. Add `source.subnet_ids` to read subnet inventory
+and explicitly choose IPv4 or IPv6 prefixes for publication. It never selects all subnets
+or publishes an entire supernet automatically.
+
+```yaml
+source:
+  type: sonar
+  subnet_ids: ["201", "202"]
+  site_resolution: controllers
+  # pool_ids: []  # No IPv4 pool reads or publication. Omit to retain all existing pools.
+  # pool_ids: ["101"]  # Or choose specific native pool IDs.
+```
+
+Use native positive digit-string IDs in the source lists. In discovery, mappings and exclusions,
+subnets use `subnet:201`; existing pool IDs remain `101`. This avoids collisions when a pool
+and subnet share a number. For example, `pool_sites: {"subnet:201": "11"}` provides a reviewed
+site override. The generic `pool_sites` and `exclude_pools` keys apply to both kinds.
+
+To discover available subnets without publishing any of them, set `subnet_ids: []` and run
+`discover`. Then choose the intended service subnet IDs. `pool_ids: []` skips pool reads, so
+an IPv6-only instance does not need pool records or pool-read permissions. Grant subnet,
+network-site and address reads; controller resolution also needs inline-device, management-IP
+assignment and inventory-holder reads. Keep discovery exports private.
+
+Each selected subnet publishes its exact CIDR. EXCLUDED subnets and missing selected IDs stop
+the run. An IPv4 subnet without a pool is supported the same way. Do not select an IPv4 parent
+subnet along with overlapping pools, or a parent subnet and its child: shared overlap checks
+will refuse the feed. Choose service aggregates that match your location policy, not every
+customer delegation. There is no automatic aggregation across customer assignments.
 
 1. Create or verify the network site and its country, subdivision and city address values.
 2. Assign the physical or virtual controller's inventory record to that site, or to an address belonging to that site.
 3. Record the controller's exact management IP assignment on that inventory record or one of its inventory fields.
-4. Link each pool to its DHCP server. For an inline device, link the pool's parent subnet to that device.
+4. Link each IPv4 pool to its DHCP server. Link each selected IPv6 subnet, or an IPv4 pool's parent subnet, to its inline device.
 5. Use `source.site_resolution: controllers` to derive hosting sites from those records.
 6. Generate discovery output and check each controller-derived site.
-7. Use `pool_sites` overrides for pools whose service location differs from the controller's facility.
+7. Use `pool_sites` overrides for pools or subnets whose service location differs from the controller's facility.
 
 Sonar has a direct pool-to-DHCP-server relationship and a subnet-to-inline-device relationship.
 The controller records do not expose a direct network-site field in the schema checked here.
 Their management-IP inventory assignments provide the next link.
+For selected subnets, DHCP pool links are not site evidence. Only the subnet-to-inline-device
+path is used. The controller management address can be IPv4 or IPv6; it must have an exact
+host assignment. A broader routed prefix does not prove the device belongs to that site.
 
 Controllers configured for all pools or all subnets are not used to infer one pool's host.
 Disabled controllers are also ignored. Missing or conflicting site assignments stop automatic resolution.
@@ -33,6 +60,13 @@ Do not create a customer DHCP reservation merely to satisfy a discovery check.
 
 The host of a central DHCP or policy device is not necessarily the subscriber's town.
 Choose the geolocation policy you want before accepting automatically derived hosting-site locations.
+If one subnet spans several facilities, use smaller service subnets or reviewed explicit mappings.
+Missing inventory links are an instance setup gap; they do not mean Sonar lacks IPv6 support.
+
+Subnet fields and controller-to-site resolution have read-only live evidence. The available
+test instance had no IPv6 subnets, so positive IPv6 generation/publication is fixture-tested,
+not live-verified. Compare discovery and candidates with your IPv6 inventory before scheduling.
+The mandatory fullbogon, allowed-prefix and per-family withdrawal checks apply to both families.
 
 ## NetBox
 
