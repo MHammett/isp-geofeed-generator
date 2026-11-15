@@ -18,7 +18,7 @@ if [[ -f $HELPERS ]]; then
     printf '%s\n' '# must not deploy' > "$REPO/.venv/deploy-leak-canary/canary.py"
     assert_no_path_leaks_into_deploy "$REPO/deploy-update.sh" "$REPO/.venv" 'venv canary'
 else
-    echo 'Shared scripting1 coverage helpers unavailable; running portable coverage assertion.'
+    echo 'Shared coverage helpers unavailable; running portable coverage assertion.'
     "${PYTHON:-python3}" tests/check_deploy.py
 fi
 if command -v php >/dev/null; then

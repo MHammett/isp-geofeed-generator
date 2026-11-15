@@ -33,7 +33,7 @@ class NetBox:
         self.base = base if base.endswith("/api") else base + "/api"
         if not token or any(c.isspace() for c in token):
             raise GeofeedError("NETBOX_API_TOKEN is missing or contains whitespace")
-        scheme = self.settings.get("auth_scheme", "Bearer")
+        scheme = self.settings.get("auth_scheme", "Token")
         if scheme not in ("Bearer", "Token"):
             raise GeofeedError("NetBox auth_scheme must be Bearer or Token")
         self.headers = {"Authorization": scheme + " " + token, "Accept": "application/json"}
@@ -43,8 +43,14 @@ class NetBox:
         rows, seen, total, offset = [], set(), None, 0
         url = self.base + path
         for _ in range(10000):
-            data = self.http.request(url + "?" + urlencode({"limit": 100, "offset": offset}),
-                                     headers=self.headers, method="GET")
+            try:
+                data = self.http.request(url + "?" + urlencode({"limit": 100, "offset": offset}),
+                                         headers=self.headers, method="GET")
+            except GeofeedError as exc:
+                match = re.match(r'HTTP (401|403)\b', str(exc))
+                if match:
+                    raise GeofeedError(f'NetBox authentication/read access refused (HTTP {match[1]}); verify token, auth_scheme and object permissions') from None
+                raise
             try:
                 count, batch, following = data["count"], data["results"], data["next"]
                 if isinstance(count, bool) or not isinstance(count, int) or count < 0 or not isinstance(batch, list):
@@ -106,7 +112,7 @@ class NetBox:
         prefixes = self.pages("/ipam/prefixes/")
         ranges = self.pages("/ipam/ip-ranges/")
         if not prefixes and not ranges:
-            raise GeofeedError("NetBox returned zero prefixes and ranges; not measured")
+            raise GeofeedError("NetBox returned zero prefixes and ranges; verify token, auth_scheme and object permissions; not measured")
         sites = self.pages("/dcim/sites/")
         locations = ({str(r["id"]): r for r in self.pages("/dcim/locations/")}
                      if any(p.get("scope_type") == "dcim.location" for p in prefixes) else {})

@@ -79,6 +79,9 @@ model. Use the SDK's `builtin_source(name, settings, credentials)` and
 The core still validates exact ranges, owned space and locations. Local targets must
 meet the [output contract](adapters.md), including read-back and recovery. They can reuse
 `publish_file` or `publish_wordpress` from the SDK instead of duplicating those safeguards.
+For richer provider data, declare output capabilities and use normalized records as described
+in [output formats](output-formats.md). The CLI applies current fullbogon checks before calling
+the selected target. Direct SDK callers must apply that policy themselves.
 Keep module imports free of network calls and credential reads; do that work only when the selected factory runs.
 
 ## Update and recover

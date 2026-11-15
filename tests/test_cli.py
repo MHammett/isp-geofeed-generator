@@ -5,9 +5,14 @@ from unittest.mock import patch
 from isp_geofeed_generator.cli import load_config, main, run_lock
 from isp_geofeed_generator.client import GeofeedError
 from test_feed import snapshot
+from bogon_fixture import policy
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self):
+        self.guard = patch('isp_geofeed_generator.cli.load_policy', side_effect=lambda config: policy())
+        self.guard.start(); self.addCleanup(self.guard.stop)
+
     def test_bad_config_and_unknown_keys_fail(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'config.yaml'

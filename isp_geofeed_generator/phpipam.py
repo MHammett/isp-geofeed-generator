@@ -44,8 +44,16 @@ class PhpIPAM:
             else:
                 address = ipaddress.ip_address(value)
             network = ipaddress.ip_network(f"{address}/{row['mask']}", strict=True)
-            sid = row.get('location')
-            sid = str(sid) if sid not in (None, '', 0, '0') else None
+            native_location = row.get('location')
+            if isinstance(native_location, dict):
+                sid = native_location.get('id')
+            elif native_location in (None, '', 0, '0', []):
+                sid = None
+            else:
+                sid = native_location
+            if sid is not None and not re.fullmatch(r'[0-9]{1,20}', str(sid)):
+                raise GeofeedError('phpIPAM subnet location has an invalid ID; raw location details were not logged')
+            sid = str(sid) if sid is not None else None
             pools.append({'id': 'subnet:' + str(row['id']), 'name': row.get('description') or str(network),
                 'ip_range': str(network), 'subnet': {'subnet': str(network)}, 'site_id': sid,
                 'scope_error': 'Subnet location is unassigned; set the location or configure pool_sites',

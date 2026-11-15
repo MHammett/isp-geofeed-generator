@@ -42,6 +42,14 @@ $old = "11.22.33.0/24,US,US-IL,Old City,\n";
 $new = "11.22.33.0/24,US,US-IL,New City,\n";
 check(isp_geofeed_generator_valid_csv($old), 'valid UTF-8 five-field CSV');
 check(isp_geofeed_generator_valid_csv("2001:4860:1234::/64,US,US-IL,Example,\n"), 'IPv6 CSV');
+$special = json_decode(file_get_contents(__DIR__.'/fixtures/special-prefixes.json'), true);
+check(ISP_GEOFEED_SPECIAL_RANGES === $special, 'WordPress special-space list matches shared fixture');
+foreach ($special as $prefix) {
+    check(!isp_geofeed_generator_valid_csv($prefix.",US,US-IL,Example,\n"), 'reject each shared special prefix');
+}
+foreach (['8.0.0.0/6', '64.0.0.0/2'] as $prefix) {
+    check(!isp_geofeed_generator_valid_csv($prefix.",US,US-IL,Example,\n"), 'reject reserved space inside a broad prefix');
+}
 foreach (['', '<html>bad</html>', "11.0.0.1/24,US,US-IL,City,\n", $old.$old,
     "11.0.0.0/24,US,GB-ENG,City,\n", "11.0.0.0/24,US,US-IL,City,12345\n",
     "11.0.0.0/24,US,US-IL,\"City\",\n", "10.0.0.0/8,US,US-IL,City,\n",

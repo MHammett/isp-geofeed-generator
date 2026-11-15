@@ -1,6 +1,7 @@
 """Version 1 of the public adapter contract. Keep imports lightweight."""
 from dataclasses import dataclass
 from typing import Callable, Protocol
+from .locations import COARSE_FIELDS
 
 ADAPTER_API_VERSION = 1
 
@@ -11,7 +12,7 @@ class Source(Protocol):
 
 
 class Target(Protocol):
-    def publish(self, csv: bytes, state_dir, **guards) -> dict: ...
+    def publish(self, payload: bytes | list[dict], state_dir, **guards) -> dict: ...
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,9 @@ class TargetAdapter:
     initial: bool = True
     settings: frozenset = frozenset()
     api_version: int = ADAPTER_API_VERSION
+    payload_format: str = 'csv'
+    location_fields: frozenset = COARSE_FIELDS
+    required_fields: frozenset = COARSE_FIELDS
 
     def __call__(self, settings, credentials):
         return self.create(settings, credentials)

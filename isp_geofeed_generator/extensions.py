@@ -3,6 +3,7 @@ import re
 from importlib import metadata
 from .client import GeofeedError
 from .contracts import ADAPTER_API_VERSION, SourceAdapter, TargetAdapter
+from .locations import LOCATION_FIELDS
 
 
 def load_extensions(settings, sources, targets):
@@ -32,8 +33,13 @@ def load_extensions(settings, sources, targets):
             if (not isinstance(adapter, cls) or type(adapter.api_version) is not int or adapter.api_version != ADAPTER_API_VERSION
                     or type(adapter.initial) is not bool or not callable(adapter.create)
                     or not isinstance(adapter.settings, frozenset)
-                    or any(not isinstance(k, str) or k in {'type', 'allow_initial'} for k in adapter.settings)
+                    or any(not isinstance(k, str) or k in ({'type', 'allow_initial', 'location_fields'} if isinstance(adapter, TargetAdapter) else {'type', 'allow_initial'}) for k in adapter.settings)
                     or (isinstance(adapter, SourceAdapter) and adapter.validate is not None and not callable(adapter.validate))):
                 raise GeofeedError(f'Extension {name} has an incompatible or invalid adapter contract')
             registry[name] = adapter
+            if isinstance(adapter, TargetAdapter) and (
+                    adapter.payload_format not in ('csv', 'records')
+                    or not isinstance(adapter.location_fields, frozenset) or not isinstance(adapter.required_fields, frozenset)
+                    or adapter.location_fields - LOCATION_FIELDS or adapter.required_fields - adapter.location_fields):
+                raise GeofeedError(f'Extension {name} declares invalid location capabilities')
     return result

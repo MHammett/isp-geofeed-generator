@@ -54,6 +54,9 @@ class Gaiia:
         self.settings, self.http = settings or {}, http or JsonHTTP()
         self.site_ids = selected_ids(self.settings, 'site_ids')
         self.block_ids = selected_ids(self.settings, 'block_ids')
+        self.include_coordinates = self.settings.get('include_coordinates', False)
+        if type(self.include_coordinates) is not bool:
+            raise GeofeedError('gaiia include_coordinates must be true or false')
         if self.site_ids and self.block_ids:
             raise GeofeedError('Choose gaiia source.site_ids or source.block_ids, not both')
 
@@ -98,7 +101,8 @@ class Gaiia:
 
     def snapshot(self):
         def site_page(cursor):
-            return self.query(SITES_QUERY, {'first': 100, 'after': cursor}).get('networkSites')
+            query = SITES_QUERY.replace('locality', 'locality latitude longitude') if self.include_coordinates else SITES_QUERY
+            return self.query(query, {'first': 100, 'after': cursor}).get('networkSites')
         sites = self.pages(site_page, 'sites')
         if not sites:
             raise GeofeedError('gaiia returned zero network sites; not measured')
@@ -118,6 +122,8 @@ class Gaiia:
             normalized_sites.append({'id': sid, 'source_id': site['id'], 'name': site['name'],
                 'archived': site['archivedAt'] is not None,
                 'addresses': [{'id': 'site-address', 'country': country, 'subdivision': region, 'city': address['locality']}]})
+            if self.include_coordinates:
+                normalized_sites[-1]['addresses'][0].update({key: address.get(key) for key in ('latitude', 'longitude')})
             def block_page(cursor):
                 owner = self.query(BLOCKS_QUERY, {'id': site['id'], 'first': 100, 'after': cursor}).get('networkSite')
                 if (not isinstance(owner, dict) or owner.get('id') != site['id']

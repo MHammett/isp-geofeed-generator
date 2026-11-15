@@ -16,6 +16,7 @@ from isp_geofeed_generator.extensions import load_extensions
 from isp_geofeed_generator.cli import load_config
 from isp_geofeed_generator.sdk import builtin_source, builtin_target
 from test_feed import snapshot
+from bogon_fixture import files
 
 
 class ExtensionTests(unittest.TestCase):
@@ -106,10 +107,12 @@ class ExtensionTests(unittest.TestCase):
             (metadata/'entry_points.txt').write_text('[isp_geofeed_generator.sources.v1]\nlocal_json = geofeed_local:SOURCE\n[isp_geofeed_generator.targets.v1]\nlocal_file = geofeed_local:TARGET\n')
             inventory = private/'inventory.json'; inventory.write_text(json.dumps(snapshot()))
             cfg = private/'config.yaml'; target = private/'feed.csv'
+            bogons = files(private)
             base = ('extensions: {sources: [local_json], targets: [local_file]}\n'
                     f'source: {{type: local_json, input_path: {inventory.as_posix()}, allow_initial: SOURCE_OPT_IN}}\n'
                     f'publish: {{type: local_file, path: {target.as_posix()}, allow_initial: TARGET_OPT_IN}}\n'
-                    f'state_dir: {private.as_posix()}/state\nallowed_prefixes: [11.22.33.0/24]\npool_sites: {{"101": "11"}}\n')
+                    f'state_dir: {private.as_posix()}/state\nallowed_prefixes: [11.22.33.0/24]\npool_sites: {{"101": "11"}}\n'
+                    +'bogons: '+json.dumps(bogons)+'\n')
             environment = {**os.environ, 'PYTHONPATH': str(installed), 'PYTHONDONTWRITEBYTECODE': '1'}
             command = [sys.executable, '-m', 'isp_geofeed_generator', 'publish', '--config', str(cfg)]
             # Both source and target extensions start as initial support.

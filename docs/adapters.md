@@ -33,10 +33,12 @@ conflicts. The current CLI selects one source per run.
 
 ## Output contract
 
-`Target.publish(csv, state_dir, **guards)` accepts validated UTF-8 CSV bytes. It returns
-a result only after checking the written bytes. Register its factory in `adapters.TARGETS`.
-File and WordPress are independent targets. Other transports can be added without teaching
-the geofeed builder about their API.
+`Target.publish(payload, state_dir, **guards)` accepts validated UTF-8 CSV bytes or a list
+of normalized `{prefix, location}` records, according to its `payload_format` metadata.
+Targets declare supported `location_fields` and `required_fields`. The core checks these
+before calling the target. See [output formats](output-formats.md) for the field contract.
+It returns a result only after checking the written bytes. File, WordPress and rich JSON
+are independent targets. Other transports can supply their own serializers.
 
 Every new target must enforce the shared change guard, protect against competing writes,
 keep the prior feed for recovery and distinguish an unverified recovery from success.
@@ -57,6 +59,8 @@ extensions use [versioned entry points](customization.md) and must be explicitly
 Configuration cannot import module paths, invoke shell commands or install plugins.
 Adapter selection does not grant write access to a source platform.
 
+The CLI checks [current fullbogons](bogons.md) before any output adapter receives a payload.
+Low-level SDK publishers do not download allocation data on their own.
 The CLI owns the publication lock and status file. Discovery and candidate generation do
 not take that lock or overwrite publication health. Use separate candidate output files;
 do not point `--output` at the published feed or its recovery files.

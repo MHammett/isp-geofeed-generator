@@ -11,7 +11,10 @@ from .client import GeofeedError
 from .adapters import SOURCES, TARGETS
 from .extensions import load_extensions
 from .credentials import CredentialStore
-from .feed import build, digest
+from .feed import build_records, render_csv, digest
+from .bogons import load_policy
+from .locations import COARSE_FIELDS
+import ipaddress
 from .publish import atomic_write
 
 
@@ -41,7 +44,7 @@ def load_config(path):
         raise GeofeedError("Cannot read YAML configuration") from None
     if not isinstance(config, dict):
         raise GeofeedError("Configuration must be a YAML mapping")
-    allowed = {"source", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "extensions"}
+    allowed = {"source", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "extensions", "bogons"}
     if set(config) - allowed:
         raise GeofeedError("Unknown configuration keys: " + ", ".join(sorted(set(config) - allowed)))
     limit = config.get("max_removed_fraction", 0.10)
@@ -68,7 +71,7 @@ def load_config(path):
     if 'allow_initial' in target and not isinstance(target['allow_initial'], bool):
         raise GeofeedError('publish.allow_initial must be true or false')
     if target.get('type') in targets and hasattr(targets[target['type']], 'settings'):
-        if set(target) - ({'type', 'allow_initial'} | targets[target['type']].settings):
+        if set(target) - ({'type', 'allow_initial', 'location_fields'} | targets[target['type']].settings):
             raise GeofeedError('Unknown publication target configuration keys')
     return LoadedConfig(config, sources, targets)
 
@@ -145,10 +148,10 @@ def publication_run(directory, credentials, stage):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish a coarse-location geofeed")
+    parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
     parser.add_argument("command", choices=("discover", "generate", "publish"))
     parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--output", help="Private discovery JSON or candidate CSV output file")
+    parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
     args = parser.parse_args(argv)
@@ -185,16 +188,39 @@ def main(argv=None):
             snapshot = source.for_publication(snapshot)
             if args.command == "publish" and adapter.initial and config["source"].get("allow_initial") is not True:
                 raise GeofeedError("Initial adapter: run discovery and candidate checks, then explicitly set source.allow_initial: true before publishing")
-            stage = "validating selected pools and site locations"
-            csv, report = build(snapshot, config)
+            settings = config.get('publish', {})
+            target = config.targets.get(settings.get('type'))
+            payload_format = getattr(target, 'payload_format', 'csv')
+            available = getattr(target, 'location_fields', COARSE_FIELDS)
+            required = getattr(target, 'required_fields', COARSE_FIELDS)
+            requested = settings.get('location_fields', sorted(required or COARSE_FIELDS))
+            if not isinstance(requested, list) or any(not isinstance(field, str) for field in requested) or len(requested) != len(set(requested)):
+                raise GeofeedError('publish.location_fields must contain unique field names')
+            fields = frozenset(requested)
+            if not fields or fields - available or required - fields or (payload_format == 'csv' and fields != COARSE_FIELDS):
+                raise GeofeedError('Selected output cannot accept those fields or is missing required location fields')
+            stage = 'validating selected pools and required location fields'
+            records, report = build_records(snapshot, config, fields)
+            if payload_format == 'records' and any(not row['location'].get(field) and row['location'].get(field) != 0
+                                                   for row in records for field in required):
+                raise GeofeedError('Selected output needs nonempty required location values')
+            stage = 'validating current fullbogon allocation data'
+            policy = load_policy(config)
+            policy.check([ipaddress.ip_network(row['prefix']) for row in records])
+            if payload_format == 'csv':
+                candidate = render_csv(records)
+                payload = candidate
+            else:
+                from .records import encode_records
+                candidate = encode_records(records)
+                payload = records
             if args.command == "generate":
                 if args.output:
-                    atomic_write(args.output, csv)
+                    atomic_write(args.output, candidate)
                 else:
-                    sys.stdout.write(csv.decode())
-                print(f"Validated {len(csv.splitlines())} prefixes; sha256={digest(csv)}", file=sys.stderr)
+                    sys.stdout.write(candidate.decode())
+                print(f"Validated {len(records)} prefixes; sha256={digest(candidate)}", file=sys.stderr)
                 return 0
-            settings = config.get("publish", {})
             kwargs = {"max_removed_fraction": config.get("max_removed_fraction", 0.10)}
             target_kind = settings.get("type")
             if target_kind not in config.targets:
@@ -203,7 +229,7 @@ def main(argv=None):
             if getattr(target, 'initial', False) and settings.get('allow_initial') is not True:
                 raise GeofeedError('Initial output adapter: explicitly set publish.allow_initial: true after testing')
             stage = f"publishing to {target_kind}"
-            result = target(settings, credentials).publish(csv, directory, **kwargs)
+            result = target(settings, credentials).publish(payload, directory, **kwargs)
             status(directory, {"healthy": True, **result, "pools": report})
             print(json.dumps(result))
         return 0

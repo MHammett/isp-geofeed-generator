@@ -9,6 +9,7 @@ from .phpipam import PhpIPAM
 from .powercode import Powercode
 from .gaiia import Gaiia
 from .publish import WordPress, publish_file, publish_wordpress
+from .locations import LOCATION_FIELDS
 
 
 def validate_settings(kind, settings):
@@ -50,6 +51,17 @@ class WordPressTarget:
         return publish_wordpress(self.client, csv, state_dir, **guards)
 
 
+@dataclass
+class RecordFileTarget:
+    path: str
+
+    def publish(self, records, state_dir, **guards):
+        if not self.path:
+            raise GeofeedError('JSON target needs publish.path')
+        from .records import publish_records_file
+        return publish_records_file(self.path, records, state_dir, **guards)
+
+
 # Factories read only the credentials needed by that adapter. No configuration
 # value is treated as an import path, executable command or arbitrary plugin.
 SOURCES = {
@@ -64,10 +76,12 @@ SOURCES = {
     "powercode": SourceAdapter(lambda s, c: Powercode(os.environ.get("POWERCODE_URL", ""), c.get("POWERCODE_API_KEY"), s), initial=True,
                                settings=frozenset({"range_ids", "facility_ids"})),
     "gaiia": SourceAdapter(lambda s, c: Gaiia(os.environ.get("GAIIA_URL", "https://api.gaiia.com/api/v1"), c.get("GAIIA_API_KEY"), s), initial=True,
-                           settings=frozenset({"site_ids", "block_ids"})),
+                           settings=frozenset({"site_ids", "block_ids", "include_coordinates"})),
 }
 
 TARGETS = {
     "file": TargetAdapter(lambda s, c: FileTarget(s.get("path", "")), initial=False, settings=frozenset({'path'})),
     "wordpress": TargetAdapter(lambda s, c: WordPressTarget(WordPress(os.environ.get("WP_SITE_URL", ""), os.environ.get("WP_USERNAME", ""), c.get("WP_APP_PASSWORD"))), initial=False),
+    "json": TargetAdapter(lambda s, c: RecordFileTarget(s.get('path', '')), settings=frozenset({'path'}),
+                          payload_format='records', location_fields=LOCATION_FIELDS, required_fields=frozenset()),
 }

@@ -18,9 +18,14 @@ from isp_geofeed_generator.feed import build, public
 from isp_geofeed_generator.netbox import NetBox
 from test_feed import snapshot
 from test_sources import HTTP, SITE, PREFIX, page
+from bogon_fixture import policy
 
 
 class ReviewTests(unittest.TestCase):
+    def setUp(self):
+        self.guard = patch('isp_geofeed_generator.cli.load_policy', side_effect=lambda config: policy())
+        self.guard.start(); self.addCleanup(self.guard.stop)
+
     def config(self, directory, source='fixture', target='file'):
         cfg = directory / 'config.yaml'
         cfg.write_text(f'source: {{type: {source}}}\nstate_dir: {directory.as_posix()}/state\n'

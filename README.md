@@ -1,18 +1,18 @@
 # ISP Geofeed Generator
 
 Generate and safely publish public IP geolocation feeds from ISP billing and IPAM platforms.
-The output follows [RFC 8805](https://www.rfc-editor.org/rfc/rfc8805.html).
-Publish to WordPress or write a file for any web server.
+CSV output follows [RFC 8805](https://www.rfc-editor.org/rfc/rfc8805.html).
+Publish to WordPress or write a file. Rich JSON supports separately selected location fields.
 
 This is an independent community project. Contributions are welcome.
 Built-in source adapters are read-only.
-No customer records, street addresses or coordinates are published.
+No customer records or street addresses are published. Coordinates require explicit output selection.
 
 ## Sources and verification
 
 | Source | Status |
 | --- | --- |
-| Sonar v2 | Read-only live checks; explicit mapping and optional DHCP/inline-controller site discovery |
+| Sonar v2 | IPv4 pools only; read-only live checks; explicit mapping and optional DHCP/inline-controller site discovery |
 | NetBox | Read-only live 4.7.3 checks; native site/location scope and range-parent resolution |
 | Splynx API v2 | Initial support, based on vendor schema and synthetic fixtures; not live-tested |
 | phpIPAM | Initial support, based on public docs and synthetic fixtures; not live-tested |
@@ -32,8 +32,8 @@ Read-only source -> exact public prefixes and site links -> validation -> WordPr
 - Uses native site links or reviewed configuration; never guesses from names.
 - Converts exact ranges to CIDR without expanding to the parent subnet.
 - Applies an operator-owned public-prefix allow list and rejects overlaps.
-- Excludes private, shared/CGNAT, multicast and special address space.
-- Publishes country, region and city, with the postal-code field empty.
+- Refuses bogons using current reserved and unallocated space lists; see [bogon policy](docs/bogons.md).
+- Publishes country, region and city in CSV, or selected [rich location fields](docs/output-formats.md) in JSON.
 - Stops on missing data or large withdrawals and keeps the last good feed.
 - Uses conditional WordPress writes, public read-back and guarded rollback.
 

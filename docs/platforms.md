@@ -12,7 +12,7 @@ An unimplemented adapter or a missing live test is a project gap, not proof that
 
 | Source | Implementation | Instance setup | Verification |
 | --- | --- | --- | --- |
-| Sonar v2 | Pools, site addresses, explicit mappings, optional controller-to-inventory resolution | Link pools to DHCP servers or subnets to inline devices. Record controller management IPs on site inventory. Resolve shared/remote-controller cases explicitly. | Read-only live source queries; synthetic failure tests. Full production publication still needs a trial. |
+| Sonar v2 | IPv4 pools, site addresses, explicit mappings, optional controller-to-inventory resolution | Link pools to DHCP servers or subnets to inline devices. Record controller management IPs on site inventory. Resolve shared/remote-controller cases explicitly. | Read-only live source queries; synthetic failure tests. IPv6 needs a new source design (#17). Full production publication still needs a trial. |
 | NetBox | Prefixes and ranges; site/location scope; explicit selection | Assign scopes, tag or select intended records, and provide structured geofeed location values. | Read-only live 4.7.3 inventory; synthetic generation and failure tests. |
 | Splynx API v2 | Initial IPv4/IPv6 network adapter; signed authentication | Select endnet pool/static networks, map them to network sites, and set geofeed location values. Administrative locations are not assumed to identify one facility. | Vendor release-6.0 schema and synthetic fixtures. Not live-tested. |
 | phpIPAM | Initial subnet/location adapter | Select intended subnets, assign locations, and set geofeed location values. | Public API reference and synthetic fixtures. Not live-tested. |

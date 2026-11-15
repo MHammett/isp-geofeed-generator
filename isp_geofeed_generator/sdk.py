@@ -2,10 +2,12 @@
 from .contracts import ADAPTER_API_VERSION, SourceAdapter, TargetAdapter, Source, Target
 from .client import GeofeedError, JsonHTTP, https_url
 from .publish import publish_file, publish_wordpress, atomic_write
+from .locations import LOCATION_FIELDS, COARSE_FIELDS
+from .records import publish_records_file
 
 __all__ = ['ADAPTER_API_VERSION', 'SourceAdapter', 'TargetAdapter', 'Source', 'Target',
            'GeofeedError', 'JsonHTTP', 'https_url', 'publish_file', 'publish_wordpress', 'atomic_write',
-           'builtin_source', 'builtin_target']
+           'builtin_source', 'builtin_target', 'LOCATION_FIELDS', 'COARSE_FIELDS', 'publish_records_file']
 
 
 def builtin_source(name, settings, credentials):
@@ -27,6 +29,6 @@ def builtin_target(name, settings, credentials):
     if name not in TARGETS:
         raise GeofeedError('Unknown built-in target requested by extension')
     adapter = TARGETS[name]
-    if set(settings) - ({'type', 'allow_initial'} | adapter.settings):
+    if set(settings) - ({'type', 'allow_initial', 'location_fields'} | adapter.settings):
         raise GeofeedError('Unknown built-in target settings in extension wrapper')
     return adapter(settings, credentials)

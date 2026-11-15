@@ -5,6 +5,7 @@ import io
 import ipaddress
 import re
 from .client import GeofeedError
+from .locations import COARSE_FIELDS, project_site
 
 
 def digest(data):
@@ -61,7 +62,7 @@ def location(site, override=None):
     return country, region, city, ""  # Do not publish postal codes or street addresses.
 
 
-def build(snapshot, config):
+def build_records(snapshot, config, fields=COARSE_FIELDS):
     if not isinstance(snapshot, dict):
         raise GeofeedError("Source returned an invalid snapshot; expected pools and sites")
     for kind in ("pools", "sites"):
@@ -121,7 +122,7 @@ def build(snapshot, config):
             parent_net = ipaddress.ip_network(parent["subnet"], strict=True)
         except (KeyError, ValueError, TypeError):
             raise GeofeedError(f"Pool {pid} has an invalid parent subnet") from None
-        loc = location(sites[sid], overrides.get(sid))
+        loc = project_site(sites[sid], overrides.get(sid), fields)
         for net in nets:
             if net.version != parent_net.version or not net.subnet_of(parent_net):
                 raise GeofeedError(f"Pool {pid} extends outside its parent subnet")
@@ -138,11 +139,22 @@ def build(snapshot, config):
         if previous and previous.version == net.version and int(net.network_address) <= int(previous.broadcast_address):
             raise GeofeedError(f"Overlapping/duplicate pool ranges near pool {pid}")
         previous = net
+    return [{'prefix': str(net), 'location': loc} for net, loc, _ in entries], report
+
+
+def render_csv(records):
     out = io.StringIO(newline="")
     writer = csv.writer(out, lineterminator="\n", quoting=csv.QUOTE_NONE)
-    for net, loc, _ in entries:
-        writer.writerow((str(net), *loc))
-    return out.getvalue().encode("utf-8"), report
+    for row in records:
+        value = row['location']
+        loc = location({'id': 'output', 'addresses': [{'country': value.get('country'), 'subdivision': value.get('region'), 'city': value.get('city')}]})
+        writer.writerow((row['prefix'], *loc))
+    return out.getvalue().encode('utf-8')
+
+
+def build(snapshot, config):
+    records, report = build_records(snapshot, config)
+    return render_csv(records), report
 
 
 def parse_feed(data):
@@ -178,6 +190,10 @@ def change_guard(old, new, max_removed_fraction=0.10):
     if not old:
         return
     old_nets = parse_feed(old)
+    coverage_guard(old_nets, new_nets, max_removed_fraction)
+
+
+def coverage_guard(old_nets, new_nets, max_removed_fraction=0.10):
     # Measure lost address coverage by family, not row count: CIDR row counts vary.
     for version in (4, 6):
         before = [n for n in old_nets if n.version == version]

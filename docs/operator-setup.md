@@ -5,6 +5,14 @@ Use your platform's normal change process for the setup below.
 
 ## Sonar
 
+The current adapter publishes IPv4 pools only. Sonar's pool range scalar is IPv4-only;
+changing instance setup cannot make this reader export IPv6. Sonar itself supports IPv6
+directly through subnets and DHCP/RADIUS, as its [IPAM setup guide](https://docs.sonar.expert/networking/ipam-policy-best-practices)
+explains. Our adapter needs a subnet-reading path and verified site resolution, tracked
+in issue #17. The subnet API exposes inline-device relationships, so this remains an
+adapter gap rather than evidence that Sonar cannot provide IPv6 geofeed data. Subnets without pools are also outside
+the current reader, tracked in issue #34.
+
 1. Create or verify the network site and its country, subdivision and city address values.
 2. Assign the physical or virtual controller's inventory record to that site, or to an address belonging to that site.
 3. Record the controller's exact management IP assignment on that inventory record or one of its inventory fields.
@@ -27,6 +35,12 @@ The host of a central DHCP or policy device is not necessarily the subscriber's 
 Choose the geolocation policy you want before accepting automatically derived hosting-site locations.
 
 ## NetBox
+
+The adapter targets NetBox 4.x API records. Authentication defaults to `Token`, which works
+on 4.0 through current 4.x, including newer token types. Explicit `auth_scheme: Bearer` needs
+4.5 or later. Only 4.7.3 was live-tested; older-version compatibility was checked against
+vendor source and fixtures. A 401/403 or empty inventory requires checking token permissions
+and the selected header before treating it as missing data.
 
 1. Create or verify the site's geographic values.
 2. Add text custom fields on Site named `geofeed_country`, `geofeed_region` and `geofeed_city`.

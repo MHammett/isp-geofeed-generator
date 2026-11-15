@@ -10,6 +10,10 @@ Do not paste credentials into chat, public issues, command arguments, URLs or co
 
 ## Linux with systemd
 
+Known deployment blocker: the strict credential-file permission check may reject systemd's
+root-owned credential files with a service-user ACL. Issue #28 tracks a real root/service
+end-to-end test and fix. Do not enable a timer on the strength of unit-file tests alone.
+
 Prefer systemd encrypted credentials. The encrypted files live under `/etc/isp-geofeed-generator/credentials/`,
 owned by root in a mode-0700 directory. systemd decrypts them into a private runtime credential directory.
 The application reads that directory through `CREDENTIALS_DIRECTORY`.

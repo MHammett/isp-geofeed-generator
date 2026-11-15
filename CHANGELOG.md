@@ -6,6 +6,9 @@
 - Read-only Sonar and NetBox sources with explicit selection, native site links and reviewed mapping options.
 - Initial Splynx, phpIPAM, Powercode legacy and gaiia sources, with publication opt-in and clear verification limits.
 - Exact-range RFC 8805 output, owned-space checks, withdrawal limits and private status records.
+- Mandatory current IPv4/IPv6 fullbogon checks before CLI generation and publication.
+- Output field capabilities and initial rich JSON support for explicitly selected coordinates and other location fields.
+- Review fixes for phpIPAM location records, compatible NetBox authentication and whole-prefix WordPress special-space checks.
 - File and WordPress targets with read-back, conditional updates and checked recovery.
 - Versioned, explicitly enabled input/output extensions installed outside the upstream checkout.
 - Secure credential stores and enrollment, including extension credential names, plus redacted errors.

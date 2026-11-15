@@ -200,6 +200,15 @@ class GaiiaTests(unittest.TestCase):
 
 
 class InitialSupportTests(unittest.TestCase):
+    def test_gaiia_coordinates_are_requested_only_when_enabled(self):
+        for enabled in (False, True):
+            value = site(); value['address'].update(latitude=41.9, longitude=-88.7)
+            http = HTTP([site_reply([value]), block_reply([block()])])
+            source = Gaiia('https://example.net', 'key', {'site_ids': ['site-native-1'], 'include_coordinates': enabled}, http)
+            result = source.snapshot()
+            self.assertEqual('latitude' in http.calls[0][1]['body']['query'], enabled)
+            self.assertEqual('latitude' in result['sites'][0]['addresses'][0], enabled)
+
     def test_initial_publication_needs_opt_in_and_does_not_touch_old_feed(self):
         for kind in ('powercode', 'gaiia'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:

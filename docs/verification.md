@@ -2,7 +2,7 @@
 
 ## Powercode, gaiia and local extension follow-up
 
-Observed on 2026-11-15. Windows ran 93 tests: 92 passed, one POSIX-only check skipped.
+Observed on 2026-11-15. Windows ran 106 tests: 105 passed, one POSIX-only check skipped.
 The new tests cover exact Powercode ranges, safe form encoding, gaiia site and block pagination,
 missing pages, changed counts, duplicate IDs, archive/ownership conflicts, partial GraphQL errors,
 initial-publication blocks and independent extension configuration.
@@ -14,7 +14,7 @@ configuration, input, extension source and public bytes are intact. This is a si
 not a production deployment.
 
 The core and example extension built and installed into an isolated environment. Both installed entry
-points loaded. The two gaiia queries passed `graphql-core` 3.2.14 validation against the vendor's public
+points loaded. The gaiia site, coordinate-site and block queries passed `graphql-core` 3.2.14 validation against the vendor's public
 schema; replacing a real address field with a nonexistent field failed the negative control.
 Published schema response SHA-256: `8aa25ed901d27232407c520d7ec6f94a2528211b7c76e9ec5c3087498e83262b`.
 The export was the anonymous `Introspection` operation used by the vendor's documentation.
@@ -22,6 +22,22 @@ The export was the anonymous `Introspection` operation used by the vendor's docu
 No authenticated Powercode or gaiia instance was queried. Real permissions, IPv6 inventory coverage,
 server-side truncation and service deployment are not live-verified. Initial support remains explicit.
 Consult the adapter pull request for hosted Linux, PHP, packaging and Windows results.
+
+Fullbogon tests refuse interior overlap, unallocated space, stale/future timestamps, malformed
+lists and missing reserved-space controls. Failed refresh has no stale fallback; a refused
+publication preserves prior output bytes. A read-only fetch of the provider's current data
+validated 3,017 IPv4 entries and 158,609 IPv6 entries on this date. The source data is time-sensitive
+and is not committed. Offline WordPress checks cover the same static exclusion list as Python,
+including broad prefixes containing excluded space. PHP syntax and 58 offline checks passed.
+
+Rich-record tests exercise coordinate bounds, NaN, booleans, partial coordinate pairs, explicit
+field projection, incompatible CSV requests, JSON read-back, no-op writes and withdrawal refusal.
+Review regressions cover phpIPAM's native location object and private-detail redaction, plus the
+NetBox default Token header and sanitized authentication errors. Those adapters remain subject
+to the other open review findings. In particular, root/systemd credential loading, WordPress
+first-write concurrency and proxy/CDN publication have not passed real deployment trials.
+The deployment coverage helper could not run from Windows because its bash invocation
+received a Windows path. Linux CI runs that helper; the local Windows attempt is not a pass.
 
 Rollback: stop the schedule, keep the last good public feed and restore the prior approved core package
 or compatible extension. The work above did not enable a production schedule or change a website.
@@ -39,7 +55,7 @@ See [the follow-up record](review-followup.md) for the failure cases and remaini
 
 | Check | Result |
 | --- | --- |
-| Python suite on scripting1 | 58 tests passed, including POSIX secret-file checks |
+| Python suite on Linux test host | 58 tests passed, including POSIX secret-file checks |
 | Python suite on Windows | 57 checks passed; one POSIX-only test skipped |
 | Read-only Sonar controller discovery | Complete pool/site inventory read; controller-to-inventory-to-site path exercised live |
 | Read-only NetBox discovery | Prefix/range/site inventory read from 4.7.3; native Windows Credential Manager backend used |
@@ -63,12 +79,12 @@ Evidence recorded November 15, 2026, at 18:29:36 UTC.
 | Check | Result |
 | --- | --- |
 | Python 3.12 on Windows | 36 tests passed |
-| Python 3.13 on scripting1 | 36 tests passed |
-| Existing restricted service account on scripting1, with shared lock/status modules | 36 tests passed |
+| Python 3.13 on Linux test host | 36 tests passed |
+| Existing restricted service account on Linux test host, with shared lock/status modules | 36 tests passed |
 | Deployment coverage | All 6 Python runtime modules covered; no extra modules |
 | Dependency-directory leak canary | Present in the test checkout and excluded from deployment |
 | Deployment preview | 13 lines; no production install performed |
-| PHP syntax at WP Engine | No syntax errors |
+| PHP syntax on WordPress hosting environment | No syntax errors |
 | Offline WordPress validation, capability and CAS checks | 23 checks passed |
 | Read-only Sonar discovery against a live v2 instance | Pool/site queries and assignment-candidate queries succeeded |
 | Real WordPress plugin activation and public publication | Not measured |

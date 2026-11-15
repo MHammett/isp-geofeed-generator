@@ -9,6 +9,37 @@
 if (!defined('ABSPATH')) { exit; }
 
 const ISP_GEOFEED_GENERATOR_OPTION = 'isp_geofeed_generator_document';
+const ISP_GEOFEED_SPECIAL_RANGES = [
+    '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16',
+    '172.16.0.0/12', '192.0.0.0/24', '192.0.2.0/24', '192.168.0.0/16', '198.18.0.0/15',
+    '192.88.99.0/24', '198.51.100.0/24', '203.0.113.0/24', '224.0.0.0/4', '240.0.0.0/4',
+    '::/96', '::ffff:0:0/96', '64:ff9b::/96', '64:ff9b:1::/48', '100::/64',
+    '2001::/32', '2001:2::/48', '2001:10::/28', '2001:20::/28',
+    '2001:db8::/32', '2002::/16', '3fff::/20', '5f00::/16', 'fc00::/7', 'fe80::/10', 'fec0::/10', 'ff00::/8',
+];
+
+function isp_geofeed_generator_special_overlap($start, $end) {
+    static $ranges = null;
+    if ($ranges === null) {
+        $ranges = [];
+        foreach (ISP_GEOFEED_SPECIAL_RANGES as $cidr) {
+            [$address, $bits] = explode('/', $cidr);
+            $first = inet_pton($address);
+            $bytes = array_values(unpack('C*', $first));
+            foreach ($bytes as $i => $byte) {
+                $host = min(8, max(0, ($i + 1) * 8 - (int)$bits));
+                $bytes[$i] = $byte | ((1 << $host) - 1);
+            }
+            $ranges[] = [$first, pack('C*', ...$bytes)];
+        }
+    }
+    foreach ($ranges as [$first, $last]) {
+        if (strlen($first) === strlen($start) && strcmp($start, $last) <= 0 && strcmp($end, $first) >= 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
 register_activation_hook(__FILE__, function () {
     add_role('isp_geofeed_generator_publisher', 'Geofeed Publisher', [
@@ -50,8 +81,7 @@ function isp_geofeed_generator_valid_csv($csv) {
         $parts = explode('/', $cidr);
         if (count($parts) !== 2 || !ctype_digit($parts[1]) || (string)(int)$parts[1] !== $parts[1]) { return false; }
         $packed = @inet_pton($parts[0]);
-        if ($packed === false || !filter_var($parts[0], FILTER_VALIDATE_IP,
-            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) { return false; }
+        if ($packed === false || !filter_var($parts[0], FILTER_VALIDATE_IP)) { return false; }
         $bits = (int)$parts[1];
         if ($bits > strlen($packed) * 8) { return false; }
         $bytes = array_values(unpack('C*', $packed));
@@ -62,13 +92,10 @@ function isp_geofeed_generator_valid_csv($csv) {
             if (($byte & $mask) !== 0) { return false; }
             $end[$i] = $byte | $mask;
         }
-        if (strlen($packed) === 4) {
-            if ($bytes[0] === 0 || $end[0] >= 224 ||
-                ($bytes[0] === 100 && $bytes[1] >= 64 && $bytes[1] <= 127)) { return false; }
-        } elseif ($bytes[0] === 255) { return false; }
         // Require nonoverlapping ranges, checked as binary strings per family.
         $family = strlen($packed);
         $end_packed = pack('C*', ...$end);
+        if (isp_geofeed_generator_special_overlap($packed, $end_packed)) { return false; }
         $seen[$family][] = [$packed, $end_packed];
     }
     foreach ($seen as $ranges) {

@@ -27,6 +27,15 @@ PREFIX = {'id':1,'prefix':'11.22.33.0/24','scope_type':'dcim.site','scope_id':10
 
 
 class NetBoxTests(unittest.TestCase):
+    def test_compatible_default_auth_header_and_explicit_override(self):
+        self.assertEqual(NetBox('https://example.net', 'fake-token').headers['Authorization'], 'Token fake-token')
+        self.assertEqual(NetBox('https://example.net', 'fake-token', {'auth_scheme': 'Bearer'}).headers['Authorization'], 'Bearer fake-token')
+        class Denied:
+            def request(self, *args, **kwargs): raise GeofeedError('HTTP 401; private upstream payload')
+        with self.assertRaisesRegex(GeofeedError, 'NetBox authentication') as result:
+            NetBox('https://example.net', 'fake-token', http=Denied()).pages('/dcim/sites/')
+        self.assertNotIn('private', str(result.exception))
+
     def source(self, prefixes=None, ranges=None, sites=None, settings=None, locations=None):
         responses = [page([PREFIX] if prefixes is None else prefixes),page(ranges or []),page([SITE] if sites is None else sites)]
         if locations is not None: responses.append(page(locations))
@@ -122,7 +131,7 @@ class InitialAdapterTests(unittest.TestCase):
 
     def test_phpipam_decimal_prefix_and_native_location(self):
         def ok(rows):return {'code':200,'success':True,'data':rows}
-        http=HTTP([ok([{'id':'1','subnet':str(int(__import__('ipaddress').ip_address('11.22.33.0'))),'mask':'24','location':'10','isFolder':'0'}]),ok([{'id':'10','name':'Example site'}])])
+        http=HTTP([ok([{'id':'1','subnet':str(int(__import__('ipaddress').ip_address('11.22.33.0'))),'mask':'24','location':{'id':'10','address':'private street','lat':41.9,'long':-88.7},'isFolder':'0'}]),ok([{'id':'10','name':'Example site'}])])
         source=PhpIPAM('https://ipam.example.net','geofeed','example-token',{'subnet_ids':['1']},http)
         snapshot=source.for_publication(source.snapshot())
         config={'allowed_prefixes':['11.22.33.0/24'],'site_locations':{'10':{'country':'US','region':'US-IL','city':'Example City'}}}
@@ -132,6 +141,18 @@ class InitialAdapterTests(unittest.TestCase):
     def test_phpipam_failure_is_not_an_empty_success(self):
         for reply in ({'success':False,'code':403,'data':[]},{'success':True,'code':200,'data':[{'id':1},{'id':1}]}):
             with self.assertRaises(GeofeedError):PhpIPAM('https://ipam.example.net','geofeed','token',http=HTTP([reply])).collection('/subnets/all/')
+
+    def test_phpipam_unassigned_and_malformed_location_do_not_leak_details(self):
+        def ok(rows): return {'code': 200, 'success': True, 'data': rows}
+        for location in ([], {'id': 'private street', 'address': 'secret street'}):
+            http = HTTP([ok([{'id': '1', 'subnet': '11.22.33.0', 'mask': '24', 'location': location}]), ok([])])
+            source = PhpIPAM('https://ipam.example.net', 'geofeed', 'token', http=http)
+            if location == []:
+                self.assertIsNone(source.snapshot()['pools'][0]['site_id'])
+            else:
+                with self.assertRaises(GeofeedError) as result: source.snapshot()
+                self.assertNotIn('private street', str(result.exception))
+                self.assertNotIn('secret street', str(result.exception))
 
 
 class ControllerTests(unittest.TestCase):
