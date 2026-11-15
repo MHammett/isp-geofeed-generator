@@ -114,10 +114,41 @@ the discovery count against their instance. Concurrent deletion during paging ca
 
 ## phpIPAM: initial support
 
-Create a dedicated API application with read-only access and use a supported API token.
-Set `PHPIPAM_URL`, `PHPIPAM_APP_ID` and a secure `PHPIPAM_API_TOKEN` reference.
+For unattended runs, create a dedicated read-only API application in **SSL with App code token**
+mode. Store its app token through a secure `PHPIPAM_API_TOKEN` reference. HTTPS is required.
+User tokens expire and are not renewed by this reader; a successful setup trial with a user
+token does not prove a daily schedule will keep working. The adapter never logs in with a
+human password, resets a token or changes the API app. Retrieve the right token from your
+approved secret manager before changing credentials.
+Set `PHPIPAM_URL` and either `PHPIPAM_APP_ID` or `source.app_id`. Named inputs use their own
+`url`, `source.app_id` and credential references. Authentication refusals point to token expiry,
+app mode and read permissions without logging response bodies.
+See [phpIPAM authentication](https://phpipam.net/api-documentation/#static-authentication).
 Select `source.subnet_ids`, assign each subnet's location, and configure that location's `site_locations` values.
 Folder records cannot be published. Parent/child overlap is rejected.
+
+If your instance does not use native locations, explicitly choose `source.location_mode: configured`
+and declare `source.facility_ids`. For example:
+
+```yaml
+source:
+  type: phpipam
+  app_id: geofeed
+  subnet_ids: ["101"]
+  location_mode: configured
+  facility_ids: [facility-1]
+  allow_initial: false
+pool_sites: {"subnet:101": facility-1}
+site_locations:
+  facility-1: {country: US, region: US-IL, city: Example City}
+```
+
+This is an explicit location policy. The reader does not query the locations endpoint or use
+subnet location values in configured mode. Each selected public subnet still needs a reviewed
+mapping to a declared facility and valid location values. Missing mappings, locations or subnet
+reads fail closed. Native mode remains the default and native location API failures still stop
+the run. The tool does not treat arbitrary 404/403 responses as an empty successful collection.
+See [the configured example](../config.phpipam-configured.yaml.example).
 
 The adapter reads the documented complete subnet and location collections. A response that is too large
 fails the size check. It does not silently publish the first part of a response.

@@ -50,6 +50,8 @@ def validate_settings(kind, settings):
             Sonar.selected_ids(settings, key)
     if kind == 'splynx' and not isinstance(settings.get('location_sites', {}), dict):
         raise GeofeedError('source.location_sites must be a mapping')
+    if kind == 'phpipam':
+        PhpIPAM.location_settings(settings)
 
 
 @dataclass
@@ -91,7 +93,7 @@ SOURCES = {
     "splynx": SourceAdapter(lambda s, c: Splynx(source_url(c, "SPLYNX_URL"), c.get("SPLYNX_API_KEY"), c.get("SPLYNX_API_SECRET"), s), initial=True,
                             settings=frozenset({"network_ids", "location_sites"}), validate=lambda s: validate_settings('splynx', s)),
     "phpipam": SourceAdapter(phpipam_source, initial=True,
-                             settings=frozenset({"subnet_ids", "app_id"}), validate=lambda s: validate_settings('phpipam', s)),
+                             settings=frozenset({"subnet_ids", "app_id", "location_mode", "facility_ids"}), validate=lambda s: validate_settings('phpipam', s)),
     "powercode": SourceAdapter(lambda s, c: Powercode(source_url(c, "POWERCODE_URL"), c.get("POWERCODE_API_KEY"), s), initial=True,
                                settings=frozenset({"range_ids", "facility_ids"})),
     "gaiia": SourceAdapter(lambda s, c: Gaiia(source_url(c, "GAIIA_URL", "https://api.gaiia.com/api/v1"), c.get("GAIIA_API_KEY"), s), initial=True,

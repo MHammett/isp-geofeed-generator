@@ -32,6 +32,10 @@ Test through your actual public domain, not just an origin or staging hostname.
 
 The runner reads authenticated state before a write. Each write includes the hash of the state it saw.
 The plugin makes a conditional database update. A stale hash or concurrent write returns HTTP 409.
+The first publication uses an insert that cannot overwrite an existing option, even if a
+second writer creates it after the absent-state read. Database write failures return HTTP 503;
+database details are not sent to the caller. Do not retry a 409 blindly: read the current state
+and review which feed won. The plugin does not retry writes automatically.
 The current and previous CSV are stored together in one non-autoloaded WordPress option.
 
 A public read-back failure triggers a conditional restore of the old CSV.

@@ -18,17 +18,28 @@ class WP_REST_Request {
 }
 class FakeDB {
     public $options = 'wp_options'; public $last_error = ''; public $value = null; public $conflict = false;
+    public $race_value = null; public $write_error = false;
     public function prepare($sql, ...$args) { return [$sql, $args]; }
-    public function get_var($query) { return $this->value; }
+    public function get_var($query) { $this->last_error = ''; return $this->value; }
     public function query($query) {
-        [, $args] = $query;
+        [$sql, $args] = $query;
+        $this->last_error = '';
+        if ($this->write_error) { $this->last_error = 'private database detail'; return false; }
+        if (str_starts_with($sql, 'INSERT IGNORE INTO ')) {
+            if ($this->race_value !== null) { $this->value = $this->race_value; $this->race_value = null; }
+            if ($this->value !== null || $this->conflict) { return 0; }
+            $this->value = $args[1]; return 1;
+        }
+        if (!str_starts_with($sql, 'UPDATE ')) { throw new RuntimeException('Unexpected SQL'); }
         if ($this->conflict || $this->value !== $args[2]) { return 0; }
         $this->value = $args[0]; return 1;
     }
 }
 function add_option($key, $value, ...$args) {
     global $wpdb;
-    if ($wpdb->value !== null || $wpdb->conflict) { return false; }
+    // Real WordPress can upsert after a stale object-cache miss. Do not hide it.
+    if ($wpdb->race_value !== null) { $wpdb->value = $wpdb->race_value; $wpdb->race_value = null; }
+    if ($wpdb->write_error) { $wpdb->last_error = 'private database detail'; return false; }
     $wpdb->value = $value; return true;
 }
 require __DIR__.'/../wordpress/isp-geofeed-generator/isp-geofeed-generator.php';
@@ -67,6 +78,17 @@ $GLOBALS['ssl'] = false;
 check(!isp_geofeed_generator_permission(), 'HTTP publish forbidden');
 $GLOBALS['ssl'] = true;
 $wpdb = new FakeDB();
+$winner = json_encode(['csv'=>$old, 'previous_csv'=>'']);
+$wpdb->race_value = $winner;
+$result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$new, 'expected_sha256'=>hash('sha256', '')]));
+check(is_wp_error($result) && $result->data['status'] === 409, 'concurrent first publication conflicts after stale absent read');
+check($wpdb->value === $winner, 'concurrent first publication preserves winning bytes');
+$wpdb = new FakeDB(); $wpdb->write_error = true;
+$result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', '')]));
+check(is_wp_error($result) && $result->data['status'] === 503, 'first-write database failure is not called a conflict');
+check(!str_contains($result->message, 'private'), 'database detail stays private');
+check($wpdb->value === null, 'database failure leaves absent feed unchanged');
+$wpdb = new FakeDB();
 $result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', '')]));
 check(!is_wp_error($result) && $result['sha256'] === hash('sha256', $old), 'first publication');
 $result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$new, 'expected_sha256'=>hash('sha256', '')]));
@@ -74,6 +96,11 @@ check(is_wp_error($result) && $result->data['status'] === 409, 'stale hash rejec
 check(isp_geofeed_generator_read()['csv'] === $old, 'stale write preserves current feed');
 $result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$new, 'expected_sha256'=>hash('sha256', $old)]));
 check(!is_wp_error($result) && isp_geofeed_generator_read()['previous_csv'] === $old, 'update retains previous CSV');
+$before_error = $wpdb->value; $wpdb->write_error = true;
+$result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', $new)]));
+check(is_wp_error($result) && $result->data['status'] === 503, 'update database failure is not called a conflict');
+check($wpdb->value === $before_error, 'failed database update retains previous bytes');
+$wpdb->write_error = false;
 $wpdb->conflict = true;
 $result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', $new)]));
 check(is_wp_error($result) && isp_geofeed_generator_read()['csv'] === $new, 'concurrent CAS cannot overwrite');

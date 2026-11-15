@@ -127,7 +127,11 @@ function isp_geofeed_generator_write(WP_REST_Request $request) {
     if ($before['csv'] === $csv) { return ['sha256' => hash('sha256', $csv)]; }
     $next = wp_json_encode(['csv' => $csv, 'previous_csv' => $before['csv']]);
     if ($before['raw'] === null) {
-        $changed = add_option(ISP_GEOFEED_GENERATOR_OPTION, $next, '', false);
+        // add_option can upsert after a stale cache miss. Never replace a winner.
+        $changed = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)",
+            ISP_GEOFEED_GENERATOR_OPTION, $next, 'no'
+        ));
     } else {
         // BINARY avoids a case-insensitive collation weakening the CAS check.
         $changed = $wpdb->query($wpdb->prepare(
@@ -135,7 +139,10 @@ function isp_geofeed_generator_write(WP_REST_Request $request) {
             $next, ISP_GEOFEED_GENERATOR_OPTION, $before['raw']
         ));
     }
-    if (!$changed) { return new WP_Error('geofeed_conflict', 'Concurrent update or database failure', ['status' => 409]); }
+    if ($changed === false || $wpdb->last_error) {
+        return new WP_Error('geofeed_db', 'Cannot write feed state', ['status' => 503]);
+    }
+    if ($changed !== 1) { return new WP_Error('geofeed_conflict', 'Concurrent update; read state before publishing', ['status' => 409]); }
     wp_cache_delete(ISP_GEOFEED_GENERATOR_OPTION, 'options');
     wp_cache_delete('notoptions', 'options');
     return ['sha256' => hash('sha256', $csv)];

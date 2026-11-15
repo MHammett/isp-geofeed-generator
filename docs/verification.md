@@ -1,5 +1,30 @@
 # Verification
 
+## WordPress creation race and phpIPAM setup follow-up
+
+Observed on 2026-11-15. Windows ran 143 tests: 142 passed and one POSIX-only skip. Seven
+new phpIPAM tests cover explicit facilities without native locations, missing mappings and
+geography, invalid facility settings, subnet failures, unchanged native error handling and
+sanitized 401/403 diagnostics. The CLI publishes a configured-location fixture and retains
+the prior feed when location data becomes invalid. Tests exposed the missing configured
+mode before the implementation; no live phpIPAM instance was available.
+
+PHP syntax and 65 offline WordPress checks passed. Before the fix, the new race test failed
+with `concurrent first publication conflicts after stale absent read`. Its add_option stub
+models the duplicate-key upsert in the current WordPress source. The corrected plugin uses
+an insert that cannot replace a winning option, then preserves the existing conditional
+update path. Tests also distinguish first-write/update database failures from conflicts,
+check that winning/prior bytes remain intact and keep database details out of responses.
+
+These PHP checks execute in memory with WordPress stubs. They do not load WordPress, touch
+its database or prove real staging publication. The native locations endpoint still fails
+closed on errors. Configured phpIPAM mode deliberately avoids that endpoint and needs
+explicit facilities, reviewed subnet mappings and location values.
+
+Recovery remains the existing last-good-feed procedure. Stop the timer before replacing
+packages or a WordPress plugin, retain the prior approved versions and test a candidate or
+staging publication before restarting. Other deployment findings remain open.
+
 ## Multiple input inventories
 
 Observed on 2026-11-15. The branch builds on the independently reviewed Sonar subnet head

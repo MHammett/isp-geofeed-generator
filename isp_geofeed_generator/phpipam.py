@@ -5,6 +5,21 @@ from .client import GeofeedError, JsonHTTP, https_url
 
 
 class PhpIPAM:
+    @staticmethod
+    def location_settings(settings):
+        mode = settings.get('location_mode', 'native')
+        facilities = settings.get('facility_ids', [])
+        if mode not in ('native', 'configured'):
+            raise GeofeedError('phpIPAM location_mode must be native or configured')
+        if (not isinstance(facilities, list) or any(not isinstance(sid, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', sid) for sid in facilities)
+                or len(facilities) != len(set(facilities))):
+            raise GeofeedError('phpIPAM facility_ids must contain unique valid facility ID strings')
+        if mode == 'configured' and not facilities:
+            raise GeofeedError('phpIPAM configured location mode needs explicit facility_ids')
+        if mode == 'native' and facilities:
+            raise GeofeedError('phpIPAM facility_ids needs location_mode: configured')
+        return mode, facilities
+
     def __init__(self, url, app_id, token, settings=None, http=None):
         base = https_url(url)
         if not re.fullmatch(r'[A-Za-z0-9_-]+', app_id or ''):
@@ -14,9 +29,16 @@ class PhpIPAM:
         self.base = base + '/api/' + app_id
         self.headers = {'phpipam-token': token}
         self.settings, self.http = settings or {}, http or JsonHTTP()
+        self.location_mode, self.facilities = self.location_settings(self.settings)
 
     def collection(self, path):
-        result = self.http.request(self.base + path, headers=self.headers, method='GET')
+        try:
+            result = self.http.request(self.base + path, headers=self.headers, method='GET')
+        except GeofeedError as exc:
+            match = re.match(r'HTTP (401|403)\b', str(exc))
+            if match:
+                raise GeofeedError(f'phpIPAM authentication/read access refused (HTTP {match[1]}); a user token may have expired or the app mode/permissions may be wrong. For unattended runs use a read-only app in SSL with App code token mode') from None
+            raise
         if not isinstance(result, dict) or result.get('success') is not True or result.get('code') != 200 or not isinstance(result.get('data'), list):
             raise GeofeedError('phpIPAM did not return a successful complete collection')
         rows, ids = result['data'], set()
@@ -28,9 +50,10 @@ class PhpIPAM:
 
     def snapshot(self):
         subnets = self.collection('/subnets/all/')
-        locations = self.collection('/tools/locations/')
         if not subnets:
             raise GeofeedError('phpIPAM returned zero subnets; not measured')
+        locations = ([{'id': sid, 'name': 'Configured facility ' + sid} for sid in self.facilities]
+                     if self.location_mode == 'configured' else self.collection('/tools/locations/'))
         sites = [{'id': str(s['id']), 'name': s.get('name') or str(s['id']),
             'addresses': [{'id': 'site:' + str(s['id']), 'country': None, 'subdivision': None, 'city': None}]}
             for s in locations]
@@ -44,7 +67,7 @@ class PhpIPAM:
             else:
                 address = ipaddress.ip_address(value)
             network = ipaddress.ip_network(f"{address}/{row['mask']}", strict=True)
-            native_location = row.get('location')
+            native_location = row.get('location') if self.location_mode == 'native' else None
             if isinstance(native_location, dict):
                 sid = native_location.get('id')
             elif native_location in (None, '', 0, '0', []):
@@ -56,7 +79,8 @@ class PhpIPAM:
             sid = str(sid) if sid is not None else None
             pools.append({'id': 'subnet:' + str(row['id']), 'name': row.get('description') or str(network),
                 'ip_range': str(network), 'subnet': {'subnet': str(network)}, 'site_id': sid,
-                'scope_error': 'Subnet location is unassigned; set the location or configure pool_sites',
+                'scope_error': ('Configured location mode requires a reviewed pool_sites mapping to a declared facility'
+                                if self.location_mode == 'configured' else 'Subnet location is unassigned; set the location or configure pool_sites'),
                 'selected': str(row['id']) in requested and str(row.get('isFolder', '0')) not in ('1', 'True')})
         return {'source': 'phpipam', 'support_level': 'initial; fixture-tested, not live-tested', 'pools': pools, 'sites': sites}
 

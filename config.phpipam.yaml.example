@@ -1,6 +1,8 @@
 state_dir: state
 source:
   type: phpipam
+  # Use a read-only API app in SSL with App code token mode for unattended runs.
+  # User tokens expire; this reader does not renew them.
   subnet_ids: ["101"]
   allow_initial: false
 credentials:

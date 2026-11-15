@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- WordPress first publication refuses a concurrent winning insert; database write errors are distinguished from conflicts.
+- phpIPAM can use explicitly configured facilities without native locations, with scheduled-token setup guidance and sanitized expiry/access errors.
+
 - Named required inputs combine selected inventories, including Sonar customer subnets and NetBox infrastructure prefixes, with scoped credentials, private provenance and shared output guards.
 
 - Initial public implementation of ISP Geofeed Generator (development version 0.2.0).
