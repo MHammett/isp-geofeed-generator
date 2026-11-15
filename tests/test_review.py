@@ -88,7 +88,7 @@ class ReviewTests(unittest.TestCase):
             def snapshot(self): raise AttributeError('sensitive upstream content')
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
-            with patch.dict(SOURCES, fixture=SourceAdapter(lambda s, c: BrokenSource())), contextlib.redirect_stderr(io.StringIO()) as output:
+            with patch.dict(SOURCES, fixture=SourceAdapter(lambda s, c: BrokenSource(), initial=False)), contextlib.redirect_stderr(io.StringIO()) as output:
                 self.assertEqual(main(['publish', '--config', self.config(directory)]), 1)
             saved = json.loads((directory/'state/status.json').read_text())
             self.assertFalse(saved['data']['healthy'])
@@ -104,7 +104,7 @@ class ReviewTests(unittest.TestCase):
             directory = Path(tmp)
             cfg = self.config(directory)
             state = directory/'state'
-            with patch.dict(SOURCES, fixture=SourceAdapter(lambda s, c: FixtureSource())), run_lock(state):
+            with patch.dict(SOURCES, fixture=SourceAdapter(lambda s, c: FixtureSource(), initial=False)), run_lock(state):
                 (state/'status.json').write_text('active publisher sentinel')
                 for command in ('discover', 'generate'):
                     self.assertEqual(main([command, '--config', cfg, '--output', str(directory/(command+'.txt'))]), 0)
@@ -121,7 +121,7 @@ class ReviewTests(unittest.TestCase):
                 calls.append(csv)
                 return {'changed': True}
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict(SOURCES, fixture=SourceAdapter(lambda s, c: FixtureSource())), patch.dict(TARGETS, fixture=lambda s, c: Target()):
+            with patch.dict(SOURCES, fixture=SourceAdapter(lambda s, c: FixtureSource(), initial=False)), patch.dict(TARGETS, fixture=lambda s, c: Target()):
                 self.assertEqual(main(['publish', '--config', self.config(Path(tmp), target='fixture')]), 0)
         self.assertEqual(calls[0], 'normalize')
         self.assertIn(b',US,US-IL,Example City,', calls[1])
@@ -136,7 +136,9 @@ class ReviewTests(unittest.TestCase):
             ('sonar', {'SONAR_API_TOKEN'}, {'SONAR_URL': 'https://example.net'}),
             ('netbox', {'NETBOX_API_TOKEN'}, {'NETBOX_URL': 'https://example.net'}),
             ('splynx', {'SPLYNX_API_KEY', 'SPLYNX_API_SECRET'}, {'SPLYNX_URL': 'https://example.net'}),
-            ('phpipam', {'PHPIPAM_API_TOKEN'}, {'PHPIPAM_URL': 'https://example.net', 'PHPIPAM_APP_ID': 'geofeed'})):
+            ('phpipam', {'PHPIPAM_API_TOKEN'}, {'PHPIPAM_URL': 'https://example.net', 'PHPIPAM_APP_ID': 'geofeed'}),
+            ('powercode', {'POWERCODE_API_KEY'}, {'POWERCODE_URL': 'https://example.net'}),
+            ('gaiia', {'GAIIA_API_KEY'}, {'GAIIA_URL': 'https://example.net'})):
             requested = set()
             def check(name):
                 self.assertIn(name, needed)

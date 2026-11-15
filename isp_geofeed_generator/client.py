@@ -3,7 +3,7 @@ import json
 import ipaddress
 from . import __version__
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
@@ -29,9 +29,13 @@ class JsonHTTP:
         self.timeout, self.max_bytes = timeout, max_bytes
         self.opener = build_opener(NoRedirects())
 
-    def request(self, url, *, body=None, headers=None, method=None):
-        req = Request(url, data=None if body is None else json.dumps(body).encode(),
-                      headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Content-Type": "application/json", **(headers or {})},
+    def request(self, url, *, body=None, form=None, headers=None, method=None):
+        if body is not None and form is not None:
+            raise GeofeedError('A request cannot contain both JSON and form data')
+        payload = urlencode(form).encode() if form is not None else None if body is None else json.dumps(body).encode()
+        content_type = 'application/x-www-form-urlencoded' if form is not None else 'application/json'
+        req = Request(url, data=payload,
+                      headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Content-Type": content_type, **(headers or {})},
                       method=method)
         try:
             with self.opener.open(req, timeout=self.timeout) as response:

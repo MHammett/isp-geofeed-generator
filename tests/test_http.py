@@ -11,6 +11,9 @@ class TransportTests(unittest.TestCase):
         cls.redirect_target_hits = 0
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args): pass
+            def do_POST(self):
+                cls.last_post = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                self.do_GET()
             def do_GET(self):
                 if self.path == '/redirect':
                     self.send_response(302); self.send_header('Location', '/target'); self.end_headers()
@@ -45,6 +48,12 @@ class TransportTests(unittest.TestCase):
         with self.assertRaisesRegex(GeofeedError, 'HTTP 403') as exc:
             JsonHTTP().request(self.url + '/denied')
         self.assertNotIn('secret', str(exc.exception))
+
+    def test_form_post_redirect_is_refused_without_forwarding_credentials(self):
+        with self.assertRaisesRegex(GeofeedError, 'HTTP 302'):
+            JsonHTTP().request(self.url + '/redirect', form={'apiKey': 'fake-key'}, method='POST')
+        self.assertIn(b'apiKey=fake-key', self.last_post)
+        self.assertEqual(self.redirect_target_hits, 0)
 
     def test_bounded_and_json_only_response(self):
         for path in ('/large', '/html'):

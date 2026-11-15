@@ -6,9 +6,13 @@ from pathlib import Path
 from .client import GeofeedError
 
 NAMES = frozenset({"SONAR_API_TOKEN", "NETBOX_API_TOKEN", "WP_APP_PASSWORD",
-                   "PHPIPAM_API_TOKEN",
+                   "PHPIPAM_API_TOKEN", "GAIIA_API_KEY",
                    "SPLYNX_API_KEY", "SPLYNX_API_SECRET", "POWERCODE_API_KEY",
                    "UISP_API_TOKEN", "VISP_CLIENT_ID", "VISP_CLIENT_SECRET", "AZOTEL_API_PASSWORD"})
+
+
+def valid_name(name):
+    return isinstance(name, str) and (name in NAMES or re.fullmatch(r'EXT_[A-Z][A-Z0-9_]{0,79}', name) is not None)
 
 
 def protected_file(path):
@@ -72,14 +76,14 @@ class CredentialStore:
         self.environ = os.environ if environ is None else environ
         self.backends = {}
         self._values = []
-        if not isinstance(self.selectors, dict) or set(self.selectors) - NAMES:
+        if not isinstance(self.selectors, dict) or any(not valid_name(name) for name in self.selectors):
             raise GeofeedError("Unknown credential name in credentials configuration")
         for selector in self.selectors.values():
             if not isinstance(selector, str) or not selector.startswith(("systemd:", "file:", "wincred:", "env:")):
                 raise GeofeedError("Credential settings must be store references, never literal secret values")
 
     def get(self, name):
-        if name not in NAMES:
+        if not valid_name(name):
             raise GeofeedError("Unknown credential name")
         selector = self.selectors.get(name)
         if selector is None:

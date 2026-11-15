@@ -1,0 +1,13 @@
+# Initial support. Choose native site IDs OR native block IDs, not both.
+state_dir: state
+source:
+  type: gaiia
+  site_ids: ["Native_GlobalID_From_Discovery"]
+  # block_ids: ["Native_Block_GlobalID_From_Discovery"]
+  allow_initial: false
+credentials:
+  GAIIA_API_KEY: systemd:GAIIA_API_KEY
+allowed_prefixes: [192.0.2.0/24] # Replace documentation space with your allocation.
+pool_sites: {} # Uses the native site/IP-block relationship.
+site_locations: {} # Optional corrections use normalized IDs from discovery.
+publish: {type: file, path: output/geofeed.csv}

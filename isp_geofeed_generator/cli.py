@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 from .client import GeofeedError
 from .adapters import SOURCES, TARGETS
+from .extensions import load_extensions
 from .credentials import CredentialStore
 from .feed import build, digest
 from .publish import atomic_write
@@ -26,6 +27,13 @@ def shared_module(name):
         raise GeofeedError(f"Configured scripting-common module {name} is unavailable") from None
 
 
+class LoadedConfig(dict):
+    """Per-run registries are attributes, never serialized configuration keys."""
+    def __init__(self, values, sources, targets):
+        super().__init__(values)
+        self.sources, self.targets = sources, targets
+
+
 def load_config(path):
     try:
         config = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -33,7 +41,7 @@ def load_config(path):
         raise GeofeedError("Cannot read YAML configuration") from None
     if not isinstance(config, dict):
         raise GeofeedError("Configuration must be a YAML mapping")
-    allowed = {"source", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction"}
+    allowed = {"source", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "extensions"}
     if set(config) - allowed:
         raise GeofeedError("Unknown configuration keys: " + ", ".join(sorted(set(config) - allowed)))
     limit = config.get("max_removed_fraction", 0.10)
@@ -44,29 +52,25 @@ def load_config(path):
             raise GeofeedError(f"{name} must be a YAML mapping")
     if not isinstance(config.get("allowed_prefixes", []), list):
         raise GeofeedError("allowed_prefixes must be a list")
+    sources, targets = load_extensions(config.get('extensions'), SOURCES, TARGETS)
     source = config.get("source")
-    if not isinstance(source, dict) or source.get("type") not in SOURCES:
-        raise GeofeedError("Choose source.type from: " + ", ".join(sorted(SOURCES)))
-    source_keys = {"type", "allow_initial"} | SOURCES[source["type"]].settings
+    if not isinstance(source, dict) or source.get("type") not in sources:
+        raise GeofeedError("Choose source.type from: " + ", ".join(sorted(sources)))
+    source_keys = {"type", "allow_initial"} | sources[source["type"]].settings
     if set(source) - source_keys:
         raise GeofeedError("Unknown source configuration keys")
-    if source.get("tag") and (source.get("prefix_ids") or source.get("range_ids")):
-        raise GeofeedError("Choose a NetBox tag or explicit IDs, not both")
-    if "allow_http" in source and not isinstance(source["allow_http"], bool):
-        raise GeofeedError("source.allow_http must be true or false")
-    for key in ("prefix_ids", "range_ids", "statuses", "vrf_ids", "network_ids", "subnet_ids"):
-        if key in source and not isinstance(source[key], list):
-            raise GeofeedError(f"source.{key} must be a list")
-    if not isinstance(source.get("location_fields", {}), dict) or set(source.get("location_fields", {})) - {"country", "region", "city"}:
-        raise GeofeedError("source.location_fields supports country, region and city")
     CredentialStore(config.get("credentials"))
-    if source.get("site_resolution", "configured") not in ("configured", "controllers"):
-        raise GeofeedError("Sonar site_resolution must be configured or controllers")
-    if not isinstance(source.get("location_sites", {}), dict):
-        raise GeofeedError("source.location_sites must be a mapping")
+    if sources[source['type']].validate is not None:
+        sources[source['type']].validate(source)
     if "allow_initial" in source and not isinstance(source["allow_initial"], bool):
         raise GeofeedError("source.allow_initial must be true or false")
-    return config
+    target = config.get('publish', {})
+    if 'allow_initial' in target and not isinstance(target['allow_initial'], bool):
+        raise GeofeedError('publish.allow_initial must be true or false')
+    if target.get('type') in targets and hasattr(targets[target['type']], 'settings'):
+        if set(target) - ({'type', 'allow_initial'} | targets[target['type']].settings):
+            raise GeofeedError('Unknown publication target configuration keys')
+    return LoadedConfig(config, sources, targets)
 
 
 @contextmanager
@@ -157,7 +161,7 @@ def main(argv=None):
         directory = Path(config.get("state_dir", "state"))
         with publication_run(directory, credentials, lambda: stage) if args.command == "publish" else nullcontext():
             source_kind = config["source"]["type"]
-            adapter = SOURCES[source_kind]
+            adapter = config.sources[source_kind]
             stage = f"reading {source_kind} inventory"
             source = adapter.create(config["source"], credentials)
             snapshot = source.snapshot()
@@ -193,10 +197,13 @@ def main(argv=None):
             settings = config.get("publish", {})
             kwargs = {"max_removed_fraction": config.get("max_removed_fraction", 0.10)}
             target_kind = settings.get("type")
-            if target_kind not in TARGETS:
-                raise GeofeedError("Choose publish.type from: " + ", ".join(sorted(TARGETS)))
+            if target_kind not in config.targets:
+                raise GeofeedError("Choose publish.type from: " + ", ".join(sorted(config.targets)))
+            target = config.targets[target_kind]
+            if getattr(target, 'initial', False) and settings.get('allow_initial') is not True:
+                raise GeofeedError('Initial output adapter: explicitly set publish.allow_initial: true after testing')
             stage = f"publishing to {target_kind}"
-            result = TARGETS[target_kind](settings, credentials).publish(csv, directory, **kwargs)
+            result = target(settings, credentials).publish(csv, directory, **kwargs)
             status(directory, {"healthy": True, **result, "pools": report})
             print(json.dumps(result))
         return 0

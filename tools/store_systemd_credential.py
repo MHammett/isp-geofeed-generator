@@ -7,12 +7,19 @@ import subprocess
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from isp_geofeed_generator.credentials import NAMES
+from isp_geofeed_generator.credentials import NAMES, valid_name
+
+
+def credential_name(value):
+    if not valid_name(value):
+        raise argparse.ArgumentTypeError('Choose a built-in credential name or an EXT_ extension credential name')
+    return value
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('name', choices=sorted(NAMES))
+    parser.add_argument('name', type=credential_name,
+                        help='Built-in names: '+', '.join(sorted(NAMES))+'; extensions: EXT_<NAME>')
     parser.add_argument('--directory', default='/etc/isp-geofeed-generator/credentials')
     args = parser.parse_args(argv)
     if os.name != 'posix' or os.geteuid() != 0:
