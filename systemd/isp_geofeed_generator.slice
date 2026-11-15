@@ -1,0 +1,7 @@
+[Unit]
+Description=ISP geofeed resource accounting
+
+[Slice]
+CPUAccounting=yes
+MemoryAccounting=yes
+TasksAccounting=yes

@@ -1,0 +1,17 @@
+state_dir: state
+source:
+  type: netbox
+  tag: geofeed
+  # Or remove tag and set prefix_ids: ["101"] and/or range_ids: ["201"].
+  statuses: [active]
+  vrf_ids: [global]
+credentials:
+  NETBOX_API_TOKEN: systemd:NETBOX_API_TOKEN
+allowed_prefixes: [192.0.2.0/24] # Replace documentation space with your public allocation.
+pool_sites: {} # Native site/location scope is used unless explicitly overridden.
+exclude_pools: {}
+site_locations: {} # Or populate site geofeed_country/geofeed_region/geofeed_city custom fields.
+max_removed_fraction: 0.10
+publish:
+  type: file
+  path: output/geofeed.csv

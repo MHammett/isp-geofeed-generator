@@ -1,0 +1,26 @@
+name: Adapter feedback
+description: Report a setup gap or adapter failure without exposing credentials or customer data.
+body:
+  - type: markdown
+    attributes:
+      value: Do not include API keys, passwords, raw inventory exports, customer addresses, or screenshots containing secrets.
+  - type: input
+    id: platform
+    attributes: {label: Platform and version}
+    validations: {required: true}
+  - type: textarea
+    id: expected
+    attributes: {label: Expected behavior, description: Explain what should happen in plain language.}
+    validations: {required: true}
+  - type: dropdown
+    id: category
+    attributes:
+      label: What appears to be missing?
+      options: [Instance configuration, API permission, Documented API operation, Adapter implementation, Verification or unknown]
+    validations: {required: true}
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Include the command, exit status, adapter version, and a synthetic or sanitized response shape. No credentials or customer exports.
+    validations: {required: true}

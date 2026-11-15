@@ -1,0 +1,14 @@
+state_dir: state
+source:
+  type: splynx
+  network_ids: ["ipv4:101"]
+  allow_initial: false # Generate/test first; operator must explicitly opt in to publication.
+credentials:
+  SPLYNX_API_KEY: systemd:SPLYNX_API_KEY
+  SPLYNX_API_SECRET: systemd:SPLYNX_API_SECRET
+allowed_prefixes: [192.0.2.0/24]
+pool_sites:
+  "ipv4:101": "11"
+site_locations:
+  "11": {country: US, region: US-IL, city: Example City}
+publish: {type: file, path: output/geofeed.csv}

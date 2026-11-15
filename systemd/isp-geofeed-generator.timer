@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh ISP geofeed daily
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=30min
+Persistent=true
+Unit=isp-geofeed-generator.service
+
+[Install]
+WantedBy=timers.target
