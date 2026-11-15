@@ -4,7 +4,8 @@ Generate and safely publish public IP geolocation feeds from ISP billing and IPA
 The output follows [RFC 8805](https://www.rfc-editor.org/rfc/rfc8805.html).
 Publish to WordPress or write a file for any web server.
 
-This is an independent community project. All source adapters are read-only.
+This is an independent community project. Contributions are welcome.
+Built-in source adapters are read-only.
 No customer records, street addresses or coordinates are published.
 
 ## Sources and verification
@@ -15,11 +16,13 @@ No customer records, street addresses or coordinates are published.
 | NetBox | Read-only live 4.7.3 checks; native site/location scope and range-parent resolution |
 | Splynx API v2 | Initial support, based on vendor schema and synthetic fixtures; not live-tested |
 | phpIPAM | Initial support, based on public docs and synthetic fixtures; not live-tested |
+| Powercode legacy API | Initial support for documented range reads and explicit facility mappings; not live-tested |
+| gaiia | Initial support for native site/IP-block links; public-schema and fixture checks; not live-tested |
 
 [The platform matrix](docs/platforms.md) separates platform capability, instance setup and adapter verification.
 A missing assignment does not mean the platform cannot do the job. An untested adapter is not called production-ready.
 Initial adapters require an explicit opt-in before publishing.
-Powercode, VISP, Azotel and other platforms can be added when their needed API operations are verified.
+VISP, Azotel and other platforms can be added when their needed API operations are verified.
 
 ## How it works
 
@@ -61,6 +64,8 @@ In PowerShell on Windows, use `.\.venv\Scripts\python.exe` instead of `.venv/bin
 After `pip install .`, the command is `isp-geofeed-generator`.
 No Sonar account is needed when using a different source.
 Keep discovery exports private; they contain network inventory.
+Keep operator configuration outside the Git checkout when you plan to update from GitHub.
+See [local customization](docs/customization.md) for separately installed input/output extensions.
 
 ## Set up the platform and feed
 
@@ -75,7 +80,8 @@ Keep discovery exports private; they contain network inventory.
 The example allocation `192.0.2.0/24` is documentation space and cannot be published. Replace it.
 Do not select a parent prefix and overlapping children together.
 Record IDs are digit strings for Sonar, `prefix:<id>`/`range:<id>` for NetBox,
-`ipv4:<id>`/`ipv6:<id>` for Splynx and `subnet:<id>` for phpIPAM.
+`ipv4:<id>`/`ipv6:<id>` for Splynx, `subnet:<id>` for phpIPAM and `range:<id>` for Powercode.
+gaiia uses native GlobalID values for selection and normalized IDs for overrides; discovery reports both.
 
 ## Sonar controller discovery
 
@@ -138,6 +144,8 @@ See [verification evidence](docs/verification.md) and [review issues](https://gi
 New adapters need public source docs, synthetic fixtures, failure tests, setup instructions and an honest verification level.
 See [adapter contracts](docs/adapters.md), [prior art](docs/prior-art.md), and [platform research](docs/platform-research.md).
 Feedback should include platform version and sanitized response shapes. Never include credentials or raw customer exports.
+See [CONTRIBUTING.md](CONTRIBUTING.md). We welcome adapters, tests, docs and operator feedback.
+We also invite [platform creators](docs/platform-creators.md) to make IP pool-to-geolocation links easier to read through their APIs.
 
 Source code is under `isp_geofeed_generator/`; the plugin is under `wordpress/`.
 Guides are under `docs/`. Licensed under [MIT](LICENSE).

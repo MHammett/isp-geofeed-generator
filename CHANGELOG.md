@@ -3,16 +3,11 @@
 ## Unreleased
 
 - Initial public implementation of ISP Geofeed Generator (development version 0.2.0).
-- Added Sonar controller management-IP to site discovery through inventory.
-- Added NetBox prefixes, ranges, native scopes and explicit publication selection.
-- Added initial Splynx and phpIPAM adapters, with publication opt-in and clear test limits.
-- Added systemd credential, protected-file and Windows Credential Manager readers.
-- Added an encrypted-credential setup helper, error redaction and pinned CI actions.
-- Added operator setup, platform capability and security guides.
-
-- Added read-only Sonar pool and network-site discovery.
-- Added optional assignment-based site candidates with an explicit ownership warning.
-- Added exact-range RFC 8805 generation and reviewed pool-to-site mappings.
-- Added file and WordPress publishing with removal checks and read-back.
-- Added conditional WordPress updates and guarded rollback.
-- Added portable tests, optional scripting1 deployment and setup/recovery guides.
+- Read-only Sonar and NetBox sources with explicit selection, native site links and reviewed mapping options.
+- Initial Splynx, phpIPAM, Powercode legacy and gaiia sources, with publication opt-in and clear verification limits.
+- Exact-range RFC 8805 output, owned-space checks, withdrawal limits and private status records.
+- File and WordPress targets with read-back, conditional updates and checked recovery.
+- Versioned, explicitly enabled input/output extensions installed outside the upstream checkout.
+- Secure credential stores and enrollment, including extension credential names, plus redacted errors.
+- Portable tests, pinned CI actions, optional systemd deployment and operator recovery guides.
+- Contribution guidance and a request for platform creators to expose pool-to-geolocation API links.

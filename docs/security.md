@@ -38,6 +38,7 @@ LoadCredentialEncrypted=WP_APP_PASSWORD:/etc/isp-geofeed-generator/credentials/W
 
 For NetBox, substitute `NETBOX_API_TOKEN`. Splynx needs `SPLYNX_API_KEY` and `SPLYNX_API_SECRET`.
 phpIPAM needs `PHPIPAM_API_TOKEN`. Load only the credentials needed by that service.
+Powercode needs `POWERCODE_API_KEY`; gaiia needs `GAIIA_API_KEY`.
 URLs and the WordPress username belong in root:geofeed mode-0640 `runtime.env`.
 Never place tokens or passwords in that file for the recommended systemd setup.
 
@@ -93,5 +94,17 @@ They may be visible to administrators or diagnostics. Do not put their values in
 
 Check the credential backend under the actual service account, source read permissions, complete inventory,
 public-address selection, WordPress permissions, public read-back and recovery.
+
+## Local extensions
+
+Extensions are trusted Python code with the service account's access. Install only reviewed packages.
+Installation alone does not enable them. Enable exact entry-point names in private configuration.
+The loader does not import disabled packages, accept module paths from YAML, fetch plugins or replace built-ins.
+An incompatible adapter API version stops startup. It is not silently ignored.
+
+Extensions can use `EXT_<NAME>` credential names through the same credential store and enrollment helper.
+For example, `EXT_CUSTOM_API_TOKEN: systemd:EXT_CUSTOM_API_TOKEN` holds a reference, not a secret.
+The enrollment helper validates names without importing extensions at a root prompt.
+Keep extension source, wheels and install pins outside the upstream checkout; see [customization](customization.md).
 The offline suite tests failure cases; it is not proof that a given host's encryption, permissions,
 network path or alert delivery has been configured correctly.

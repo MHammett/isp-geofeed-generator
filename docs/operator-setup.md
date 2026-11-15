@@ -74,6 +74,48 @@ Folder records cannot be published. Parent/child overlap is rejected.
 The adapter reads the documented complete subnet and location collections. A response that is too large
 fails the size check. It does not silently publish the first part of a response.
 
+## Powercode legacy API: initial support
+
+Set `POWERCODE_URL` to the HTTPS billing origin, including its port, or the full legacy
+`/api/1/index.php` endpoint. Set a secure `POWERCODE_API_KEY` reference.
+Use a dedicated key limited to the documented `readAddressRanges` action where the platform's
+permissions permit. The adapter does not use the current REST API or query customer equipment.
+
+Select raw IDs in `source.range_ids`. Define stable local facility IDs in `source.facility_ids`,
+map `range:<id>` to a facility in `pool_sites`, and provide `site_locations` for that facility.
+The reviewed legacy response has no facility ID. This is a limit of that export, not a claim
+that Powercode cannot model Network Locations. A future verified native join can replace the manual map.
+
+The response is documented as all ranges, without paging or a total count. Compare the discovery
+count with your instance before publishing. A silent server-side truncation cannot be proven absent
+from this contract alone. Exact endpoints are preserved; a derived containing envelope is used
+only for validation and never expands the published range. IPv6 conversion is fixture-tested if
+returned in that shape. Whether this legacy action exports your IPv6 inventory is not live-verified.
+
+## gaiia: initial support
+
+Use `GAIIA_URL=https://api.gaiia.com/api/v1` or the documented endpoint for your deployment.
+Create a dedicated secret API key under Admin > API keys. Grant only network-site/IP-block reads.
+The adapter sends `X-Gaiia-Api-Key` from secure `GAIIA_API_KEY` storage.
+
+Assign IP blocks to the correct Network Site in gaiia. Set its country, region and locality.
+Choose raw `source.site_ids` to publish all blocks at reviewed sites, or `source.block_ids`
+to choose individual blocks. Do not use both. Archived sites cannot be selected. A selected
+site that loses every block stops the run for review.
+
+Discovery reports native `source_id` values and safe normalized `id` values. Selection uses native
+GlobalID strings. Top-level `pool_sites` and `site_locations` overrides use normalized IDs from discovery.
+The normalized suffix is the URL-safe base64 encoding of the native ID, without padding.
+IDs longer than the core's normalized limit are rejected, not shortened or guessed.
+
+The adapter reads only coarse address fields. It prefixes short region codes with the country,
+for example `US` and `IL` become `US-IL`. It does not guess a country or translate a full region name.
+Use a reviewed location override if the native address uses another format.
+It pages the site list and each site's block list separately, verifies counts and rejects
+duplicate IDs, missing pages, repeated cursors, partial GraphQL errors and changed ownership/archive state.
+The API is not a transactional snapshot; edits that preserve counts may still happen during reads.
+Rate-limit errors stop the run without retries. See the vendor's rate-limit guidance before scheduling large inventories.
+
 ## Verify before scheduling
 
 Run discovery, compare its counts and associations with the platform, generate a candidate, and inspect

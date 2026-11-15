@@ -1,5 +1,31 @@
 # Verification
 
+## Powercode, gaiia and local extension follow-up
+
+Observed on 2026-11-15. Windows ran 93 tests: 92 passed, one POSIX-only check skipped.
+The new tests cover exact Powercode ranges, safe form encoding, gaiia site and block pagination,
+missing pages, changed counts, duplicate IDs, archive/ownership conflicts, partial GraphQL errors,
+initial-publication blocks and independent extension configuration.
+
+The extension integration test runs the actual publisher in a subprocess using installed-package
+metadata outside a temporary core checkout. It first proves that both initial-support opt-ins block
+publication. It then publishes, replaces the core runtime, runs again and confirms that the local
+configuration, input, extension source and public bytes are intact. This is a simulated core update,
+not a production deployment.
+
+The core and example extension built and installed into an isolated environment. Both installed entry
+points loaded. The two gaiia queries passed `graphql-core` 3.2.14 validation against the vendor's public
+schema; replacing a real address field with a nonexistent field failed the negative control.
+Published schema response SHA-256: `8aa25ed901d27232407c520d7ec6f94a2528211b7c76e9ec5c3087498e83262b`.
+The export was the anonymous `Introspection` operation used by the vendor's documentation.
+
+No authenticated Powercode or gaiia instance was queried. Real permissions, IPv6 inventory coverage,
+server-side truncation and service deployment are not live-verified. Initial support remains explicit.
+Consult the adapter pull request for hosted Linux, PHP, packaging and Windows results.
+
+Rollback: stop the schedule, keep the last good public feed and restore the prior approved core package
+or compatible extension. The work above did not enable a production schedule or change a website.
+
 ## Generic project and source adapters
 
 Evidence updated November 15, 2026.

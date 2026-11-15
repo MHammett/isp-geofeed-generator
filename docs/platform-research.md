@@ -1,7 +1,8 @@
 # Platform research and conference leads
 
 Reviewed on 2026-11-15. Read the [capability matrix](platforms.md) for implemented support
-and [prior art](prior-art.md) for existing projects. Research entries below are not adapters.
+and [prior art](prior-art.md) for existing projects. Research findings do not by themselves claim adapter support.
+Powercode and gaiia now have initial adapters; their setup and limits are in [the operator guide](operator-setup.md).
 
 ## Named platform checks
 
@@ -37,9 +38,9 @@ neither a suitable API nor market share.
 | [EDUCAUSE 2026 exhibitor profile](https://s23.a2zinc.net/clients/EDUCAUSE/E26/Public/eBooth.aspx?BoothID=105410&FromPage=Exhibitors.aspx&IndexInList=95&ListByBooth=true&Nav=False&ParentBoothID=) | EfficientIP | Check SOLIDserver subnet/site metadata and public API examples. |
 | [NANOG annual report for 2023](https://storage.googleapis.com/site-media-prod/documents/NANOG-Annual_report-2023.pdf) | BlueCat and Infoblox | Historical discovery evidence only. Check current product-specific APIs. |
 
-BillMax has a public REST documentation entry point. gaiia's Network Sites guide explicitly
-names GraphQL reads for sites and site IP blocks. They are strong next candidates, pending
-their exact response, paging and permission contracts. GLDS/BroadHub, CDG, CHR, Amdocs and
+BillMax has a public REST documentation entry point and remains a next candidate.
+gaiia's published schema verified `networkSites`, `networkSite(id)` and the site's paginated
+`ipBlocks` connection. That contract now supports an initial adapter. GLDS/BroadHub, CDG, CHR, Amdocs and
 Innovative Systems are discovery leads, with no IPAM read contract claimed by this review.
 Incognito's Address Commander is an IPAM product with documented integration options;
 an implementable public read schema still needs review.

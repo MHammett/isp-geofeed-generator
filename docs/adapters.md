@@ -52,9 +52,10 @@ verify the actual public URL. An upload acknowledgement alone is insufficient.
 - Confirm unrelated adapters' credentials are never requested.
 - Run a live read-only check when access exists. Keep that result separate from fixture tests.
 
-The registries load code shipped with the project. Configuration cannot import arbitrary
-Python modules, invoke shell commands or install plugins. Adapter selection does not grant
-write access to a source platform.
+The built-in registries load code shipped with the project. Separately installed, trusted
+extensions use [versioned entry points](customization.md) and must be explicitly enabled.
+Configuration cannot import module paths, invoke shell commands or install plugins.
+Adapter selection does not grant write access to a source platform.
 
 The CLI owns the publication lock and status file. Discovery and candidate generation do
 not take that lock or overwrite publication health. Use separate candidate output files;
