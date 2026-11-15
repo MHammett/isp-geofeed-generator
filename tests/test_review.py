@@ -51,10 +51,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('offset=1', http.calls[1][0])
         for url in ('http://other.example.net/api/dcim/sites/', 'http://netbox.example.net/api/ipam/prefixes/',
                     'ftp://netbox.example.net/api/dcim/sites/', 'http://netbox.example.net:999/api/dcim/sites/'):
-            http = HTTP([page([{'id': 1}], 2, url)])
-            with self.assertRaises(GeofeedError):
-                NetBox('https://netbox.example.net', 'fake-token', http=http).pages('/dcim/sites/')
-            self.assertEqual(len(http.calls), 1)
+            http = HTTP([page([{'id': 1}], 2, url), page([{'id': 2}], 2)])
+            self.assertEqual(len(NetBox('https://netbox.example.net', 'fake-token', http=http).pages('/dcim/sites/')), 2)
+            self.assertTrue(all(call[0].startswith('https://netbox.example.net/api/dcim/sites/') for call in http.calls))
 
     def test_null_custom_fields_becomes_an_actionable_setup_failure(self):
         source = self.source(sites=[{**SITE, 'custom_fields': None}])

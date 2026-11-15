@@ -10,9 +10,16 @@ Do not paste credentials into chat, public issues, command arguments, URLs or co
 
 ## Linux with systemd
 
-Known deployment blocker: the strict credential-file permission check may reject systemd's
-root-owned credential files with a service-user ACL. Issue #28 tracks a real root/service
-end-to-end test and fix. Do not enable a timer on the strength of unit-file tests alone.
+systemd may keep credentials owned by root and give the service UID read access through an
+ACL. For `systemd:` references, the reader accepts that exact read-only owner/service-user
+layout with no group or other readers. It does not accept extra named users, shared group
+access or writable credentials through this exception. `file:` references retain their
+existing stricter ownership/group checks. Unknown ACL layouts fail closed.
+
+The root-only CI workload tests plain and encrypted systemd credentials under a different
+service UID and checks unsafe ACL controls on a disposable host. Check its result in the
+current PR; Windows unit tests cannot prove service behavior. Verify credential access under
+the actual deployment account before enabling a timer. No production credential is used in CI.
 
 Prefer systemd encrypted credentials. The encrypted files live under `/etc/isp-geofeed-generator/credentials/`,
 owned by root in a mode-0700 directory. systemd decrypts them into a private runtime credential directory.

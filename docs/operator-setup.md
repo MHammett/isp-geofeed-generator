@@ -70,6 +70,12 @@ The mandatory fullbogon, allowed-prefix and per-family withdrawal checks apply t
 
 ## NetBox
 
+Pagination uses `next` only to signal that more results exist. A proxy may rewrite that
+link's hostname, scheme or path. The reader still sends every request to the configured
+endpoint with its own offset; credentials are never sent to the server-supplied link.
+Count mismatches, duplicate records, empty intermediate pages and malformed continuation
+metadata still stop the read. Check the configured public/proxy URL before scheduling.
+
 The adapter targets NetBox 4.x API records. Authentication defaults to `Token`, which works
 on 4.0 through current 4.x, including newer token types. Explicit `auth_scheme: Bearer` needs
 4.5 or later. Only 4.7.3 was live-tested; older-version compatibility was checked against

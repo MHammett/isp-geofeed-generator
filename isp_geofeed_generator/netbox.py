@@ -67,18 +67,16 @@ class NetBox:
                         raise GeofeedError("Duplicate NetBox record during pagination")
                     seen.add(key)
                     rows.append(row)
-                if not following:
+                if following is not None and (not isinstance(following, str) or not following):
+                    raise GeofeedError('Invalid NetBox pagination continuation metadata')
+                if following is None:
                     if len(rows) != total:
                         raise GeofeedError("NetBox result count is incomplete")
                     return rows
-                next_parts, expected = urlsplit(following), urlsplit(url)
-                if (next_parts.scheme not in {expected.scheme, "http"} or
-                    (next_parts.netloc, next_parts.path) != (expected.netloc, expected.path) or
-                    next_parts.username or next_parts.password or next_parts.fragment):
-                    raise GeofeedError("NetBox next-page URL is outside the requested endpoint")
                 if not batch or len(rows) >= total:
                     raise GeofeedError("Invalid NetBox pagination continuation")
-                # Use our own offset. Never forward credentials to an API-supplied URL.
+                # next is only a continuation signal. A proxy can rewrite its host.
+                # Always use our configured endpoint and offset, never that URL.
                 offset += len(batch)
             except (KeyError, TypeError, ValueError):
                 raise GeofeedError(f"NetBox {path} pagination response is invalid at offset {offset}") from None

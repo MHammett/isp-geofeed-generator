@@ -2,6 +2,7 @@
 import os
 import re
 import stat
+import struct
 from pathlib import Path
 from .client import GeofeedError
 
@@ -15,7 +16,21 @@ def valid_name(name):
     return isinstance(name, str) and (name in NAMES or re.fullmatch(r'EXT_[A-Z][A-Z0-9_]{0,79}', name) is not None)
 
 
-def protected_file(path):
+def systemd_read_acl(fd, uid):
+    """Accept only Linux's exact root-owner/service-reader ACL, with no shared reader."""
+    try:
+        value = os.getxattr(fd, 'system.posix_acl_access')
+        if len(value) != 44 or struct.unpack('<I', value[:4])[0] != 2:
+            return False
+        # Linux UAPI posix_acl_xattr.h: tag, permissions, ID (little endian).
+        entries = set(struct.iter_unpack('<HHI', value[4:]))
+        return entries == {(1, 4, 0xffffffff), (2, 4, uid), (4, 0, 0xffffffff),
+                           (16, 4, 0xffffffff), (32, 0, 0xffffffff)}
+    except (AttributeError, OSError, struct.error):
+        return False
+
+
+def protected_file(path, *, systemd=False):
     """Accept only an owned, protected regular file. No symlinks or device reads."""
     path = Path(path)
     if not path.is_absolute():
@@ -31,7 +46,8 @@ def protected_file(path):
                 raise GeofeedError("Credential must be an owned regular file")
             if info.st_mode & (stat.S_IWGRP | stat.S_IRWXO):
                 raise GeofeedError("Credential file permissions are too broad")
-            if info.st_mode & stat.S_IRGRP and info.st_gid not in {os.getegid(), *os.getgroups()}:
+            if (info.st_mode & stat.S_IRGRP and info.st_gid not in {os.getegid(), *os.getgroups()}
+                    and not (systemd and info.st_uid == 0 and systemd_read_acl(stream.fileno(), os.getuid()))):
                 raise GeofeedError("Credential file group is not one of the service account's groups")
             value = stream.read(16385)
             if len(value) > 16384:
@@ -105,7 +121,7 @@ class CredentialStore:
             directory = self.environ.get("CREDENTIALS_DIRECTORY")
             if not directory:
                 raise GeofeedError("systemd credential directory is not available")
-            value = protected_file(Path(directory) / argument)
+            value = protected_file(Path(directory) / argument, systemd=True)
         elif backend == "file":
             value = protected_file(argument)
         elif backend == "wincred":

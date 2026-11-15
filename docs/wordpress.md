@@ -15,6 +15,31 @@ The plugin does not need a page-builder change or a theme change.
 The role can read and publish this feed. It cannot edit pages, install plugins or manage users.
 Administrators can also publish, but a dedicated user limits unattended access.
 WordPress and the web server must pass the Authorization header to REST requests.
+
+## HTTPS behind a proxy
+
+WordPress itself must recognize the incoming request as HTTPS. The public URL showing a
+padlock does not prove this when TLS ends at a reverse proxy or load balancer. WordPress's
+HTTPS state controls both the plugin's write permission and application-password availability.
+
+Have the web-server/proxy configuration pass the correct HTTPS state. If a `wp-config.php`
+mapping is needed, apply it only to requests from an explicit trusted proxy address. That
+proxy must replace the forwarded-protocol header, and the backend must refuse direct public
+access that could spoof it. A generic rule that trusts any client's `X-Forwarded-Proto` is
+not sufficient. The plugin does not trust that header or weaken its HTTPS requirement.
+Use your host's supported configuration and keep the prior config for rollback.
+
+Before the first write, use the actual public HTTPS domain to read the authenticated
+`/wp-json/isp-geofeed-generator/v1/state` route with the dedicated publisher's application
+password. The generator performs this read first. A 401/403 stops before any write and names
+credentials, role permissions, Authorization forwarding and HTTPS recognition as possible
+causes. It cannot identify a proxy problem from that status alone. Check server-side HTTPS
+state on an actual web request, not a command-line PHP process.
+
+Test the trusted-proxy path and a direct/untrusted request. Correct proxy requests should
+authenticate; a forged forwarding header must not make an insecure direct request publish.
+Do not enable a timer until that check and staging publication/read-back/recovery succeed.
+See [WordPress's HTTPS guide](https://developer.wordpress.org/advanced-administration/security/https/).
 Multisite and unusual authentication plugins have not been tested.
 
 ## Check the first publication

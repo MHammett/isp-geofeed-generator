@@ -86,10 +86,11 @@ class NetBoxTests(unittest.TestCase):
         self.assertEqual(len(source.for_publication(source.snapshot())['pools']),1)
 
     def test_next_page_cannot_receive_credentials_off_origin(self):
-        http=HTTP([page([{'id':1}],2,'https://other.example.net/api/dcim/sites/?offset=1')])
+        http=HTTP([page([{'id':1}],2,'https://other.example.net/api/dcim/sites/?offset=1'),page([{'id':2}],2)])
         source=NetBox('https://netbox.example.net','example-token',http=http)
-        with self.assertRaisesRegex(GeofeedError,'outside'):source.pages('/dcim/sites/')
-        self.assertEqual(len(http.calls),1)
+        self.assertEqual(len(source.pages('/dcim/sites/')),2)
+        self.assertEqual(len(http.calls),2)
+        self.assertTrue(all(call[0].startswith('https://netbox.example.net/api/dcim/sites/') for call in http.calls))
 
     def test_pagination_duplicates_and_empty_inventory_fail(self):
         for replies in ([page([{'id':1}],2)], [page([{'id':1}],2,'https://netbox.example.net/api/dcim/sites/?offset=1'),page([{'id':1}],2)],

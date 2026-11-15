@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import tempfile
+import re
 from . import __version__
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -41,7 +42,13 @@ class WordPress:
         return self.base + "/feed"
 
     def state(self):
-        result = self.http.request(self.base + "/state", headers=self.headers)
+        try:
+            result = self.http.request(self.base + "/state", headers=self.headers)
+        except GeofeedError as exc:
+            match = re.match(r'HTTP (401|403)\b', str(exc))
+            if match:
+                raise GeofeedError(f'WordPress state access refused (HTTP {match[1]}). Check application password, publisher permissions and Authorization header forwarding. Behind a trusted TLS proxy, WordPress must recognize the request as HTTPS; no write was attempted') from None
+            raise
         try:
             csv = result["csv"].encode("utf-8")
             if result["sha256"] != digest(csv):

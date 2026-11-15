@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Narrow systemd service-user ACL support, with real plain/encrypted credential workloads on disposable CI and unchanged ordinary file rules.
+- WordPress HTTPS-proxy setup/preflight diagnostics and NetBox pagination that tolerates rewritten next links without following them.
+
 - WordPress first publication refuses a concurrent winning insert; database write errors are distinguished from conflicts.
 - phpIPAM can use explicitly configured facilities without native locations, with scheduled-token setup guidance and sanitized expiry/access errors.
 
