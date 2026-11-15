@@ -1,6 +1,7 @@
 """Small, bounded GraphQL reader; no mutation API and no automatic retries."""
 import json
 import ipaddress
+from . import __version__
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -30,7 +31,7 @@ class JsonHTTP:
 
     def request(self, url, *, body=None, headers=None, method=None):
         req = Request(url, data=None if body is None else json.dumps(body).encode(),
-                      headers={"User-Agent": "isp-geofeed-generator/0.1", "Content-Type": "application/json", **(headers or {})},
+                      headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Content-Type": "application/json", **(headers or {})},
                       method=method)
         try:
             with self.opener.open(req, timeout=self.timeout) as response:
@@ -49,6 +50,9 @@ class JsonHTTP:
 
 
 class Sonar:
+    def for_publication(self, snapshot):
+        return snapshot
+
     def __init__(self, url, token, http=None, page_size=100, settings=None):
         if not token or any(c.isspace() for c in token):
             raise GeofeedError("SONAR_API_TOKEN is missing or contains whitespace")

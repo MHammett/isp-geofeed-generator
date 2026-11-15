@@ -19,9 +19,10 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)
             cfg = p / 'config.yaml'
-            cfg.write_text(f'state_dir: {p.as_posix()}/state\nallowed_prefixes: [11.22.33.0/24]\npool_sites: {{"101": "11"}}\npublish:\n  type: file\n  path: {p.as_posix()}/public/feed.csv\n')
-            with patch.dict('os.environ', {'SONAR_API_TOKEN': 'example-token'}), patch('isp_geofeed_generator.cli.Sonar') as sonar:
+            cfg.write_text(f'source: {{type: sonar}}\nstate_dir: {p.as_posix()}/state\nallowed_prefixes: [11.22.33.0/24]\npool_sites: {{"101": "11"}}\npublish:\n  type: file\n  path: {p.as_posix()}/public/feed.csv\n')
+            with patch.dict('os.environ', {'SONAR_API_TOKEN': 'example-token'}), patch('isp_geofeed_generator.adapters.Sonar') as sonar:
                 sonar.return_value.snapshot.return_value = snapshot()
+                sonar.return_value.for_publication.side_effect = lambda value: value
                 self.assertEqual(main(['generate', '--config', str(cfg), '--output', str(p/'candidate.csv')]), 0)
                 self.assertFalse((p/'public/feed.csv').exists())
                 self.assertEqual(main(['publish', '--config', str(cfg)]), 0)

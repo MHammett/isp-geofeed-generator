@@ -6,12 +6,13 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from isp_geofeed_generator.credentials import NAMES
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('name', choices=('SONAR_API_TOKEN','NETBOX_API_TOKEN','WP_APP_PASSWORD',
-        'SPLYNX_API_KEY','SPLYNX_API_SECRET','POWERCODE_API_KEY','UISP_API_TOKEN','VISP_CLIENT_ID','VISP_CLIENT_SECRET'))
+    parser.add_argument('name', choices=sorted(NAMES))
     parser.add_argument('--directory', default='/etc/isp-geofeed-generator/credentials')
     args = parser.parse_args(argv)
     if os.name != 'posix' or os.geteuid() != 0:

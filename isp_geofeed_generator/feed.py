@@ -31,17 +31,20 @@ def public(network):
 SPECIAL = [ipaddress.ip_network(n) for n in (
     "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
     "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15",
-    "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
+    "192.88.99.0/24", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
     "::/96", "::ffff:0:0/96", "64:ff9b::/96", "64:ff9b:1::/48", "100::/64",
-    "2001:db8::/32", "2002::/16", "3fff::/20", "fc00::/7", "fe80::/10", "ff00::/8")]
+    "2001::/32", "2001:2::/48", "2001:10::/28", "2001:20::/28",
+    "2001:db8::/32", "2002::/16", "3fff::/20", "5f00::/16", "fc00::/7", "fe80::/10", "fec0::/10", "ff00::/8")]
 
 
 def location(site, override=None):
     override = override or {}
     addresses = site.get("addresses", [])
+    if not isinstance(override, dict) or not isinstance(addresses, list) or any(not isinstance(a, dict) for a in addresses):
+        raise GeofeedError(f"Site {site['id']} has invalid addresses or location override; expected structured location fields")
     address_id = override.get("address_id")
     if address_id is not None:
-        addresses = [a for a in addresses if str(a["id"]) == str(address_id)]
+        addresses = [a for a in addresses if str(a.get("id")) == str(address_id)]
     if len(addresses) != 1:
         raise GeofeedError(f"Site {site['id']} needs exactly one address, or an explicit address_id")
     address = addresses[0]
@@ -59,6 +62,20 @@ def location(site, override=None):
 
 
 def build(snapshot, config):
+    if not isinstance(snapshot, dict):
+        raise GeofeedError("Source returned an invalid snapshot; expected pools and sites")
+    for kind in ("pools", "sites"):
+        rows = snapshot.get(kind)
+        if not isinstance(rows, list):
+            raise GeofeedError(f"Source returned invalid {kind}; expected a record list")
+        seen = set()
+        for row in rows:
+            key = str(row.get("id", "")) if isinstance(row, dict) else ""
+            if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", key):
+                raise GeofeedError(f"Source {kind} contains a missing or invalid record ID")
+            if key in seen:
+                raise GeofeedError(f"Source {kind} contains duplicate ID {key}")
+            seen.add(key)
     mappings = {str(k): str(v) for k, v in config.get("pool_sites", {}).items()}
     ignored = {str(k): v for k, v in config.get("exclude_pools", {}).items()}
     overrides = {str(k): v for k, v in config.get("site_locations", {}).items()}
@@ -76,7 +93,12 @@ def build(snapshot, config):
         raise GeofeedError("Configured pools no longer exist: " + ", ".join(sorted(missing)))
     entries, report = [], []
     for pid, pool in pools.items():
-        nets = prefixes(pool["ip_range"])
+        if not isinstance(pool.get("ip_range"), str):
+            raise GeofeedError(f"Pool {pid} needs a string ip_range")
+        try:
+            nets = prefixes(pool["ip_range"])
+        except GeofeedError:
+            raise GeofeedError(f"Pool {pid} has an invalid IP range or noncanonical prefix") from None
         if not all(public(n) for n in nets):
             if any(public(n) for n in nets):
                 raise GeofeedError(f"Pool {pid} crosses public and special address space")
@@ -95,7 +117,10 @@ def build(snapshot, config):
         parent = pool.get("subnet")
         if not parent:
             raise GeofeedError(f"Pool {pid} has no parent subnet")
-        parent_net = ipaddress.ip_network(parent["subnet"], strict=True)
+        try:
+            parent_net = ipaddress.ip_network(parent["subnet"], strict=True)
+        except (KeyError, ValueError, TypeError):
+            raise GeofeedError(f"Pool {pid} has an invalid parent subnet") from None
         loc = location(sites[sid], overrides.get(sid))
         for net in nets:
             if net.version != parent_net.version or not net.subnet_of(parent_net):

@@ -1,5 +1,6 @@
 """Read-only NetBox IPAM source; no dependency on a billing platform."""
 import ipaddress
+import re
 from urllib.parse import urlencode, urlsplit
 from .client import GeofeedError, JsonHTTP, https_url
 
@@ -12,6 +13,11 @@ def ref_id(value):
     if isinstance(value, dict) and value.get("id") is not None:
         return str(value["id"])
     return None
+
+
+def record_id(row):
+    value = str(row.get("id", "")) if isinstance(row, dict) else ""
+    return value if re.fullmatch(r"[0-9]{1,20}", value) else "(unknown ID)"
 
 
 class NetBox:
@@ -48,6 +54,8 @@ class NetBox:
                 if total != count:
                     raise GeofeedError("NetBox inventory changed during pagination")
                 for row in batch:
+                    if not isinstance(row, dict) or record_id(row) == "(unknown ID)":
+                        raise GeofeedError(f"NetBox {path} returned a malformed record at offset {offset}")
                     key = str(row["id"])
                     if key in seen:
                         raise GeofeedError("Duplicate NetBox record during pagination")
@@ -58,8 +66,8 @@ class NetBox:
                         raise GeofeedError("NetBox result count is incomplete")
                     return rows
                 next_parts, expected = urlsplit(following), urlsplit(url)
-                if ((next_parts.scheme, next_parts.netloc, next_parts.path) !=
-                    (expected.scheme, expected.netloc, expected.path) or
+                if (next_parts.scheme not in {expected.scheme, "http"} or
+                    (next_parts.netloc, next_parts.path) != (expected.netloc, expected.path) or
                     next_parts.username or next_parts.password or next_parts.fragment):
                     raise GeofeedError("NetBox next-page URL is outside the requested endpoint")
                 if not batch or len(rows) >= total:
@@ -67,7 +75,7 @@ class NetBox:
                 # Use our own offset. Never forward credentials to an API-supplied URL.
                 offset += len(batch)
             except (KeyError, TypeError, ValueError):
-                raise GeofeedError("NetBox pagination response is invalid") from None
+                raise GeofeedError(f"NetBox {path} pagination response is invalid at offset {offset}") from None
         raise GeofeedError("NetBox pagination limit exceeded")
 
     def _scope_site(self, prefix, locations):
@@ -106,7 +114,11 @@ class NetBox:
                   **self.settings.get("location_fields", {})}
         normalized_sites = []
         for site in sites:
-            custom = site.get("custom_fields", {})
+            custom = site.get("custom_fields") or {}
+            if not isinstance(custom, dict):
+                raise GeofeedError(f"NetBox site {record_id(site)} has invalid custom_fields; expected a mapping")
+            if not isinstance(site.get("name"), str):
+                raise GeofeedError(f"NetBox site {record_id(site)} has no valid name")
             address = {"id": "site:" + str(site["id"]),
                        "country": enum_value(custom.get(fields["country"])),
                        "subdivision": enum_value(custom.get(fields["region"])),
@@ -114,7 +126,10 @@ class NetBox:
             normalized_sites.append({"id": str(site["id"]), "name": site["name"], "addresses": [address]})
         normalized, index = [], []
         for prefix in prefixes:
-            network = ipaddress.ip_network(prefix["prefix"], strict=True)
+            try:
+                network = ipaddress.ip_network(prefix["prefix"], strict=True)
+            except (KeyError, ValueError, TypeError):
+                raise GeofeedError(f"NetBox prefix {record_id(prefix)} has a missing, invalid or noncanonical prefix") from None
             index.append((prefix, network))
             sid, error = self._scope_site(prefix, locations)
             normalized.append({"id": "prefix:" + str(prefix["id"]), "name": prefix.get("description") or prefix["prefix"],
@@ -122,10 +137,13 @@ class NetBox:
                 "site_id": sid, "scope_error": error, "selected": self._selected("prefix", prefix),
                 "source_status": enum_value(prefix.get("status")), "vrf_id": ref_id(prefix.get("vrf"))})
         for row in ranges:
-            start = ipaddress.ip_interface(row["start_address"]).ip
-            end = ipaddress.ip_interface(row["end_address"]).ip
+            try:
+                start = ipaddress.ip_interface(row["start_address"]).ip
+                end = ipaddress.ip_interface(row["end_address"]).ip
+            except (KeyError, ValueError, TypeError):
+                raise GeofeedError(f"NetBox range {record_id(row)} has missing or invalid boundaries") from None
             if start.version != end.version or int(start) > int(end):
-                raise GeofeedError("Invalid NetBox IP range boundaries")
+                raise GeofeedError(f"NetBox range {record_id(row)} has reversed or mixed-family boundaries")
             parents = [(p, n) for p, n in index if n.version == start.version and start in n and end in n
                        and ref_id(p.get("vrf")) == ref_id(row.get("vrf"))]
             sid, error, parent = None, "Range has no containing prefix in the same VRF", None

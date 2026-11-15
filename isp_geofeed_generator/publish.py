@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import tempfile
+from . import __version__
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
@@ -59,7 +60,7 @@ class WordPress:
             raise GeofeedError("WordPress did not confirm the expected feed hash")
 
     def read_public(self):
-        req = Request(self.public_url, headers={"User-Agent": "isp-geofeed-generator/0.1", "Cache-Control": "no-cache"})
+        req = Request(self.public_url, headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Cache-Control": "no-cache"})
         try:
             with self.http.opener.open(req, timeout=self.http.timeout) as response:
                 data = response.read(1_000_001)

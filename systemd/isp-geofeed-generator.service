@@ -2,18 +2,15 @@
 Description=ISP public IP geolocation feed
 After=network-online.target
 Wants=network-online.target
-OnFailure=unit-failure-alert@%n.service
 
 [Service]
 Type=oneshot
 User=geofeed
 Group=geofeed
-SupplementaryGroups=scripting
 Slice=isp_geofeed_generator.slice
 WorkingDirectory=/opt/isp-geofeed-generator
 EnvironmentFile=/etc/isp-geofeed-generator/runtime.env
 # Add LoadCredentialEncrypted entries in a service drop-in. See docs/security.md.
-Environment=SCRIPTING_COMMON_PATH=/opt/scripting-common
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/isp-geofeed-generator/venv/bin/python -m isp_geofeed_generator publish --config /etc/isp-geofeed-generator/config.yaml
 TimeoutStartSec=15min

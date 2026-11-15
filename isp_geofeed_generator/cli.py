@@ -3,15 +3,15 @@ import json
 import importlib
 import os
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 import yaml
-from .client import GeofeedError, Sonar
-from .netbox import NetBox
+from .client import GeofeedError
+from .adapters import SOURCES, TARGETS
 from .credentials import CredentialStore
 from .feed import build, digest
-from .publish import WordPress, atomic_write, publish_file, publish_wordpress
+from .publish import atomic_write
 
 
 def shared_module(name):
@@ -44,11 +44,10 @@ def load_config(path):
             raise GeofeedError(f"{name} must be a YAML mapping")
     if not isinstance(config.get("allowed_prefixes", []), list):
         raise GeofeedError("allowed_prefixes must be a list")
-    source = config.get("source", {"type": "sonar"})
-    if not isinstance(source, dict) or source.get("type") not in ("sonar", "netbox", "splynx", "phpipam"):
-        raise GeofeedError("source.type must be sonar, netbox, splynx or phpipam")
-    source_keys = {"type", "allow_http", "auth_scheme", "tag", "prefix_ids", "range_ids", "statuses", "vrf_ids", "location_fields",
-                   "site_resolution", "network_ids", "location_sites", "subnet_ids", "allow_initial"}
+    source = config.get("source")
+    if not isinstance(source, dict) or source.get("type") not in SOURCES:
+        raise GeofeedError("Choose source.type from: " + ", ".join(sorted(SOURCES)))
+    source_keys = {"type", "allow_initial"} | SOURCES[source["type"]].settings
     if set(source) - source_keys:
         raise GeofeedError("Unknown source configuration keys")
     if source.get("tag") and (source.get("prefix_ids") or source.get("range_ids")):
@@ -120,8 +119,29 @@ def status(directory, result):
     atomic_write(Path(directory) / "status.json", json.dumps(value, indent=2).encode())
 
 
+def error_message(exc, credentials, stage):
+    if isinstance(exc, GeofeedError):
+        return credentials.redact(str(exc))
+    return f"Failed while {stage} ({type(exc).__name__}); check the selected adapter's required fields and report a sanitized response shape"
+
+
+@contextmanager
+def publication_run(directory, credentials, stage):
+    # The owner records failure before releasing the lock. A rejected contender
+    # cannot overwrite the active publisher's status file.
+    with run_lock(directory):
+        try:
+            yield
+        except Exception as exc:
+            try:
+                status(directory, {"healthy": False, "error": error_message(exc, credentials, stage())})
+            except Exception:
+                print("ERROR: Could not save failure status; inspect service logs", file=sys.stderr)
+            raise
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Read Sonar or NetBox IPAM and publish a coarse-location geofeed")
+    parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish a coarse-location geofeed")
     parser.add_argument("command", choices=("discover", "generate", "publish"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or candidate CSV output file")
@@ -129,23 +149,17 @@ def main(argv=None):
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
     args = parser.parse_args(argv)
     directory = None
+    stage = "reading configuration"
     credentials = CredentialStore()
     try:
         config = load_config(args.config)
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
-        with run_lock(directory):
-            source_kind = config.get("source", {}).get("type", "sonar")
-            if source_kind == "netbox":
-                source = NetBox(os.environ.get("NETBOX_URL", ""), credentials.get("NETBOX_API_TOKEN"), config["source"])
-            elif source_kind == "splynx":
-                from .splynx import Splynx
-                source = Splynx(os.environ.get("SPLYNX_URL", ""), credentials.get("SPLYNX_API_KEY"), credentials.get("SPLYNX_API_SECRET"), config["source"])
-            elif source_kind == "phpipam":
-                from .phpipam import PhpIPAM
-                source = PhpIPAM(os.environ.get("PHPIPAM_URL", ""), os.environ.get("PHPIPAM_APP_ID", ""), credentials.get("PHPIPAM_API_TOKEN"), config["source"])
-            else:
-                source = Sonar(os.environ.get("SONAR_URL", ""), credentials.get("SONAR_API_TOKEN"), settings=config.get("source"))
+        with publication_run(directory, credentials, lambda: stage) if args.command == "publish" else nullcontext():
+            source_kind = config["source"]["type"]
+            adapter = SOURCES[source_kind]
+            stage = f"reading {source_kind} inventory"
+            source = adapter.create(config["source"], credentials)
             snapshot = source.snapshot()
             if args.command == "discover":
                 if args.assignment_candidates:
@@ -163,10 +177,11 @@ def main(argv=None):
                 else:
                     print(data.decode(), end="")
                 return 0
-            if source_kind != "sonar":
-                snapshot = source.for_publication(snapshot)
-            if args.command == "publish" and source_kind in ("splynx", "phpipam") and config["source"].get("allow_initial") is not True:
+            stage = f"selecting {source_kind} records"
+            snapshot = source.for_publication(snapshot)
+            if args.command == "publish" and adapter.initial and config["source"].get("allow_initial") is not True:
                 raise GeofeedError("Initial adapter: run discovery and candidate checks, then explicitly set source.allow_initial: true before publishing")
+            stage = "validating selected pools and site locations"
             csv, report = build(snapshot, config)
             if args.command == "generate":
                 if args.output:
@@ -177,23 +192,16 @@ def main(argv=None):
                 return 0
             settings = config.get("publish", {})
             kwargs = {"max_removed_fraction": config.get("max_removed_fraction", 0.10)}
-            if settings.get("type") == "wordpress":
-                wp = WordPress(os.environ.get("WP_SITE_URL", ""), os.environ.get("WP_USERNAME", ""), credentials.get("WP_APP_PASSWORD"))
-                result = publish_wordpress(wp, csv, directory, **kwargs)
-            elif settings.get("type") == "file" and settings.get("path"):
-                result = publish_file(settings["path"], csv, directory, **kwargs)
-            else:
-                raise GeofeedError("Choose publish.type wordpress or file (with path)")
+            target_kind = settings.get("type")
+            if target_kind not in TARGETS:
+                raise GeofeedError("Choose publish.type from: " + ", ".join(sorted(TARGETS)))
+            stage = f"publishing to {target_kind}"
+            result = TARGETS[target_kind](settings, credentials).publish(csv, directory, **kwargs)
             status(directory, {"healthy": True, **result, "pools": report})
             print(json.dumps(result))
         return 0
-    except (GeofeedError, OSError, ValueError, TypeError, KeyError) as exc:
+    except Exception as exc:
         # Configuration errors must never dump secrets or complete API responses.
-        message = credentials.redact(str(exc)) if isinstance(exc, GeofeedError) else f"Local data/configuration error ({type(exc).__name__})"
-        if directory is not None and args.command == "publish":
-            try:
-                status(directory, {"healthy": False, "error": message})
-            except OSError:
-                pass
+        message = error_message(exc, credentials, stage)
         print("ERROR: " + message, file=sys.stderr)
         return 1
