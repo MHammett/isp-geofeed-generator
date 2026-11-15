@@ -1,5 +1,32 @@
 # Verification
 
+## Credential and proxy deployment readiness
+
+Observed on 2026-11-15. Windows ran 148 tests: 147 passed and one POSIX-only skip.
+The new tests first reproduced proxy pagination rejection and missing WordPress preflight
+guidance, then passed after the fixes. They also test malformed continuations, fixed-origin
+requests, no writes after a denied state read, exact ACL parsing and unchanged file selection.
+
+Hosted run [43777130220](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43777130220)
+passed six jobs, including a real root systemd workload on disposable Ubuntu 24.04 with
+systemd 255.4. Both LoadCredential and LoadCredentialEncrypted loaded the synthetic value
+into a service running as UID 65534. Both files stayed root-owned with mode 0440 and the
+ordinary file guard rejected them. The systemd-specific reader verified their values.
+Explicit unsafe ACL controls refused a group reader, another named UID and other-readable
+permissions. No production credential or server was used.
+
+The four Linux jobs ran 148 Python tests, 65 offline PHP checks and deployment coverage.
+Installed-wheel multi-input workloads also passed. Target-host Debian/systemd setup and
+real WordPress proxy/staging publication still need operator verification. A 401/403 does
+not establish which auth/proxy setting is wrong; it stops before writing and gives causes
+to investigate. The plugin still requires WordPress's own HTTPS state and does not trust
+forwarding headers on its own.
+
+Recovery: leave the last good feed in place, stop scheduling, correct the named access/proxy
+configuration and retry discovery/candidate checks. Restore the prior approved package or
+web-server config if needed. Do not broaden credential-file permissions or disable HTTPS
+to bypass a failed check. See the credential and WordPress runbooks.
+
 ## WordPress creation race and phpIPAM setup follow-up
 
 Observed on 2026-11-15. Windows ran 143 tests: 142 passed and one POSIX-only skip. Seven

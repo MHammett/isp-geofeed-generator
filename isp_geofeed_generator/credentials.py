@@ -46,9 +46,12 @@ def protected_file(path, *, systemd=False):
                 raise GeofeedError("Credential must be an owned regular file")
             if info.st_mode & (stat.S_IWGRP | stat.S_IRWXO):
                 raise GeofeedError("Credential file permissions are too broad")
-            if (info.st_mode & stat.S_IRGRP and info.st_gid not in {os.getegid(), *os.getgroups()}
-                    and not (systemd and info.st_uid == 0 and systemd_read_acl(stream.fileno(), os.getuid()))):
-                raise GeofeedError("Credential file group is not one of the service account's groups")
+            if info.st_mode & stat.S_IRGRP:
+                if systemd:
+                    if info.st_uid != 0 or not systemd_read_acl(stream.fileno(), os.getuid()):
+                        raise GeofeedError('systemd credential does not have the exact read-only service-user ACL')
+                elif info.st_gid not in {os.getegid(), *os.getgroups()}:
+                    raise GeofeedError("Credential file group is not one of the service account's groups")
             value = stream.read(16385)
             if len(value) > 16384:
                 raise GeofeedError("Credential file exceeds size limit")
