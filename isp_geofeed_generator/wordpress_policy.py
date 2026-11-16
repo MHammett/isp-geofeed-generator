@@ -29,7 +29,9 @@ def read_state(client):
         raise
     try:
         if (not isinstance(value,dict) or type(value.get('protocol_version')) is not int or value['protocol_version']!=2
-                or value.get('supported_overlap_policies')!=[REJECT,LONGEST_PREFIX]):raise ValueError()
+                or not isinstance(value.get('supported_overlap_policies'),list)
+                or len(value['supported_overlap_policies'])!=2
+                or set(value['supported_overlap_policies'])!={REJECT,LONGEST_PREFIX}):raise ValueError()
         policy=validate_policy(value['overlap_policy']);required=validate_policy(value['required_overlap_policy'])
         previous_policy=validate_policy(value['previous_overlap_policy'])
         csv=value['csv'].encode('utf-8');previous=value['previous_csv'].encode('utf-8')
@@ -143,6 +145,8 @@ def recover(client,state_dir,expected_hash):
                 or value['before_sha256']!=digest(csv)
                 or not re.fullmatch(r'[0-9a-f]{32}',value['candidate_publication_id'])):raise ValueError()
         policy=validate_policy(value['before_policy']);required=validate_policy(value['before_required_policy'])
+        old_id=value['before_publication_id']
+        if old_id is not None and (not isinstance(old_id,str) or not re.fullmatch(r'[0-9a-f]{32}',old_id)):raise ValueError()
         if csv:parse_feed(csv,overlap_policy=policy)
         before=Snapshot(csv,policy,required,b'',REJECT,value['before_publication_id'])
     except (ValueError,TypeError,KeyError,GeofeedError):

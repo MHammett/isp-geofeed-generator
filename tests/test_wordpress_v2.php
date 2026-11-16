@@ -30,6 +30,7 @@ check(!isp_geofeed_generator_valid_csv(str_replace(',A,',',Z,',$a),'longest_pref
 check(!isp_geofeed_generator_valid_csv(marked($legacy.$legacy),'longest_prefix'), 'nested duplicates');
 check(!isp_geofeed_generator_valid_csv(marked("8.0.0.0/6,US,US-IL,A,\r\n8.0.0.0/8,US,US-IL,B,\r\n"),'longest_prefix'), 'unsafe broad parent remains refused');
 check(!isp_geofeed_generator_valid_csv(marked("11.22.33.0/24,XX,,A,\r\n"),'longest_prefix'), 'nested invalid ISO');
+check(!isp_geofeed_generator_valid_csv(marked('11.22.33.0/24,US,US-IL,'.str_repeat('A',513).",\r\n"),'longest_prefix'), 'nested complete-location length budget');
 check(!isp_geofeed_generator_valid_csv(marked("2001:4860:ABCD::/48,US,US-IL,A,\r\n"),'longest_prefix'), 'nested canonical IPv6');
 $state = isp_geofeed_generator_state_v2();
 check($state->data['overlap_policy']==='reject' && $state->data['required_overlap_policy']==='longest_prefix', 'empty stored versus configured policy');

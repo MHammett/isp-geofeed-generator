@@ -497,6 +497,12 @@ class Workload:
                 try:client.replace_policy(n_d,LONGEST_PREFIX,stale,secrets.token_hex(16))
                 except GeofeedError as exc:check(str(exc).startswith('HTTP 409'),'real stale policy/owner refusal')
                 else:raise AssertionError('real v2 accepted stale policy or owner')
+            flag.write_text(REJECT)
+            try:
+                try:client.replace_policy(n_d,LONGEST_PREFIX,before,secrets.token_hex(16))
+                except GeofeedError as exc:check(str(exc).startswith('HTTP 409'),'actual server configuration switch conflicts with snapshot')
+                else:raise AssertionError('real v2 accepted a changed server policy')
+            finally:flag.write_text(LONGEST_PREFIX)
             check(self.snapshot()[0]['raw']==raw and (self.control/'writes.log').read_bytes()==writes,'v2 refusal controls keep exact data and history')
             print('PASS: real WordPress nested invalid payload and stale policy/owner refusals',flush=True)
             self.reset()
@@ -538,6 +544,11 @@ class Workload:
             observed=client.policy_state()
             check(result==1 and observed.csv==A and observed.policy==REJECT and self.request('GET',FEED)[2]==A,'failed upgrade restores prior strict bytes and policy')
             print('PASS: real WordPress failed nested upgrade restores strict baseline policy',flush=True)
+            self.reset();self.proxy.arm('bad-readback')
+            result,status=self.cli(n_a,self.directory/'nested-empty-recovery',overlap_policy=LONGEST_PREFIX)
+            observed=client.policy_state()
+            check(result==1 and observed.csv==b'' and observed.policy==REJECT and self.request('GET',FEED)[0]==404,'failed first nested publication restores empty strict state through DELETE')
+            print('PASS: real WordPress failed first nested publish restores empty strict baseline',flush=True)
         finally:
             flag.unlink(missing_ok=True);self.proxy.nested_winner=None;self.proxy.arm(None)
 

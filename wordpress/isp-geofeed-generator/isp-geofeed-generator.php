@@ -130,6 +130,7 @@ function isp_geofeed_generator_valid_csv($csv, $policy = 'reject') {
         if (count($row) !== 5 || $row[4] !== '' || strpos($line, '"') !== false ||
             preg_match('/[\x00-\x1f\x7f#]/', $line)) { return false; }
         [$cidr, $country, $region, $city] = $row;
+        if ($policy === 'longest_prefix' && preg_match_all('/./us', $city) > 512) { return false; }
         if (!isset($iso[0][$country]) || trim($city) === '' || trim($city) !== $city ||
             ($region !== '' && (!isset($iso[1][$region]) || substr($region, 0, 3) !== $country.'-'))) { return false; }
         $parts = explode('/', $cidr);
