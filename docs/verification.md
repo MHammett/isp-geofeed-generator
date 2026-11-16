@@ -1,5 +1,24 @@
 # Verification
 
+## Near-limit WordPress Unicode workload
+
+Observed on 2026-11-16 from hosted run
+[43926425105](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43926425105)
+at `a8e20d0`. All eight jobs passed. The real WordPress/database workload published
+and changed a 4,735-record feed, then kept its stored document and recovery files
+unchanged on a repeat run with zero geofeed SQL write attempts.
+
+The CSV was 980,230 bytes. Measured upload JSON was 1,842,098 bytes, state JSON
+3,693,183 bytes and the largest SQL statement 6,434,412 bytes. The test database
+packet budget was 16,777,216 bytes; HTTP PHP reported `post_max_size=8M` and
+unlimited test-runner memory. These values measure this input, not a universal bound.
+
+A client capped at the former 2,000,000-byte state budget failed at its size guard
+without writes. An oversized CSV received HTTP 400 and preserved stored and public
+bytes. The normal client passed the same large state workload. See the
+[integration guide](wordpress-integration.md#measured-large-feed-example) for scope.
+Production-host capacity, finite-memory behavior and CDN limits remain unmeasured.
+
 ## Real WordPress/database integration
 
 Observed on 2026-11-16 from hosted run

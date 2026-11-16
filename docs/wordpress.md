@@ -84,6 +84,11 @@ The CSV limit is **1,000,000 bytes**, including UTF-8 characters and line ending
 requests, database statements and state responses can be much larger than that CSV.
 Check every layer on the actual public path before scheduling a large feed.
 
+The disposable integration test measured a 980,230-byte Unicode CSV using a
+1,842,098-byte upload, 3,693,183-byte state response and 6,434,412-byte SQL statement.
+See [the measured workload](wordpress-integration.md#measured-large-feed-example).
+Those values describe one synthetic feed and test stack; measure your own workload.
+
 - The runner sends JSON. Escaping non-ASCII characters can roughly triple the CSV's
   wire size. A proxy limit of 1 MB is not enough for every valid feed. For example,
   [nginx defaults to `client_max_body_size 1m`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)

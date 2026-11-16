@@ -64,10 +64,16 @@ artifacts are uploaded.
   that winner in place and report that recovery needs attention.
 - Refused recovery, with candidate bytes still present, the old private recovery
   baseline retained and unhealthy status. A failed recovery cannot count as restored.
+- Near-limit Unicode first and changed CLI publications, followed by an unchanged
+  run with no geofeed SQL writes or recovery-history changes. Measure CSV, upload JSON,
+  state JSON and SQL bytes separately. Record the actual HTTP PHP and database limits.
+- A deliberately smaller state-response budget must refuse the large response without
+  writes. An otherwise valid CSV above the plugin's byte limit must receive HTTP 400
+  and preserve the stored/public feed. Neither refusal can count as successful publication.
 
 The race/fault hooks live only under `tests/wordpress/`. They do not add an HTTP control
-route or bypass authentication. Query instrumentation records verbs and process IDs,
-not SQL, authorization headers, credentials or feed data. Each forced fault must be
+route or bypass authentication. Query instrumentation records verbs, process IDs
+and statement byte counts, not SQL, authorization headers, credentials or feed data. Each forced fault must be
 observed; an untriggered fault is a failed test.
 HTTP workers have opcode caching disabled for the mutation controls. The harness checks
 that setting through an HTTP response and requires the intended SQL verbs at the barrier.
@@ -94,3 +100,30 @@ This verifies one controlled WordPress/database/proxy stack. It does not measure
 operator's actual CDN, host limits, persistent object-cache plugin, multisite setup,
 replica lag or production TLS configuration. Keep the existing staging and public-path
 checks in [the setup guide](wordpress.md). This harness is not a production installer.
+
+## Measured large-feed example
+
+Hosted run [43926425105](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43926425105)
+on 2026-11-16 used 4,735 synthetic records with a 60-character Unicode city. Both
+current and previous feeds were near the CSV limit. WordPress 7.1.4, PHP 8.3.6 and
+MariaDB 10.11.14 completed first/change/unchanged publication.
+
+| Measurement | Bytes or observed setting |
+| --- | --- |
+| Current CSV | 980,230 bytes |
+| Largest upload JSON | 1,842,098 bytes |
+| Authenticated state JSON | 3,693,183 bytes |
+| Largest geofeed SQL statement | 6,434,412 bytes |
+| Database `max_allowed_packet` | 16,777,216 bytes |
+| HTTP PHP `post_max_size` | `8M` |
+| HTTP PHP `memory_limit` | `-1` (unlimited in this test runner) |
+
+The normal client accepted the state. A client capped at the former 2,000,000-byte
+budget failed at its response-size guard without writes. A CSV above 1,000,000 bytes
+received HTTP 400 from the real plugin and left the large feed intact. An unchanged
+run kept the exact database document and local recovery bytes and modification times.
+
+These are measured values for this input and controlled stack, not worst-case bounds
+or a recommendation to remove memory limits. The test proxy allows larger request
+bodies than a default production proxy. Finite host memory, CDN limits, packet limits
+and timeouts still need a representative staging workload on the operator's own path.
