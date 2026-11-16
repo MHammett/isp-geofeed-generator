@@ -23,7 +23,7 @@ class FeedTests(unittest.TestCase):
         self.assertEqual(sum(n.num_addresses for n in networks), 125)
         self.assertEqual(networks[0].network_address, ipaddress.ip_address('11.22.33.2'))
         self.assertEqual(networks[-1].broadcast_address, ipaddress.ip_address('11.22.33.126'))
-        self.assertIn(b',US,US-IL,Example City,\n', data)
+        self.assertIn(b',US,US-IL,Example City,\r\n', data)
         self.assertEqual(report[0]['site_id'], '11')
 
     def test_unmapped_public_pool_fails(self):
@@ -90,7 +90,7 @@ class FeedTests(unittest.TestCase):
         for data in (b'<html>no</html>', b'11.0.0.0/24,US,US-IL,City,12345\n',
                      b'11.0.0.1/24,US,US-IL,City,\n', b'11.0.0.0/24,US,US-IL,"City",\n',
                      b'11.0.0.0/24,US,US-IL,City,\n' * 2,
-                     b'11.0.0.0/24,US,US-IL,City,\r\n'):
+                     b'11.0.0.0/24,US,US-IL,City,\r'):
             with self.subTest(data=data), self.assertRaises(GeofeedError): parse_feed(data)
 
     def test_removal_guard_measures_addresses_not_rows(self):

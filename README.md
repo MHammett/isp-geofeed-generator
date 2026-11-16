@@ -120,6 +120,8 @@ In bash on Linux, after reviewing the candidate:
 
 The public route is `https://www.example.net/wp-json/isp-geofeed-generator/v1/feed`.
 It serves raw UTF-8 CSV without login, a column header or a JSON wrapper.
+Generated CSV uses CRLF line endings. Upgrade the WordPress plugin before the runner;
+both updated validators accept existing LF feeds for guarded migration and recovery.
 Publishing uses a hash to prevent concurrent overwrites. Failed read-back triggers a conditional rollback.
 If recovery cannot be verified, the result says so and exits with failure.
 

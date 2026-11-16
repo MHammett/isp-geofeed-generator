@@ -1,5 +1,27 @@
 # Verification
 
+## CSV interoperability and large-feed transport
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 188 tests: 186 passed and two
+POSIX-only checks skipped. Nine new tests cover generated CRLF, legacy LF compatibility,
+malformed endings, exact-hash migration, unchanged writes, bounded Unicode state reads,
+oversized responses and sanitized HTTP 413/503 failures. Existing generated-byte tests
+now expect CRLF; legacy LF fixtures remain to check backward-compatible recovery.
+
+The old implementation failed the generation/migration and large Unicode state controls.
+A separate HTTP-only control reached the 413 path and proved it lacked actionable size
+guidance. After the fixes, both 413 and 503 simulations send one PUT, inspect state/public
+delivery and report retained state without leaking server bodies or credentials. A valid
+sub-1 MB Unicode fixture produces a state response above 4 MB. It now passes the bounded
+8 MB reader; a response above that bound is still refused.
+
+The WordPress offline harness adds CRLF validation, malformed-ending refusal, exact-hash
+migration, preserved LF history and conditional recovery back to LF. Installed-wheel checks
+also require generated CRLF bytes through the external output adapter. Hosted results
+are recorded on the PR after upload. No real nginx, database packet-limit or production
+WordPress/CDN capacity test was run. The [large-feed runbook](wordpress.md#limits-for-large-feeds)
+links primary documentation and calls for a representative staging workload.
+
 ## Unchanged publication and destination checks
 
 Observed on 2026-11-15 (America/Chicago). Windows ran 179 tests: 177 passed and two

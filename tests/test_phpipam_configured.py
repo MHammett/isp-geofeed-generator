@@ -30,7 +30,7 @@ class ConfiguredLocationTests(unittest.TestCase):
     def test_no_native_locations_needed_when_facilities_are_explicit(self):
         source, http = self.source()
         data = source.for_publication(source.snapshot())
-        self.assertEqual(build(data, CONFIG)[0], b'11.22.33.0/24,US,US-IL,Example City,\n')
+        self.assertEqual(build(data, CONFIG)[0], b'11.22.33.0/24,US,US-IL,Example City,\r\n')
         self.assertEqual(len(http.calls), 1)
         self.assertTrue(http.calls[0][0].endswith('/subnets/all/'))
 

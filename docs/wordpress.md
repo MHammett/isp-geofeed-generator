@@ -53,6 +53,62 @@ The plugin asks caches not to store the public response. Exclude `/wp-json/isp-g
 from any cache that overrides those headers. A CDN returning stale data will fail public read-back.
 Test through your actual public domain, not just an origin or staging hostname.
 
+## Line endings and refresh policy
+
+New CSV uses CRLF line endings, as described in
+[RFC 8805 section 2.1](https://www.rfc-editor.org/rfc/rfc8805.html#section-2.1).
+Upgrade this plugin before upgrading the runner. The updated plugin and runner accept
+uniform CRLF or legacy uniform LF, while rejecting mixed endings, bare carriage returns
+and embedded control characters. This is a strict publisher validator, not a general
+importer for every optional RFC feature.
+
+The first generated CRLF feed differs in bytes and SHA-256 from its LF version. It causes
+one guarded publication even when locations are unchanged. The exact old LF bytes remain
+available for recovery. Later identical runs skip writes. Keep generated candidates as
+binary files so an editor does not change line endings after hash review.
+
+The plugin retains `no-store, no-cache, must-revalidate, max-age=0`. Its priority is fresh
+read-back after a write and after recovery. It does not advertise a positive refresh
+interval. [RFC 8805 section 3.4](https://www.rfc-editor.org/rfc/rfc8805.html#section-3.4)
+allows publishers to provide expiry hints; it does not require them. Consumers choose
+their polling schedule. A zero cache age does not require continuous polling.
+
+## Limits for large feeds
+
+The CSV limit is **1,000,000 bytes**, including UTF-8 characters and line endings. HTTP
+requests, database statements and state responses can be much larger than that CSV.
+Check every layer on the actual public path before scheduling a large feed.
+
+- The runner sends JSON. Escaping non-ASCII characters can roughly triple the CSV's
+  wire size. A proxy limit of 1 MB is not enough for every valid feed. For example,
+  [nginx defaults to `client_max_body_size 1m`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)
+  and returns HTTP 413 above it. A scoped 4 MiB request-body limit gives this request
+  format room; check matching CDN, WAF, web-server and PHP limits too. Use a finite
+  limit, preserve route authentication and follow the host's supported setup.
+- The database update contains both new and prior feeds, plus the full stored document
+  in the conditional comparison. JSON and SQL escaping add more overhead. Do not size
+  `max_allowed_packet` from the CSV alone. For near-limit feeds, ask the database
+  administrator to measure the prepared statement and check both server and client
+  packet limits. A 32 MiB budget is a starting point for this format, not a measurement
+  of your host. [MySQL documents packet-limit failures and connection closure](https://dev.mysql.com/doc/refman/8.4/en/packet-too-large.html).
+- The authenticated state response contains current and previous feeds. The built-in
+  runner accepts up to 8,000,000 response bytes to allow JSON escaping of two valid
+  Unicode feeds. The public CSV reader remains capped at 1,000,000 bytes. PHP memory,
+  proxy response limits and timeouts must also handle the real workload.
+
+An HTTP 413 now names request-body limits to investigate. HTTP 503 names server/database
+logs and `max_allowed_packet` as possible causes. A 503 alone does not prove a packet
+problem. Private server responses and database details are not printed. The runner does
+not retry failed writes automatically; it inspects stored state and public delivery,
+then performs only conditional recovery when appropriate.
+
+On staging, publish a representative large feed, update it, run it unchanged, and test
+recovery while using the same proxy and database limits as production. A small liveness
+check does not establish large-feed capacity. If a limit rejects publication, stop the
+timer and inspect the named layer's logs. Verify the old stored and public feeds before
+changing a limit or trying again. These limits are deployment settings; no installer
+changes them automatically.
+
 ## Updates and failures
 
 The runner reads authenticated state before a write. Each write includes the hash of the state it saw.
@@ -88,6 +144,11 @@ Send an authenticated PUT to `/wp-json/isp-geofeed-generator/v1/feed` with JSON 
 Use a client that reads the application password from secure storage. Do not paste it into commands, issues or logs.
 If there was no previous feed, use DELETE with the current `expected_sha256` instead.
 Check the public URL after recovery. An absent feed returns HTTP 404.
+
+For a rollback to a runner version that accepts only LF, first stop scheduling and use
+the updated runner/plugin to restore the reviewed LF backup with the current hash.
+Check public delivery before changing code versions. Older plugins reject generated CRLF
+feeds; retain the matching plugin until that LF recovery is complete.
 
 Deactivating the plugin removes its routes but retains its saved document.
 Do not restore the full site backup just to undo a feed update unless the site's wider state was damaged.

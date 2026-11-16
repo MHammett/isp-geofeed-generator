@@ -35,6 +35,9 @@ config={'inputs':entries,'allowed_prefixes':['11.22.0.0/16'],'bogons':bogons,'st
 path=root/'config.yaml';path.write_text(yaml.safe_dump(config))
 assert main(['publish','--config',str(path)])==0
 assert len((root/'feed.csv').read_text().splitlines())==2
+wire=(root/'feed.csv').read_bytes()
+assert b'\\r\\n' in wire and b'\\n' not in wire.replace(b'\\r\\n',b'')
+print('PASS: installed external target publishes CRLF bytes')
 data=json.loads((root/'state/status.json').read_text())['data']
 assert {row['input'] for row in data['pools']}=={'customers','infrastructure'}
 print('PASS: installed multi-input CLI with two instances of an external source and external target')

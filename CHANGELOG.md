@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Generated CSV uses RFC 8805 CRLF line endings; Python and WordPress accept uniform legacy LF feeds for exact-hash migration and recovery.
+- Large-feed guidance and safe HTTP 413/503 diagnostics, plus bounded 8 MB WordPress state reads for JSON-escaped current and previous Unicode feeds.
+
 - Unchanged publications preserve feed files and recovery history; WordPress checks stored and public state before writing, and local outputs share a destination lock across state directories.
 - Bounded regular-file reads, pre-replacement conflict detection and checked post-write state avoid blind recovery over another writer's changes.
 

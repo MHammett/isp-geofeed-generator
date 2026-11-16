@@ -44,7 +44,7 @@ class NetBoxTests(unittest.TestCase):
     def test_native_site_scope_generates_without_manual_pool_mapping(self):
         source=self.source(); snapshot=source.for_publication(source.snapshot())
         csv,report=build(snapshot,{'allowed_prefixes':['11.22.33.0/24']})
-        self.assertEqual(csv,b'11.22.33.0/24,US,US-IL,Example City,\n')
+        self.assertEqual(csv,b'11.22.33.0/24,US,US-IL,Example City,\r\n')
         self.assertEqual(report[0]['mapping_source'],'native_scope')
 
     def test_location_scope_resolves_site_and_legacy_site_is_supported(self):
@@ -124,7 +124,7 @@ class InitialAdapterTests(unittest.TestCase):
                       {'network_ids':['ipv4:1'],'location_sites':{'9':'10'}},http)
         snapshot=source.for_publication(source.snapshot())
         config={'allowed_prefixes':['11.22.33.0/24'],'site_locations':{'10':{'country':'US','region':'US-IL','city':'Example City'}}}
-        self.assertEqual(build(snapshot,config)[0],b'11.22.33.0/24,US,US-IL,Example City,\n')
+        self.assertEqual(build(snapshot,config)[0],b'11.22.33.0/24,US,US-IL,Example City,\r\n')
 
     def test_splynx_duplicate_and_error_body_fail(self):
         for rows in ([[{'id':1}],[{'id':1}]], [{'error':{'message':'private server detail'}}]):
@@ -136,7 +136,7 @@ class InitialAdapterTests(unittest.TestCase):
         source=PhpIPAM('https://ipam.example.net','geofeed','example-token',{'subnet_ids':['1']},http)
         snapshot=source.for_publication(source.snapshot())
         config={'allowed_prefixes':['11.22.33.0/24'],'site_locations':{'10':{'country':'US','region':'US-IL','city':'Example City'}}}
-        self.assertEqual(build(snapshot,config)[0],b'11.22.33.0/24,US,US-IL,Example City,\n')
+        self.assertEqual(build(snapshot,config)[0],b'11.22.33.0/24,US,US-IL,Example City,\r\n')
         self.assertTrue(all(c[1]['method']=='GET' for c in http.calls))
 
     def test_phpipam_failure_is_not_an_empty_success(self):

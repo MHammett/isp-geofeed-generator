@@ -4,6 +4,9 @@ Each built-in output reads the current destination before publishing. If its exa
 match the candidate, the runner verifies them again and skips replacement. It preserves
 the existing recovery files. Health status and allocation-cache files may still be updated.
 This is an exact-content comparison: a valid feed with different bytes is a change.
+Generated CSV now uses CRLF. The updated runner/plugin also read uniform legacy LF;
+the first LF-to-CRLF publication changes the hash once and preserves exact LF recovery
+bytes. Follow the [plugin-first upgrade and recovery order](wordpress.md#line-endings-and-refresh-policy).
 
 ## WordPress
 

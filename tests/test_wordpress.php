@@ -52,6 +52,12 @@ function check($condition, $label) {
 $old = "11.22.33.0/24,US,US-IL,Old City,\n";
 $new = "11.22.33.0/24,US,US-IL,New City,\n";
 check(isp_geofeed_generator_valid_csv($old), 'valid UTF-8 five-field CSV');
+$crlf = str_replace("\n", "\r\n", $old);
+check(isp_geofeed_generator_valid_csv($crlf), 'RFC CRLF CSV');
+foreach ([$crlf."11.22.34.0/24,US,US-IL,City,\n", str_replace("\n", "\r", $old),
+    str_replace('Old City', "Old\rCity", $old), str_replace("\n", "\r\r\n", $old), $crlf."\r\n"] as $bad) {
+    check(!isp_geofeed_generator_valid_csv($bad), 'reject mixed or malformed line endings');
+}
 check(isp_geofeed_generator_valid_csv("2001:4860:1234::/64,US,US-IL,Example,\n"), 'IPv6 CSV');
 $special = json_decode(file_get_contents(__DIR__.'/fixtures/special-prefixes.json'), true);
 check(ISP_GEOFEED_SPECIAL_RANGES === $special, 'WordPress special-space list matches shared fixture');
@@ -100,6 +106,7 @@ $before_error = $wpdb->value; $wpdb->write_error = true;
 $result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', $new)]));
 check(is_wp_error($result) && $result->data['status'] === 503, 'update database failure is not called a conflict');
 check($wpdb->value === $before_error, 'failed database update retains previous bytes');
+check(str_contains($result->message, 'max_allowed_packet') && !str_contains($result->message, 'private'), 'safe database size guidance');
 $wpdb->write_error = false;
 $wpdb->conflict = true;
 $result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', $new)]));
@@ -107,4 +114,14 @@ check(is_wp_error($result) && isp_geofeed_generator_read()['csv'] === $new, 'con
 $wpdb->conflict = false;
 $result = isp_geofeed_generator_write(new WP_REST_Request('DELETE', ['expected_sha256'=>hash('sha256', $new)]));
 check(!is_wp_error($result) && isp_geofeed_generator_read()['csv'] === '', 'rollback to absent feed');
+$wpdb = new FakeDB();
+isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', '')]));
+$result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$crlf, 'expected_sha256'=>hash('sha256', $old)]));
+check(!is_wp_error($result) && $result['sha256'] === hash('sha256', $crlf), 'CRLF migration confirms exact new hash');
+check(isp_geofeed_generator_read()['previous_csv'] === $old, 'CRLF migration preserves exact LF recovery bytes');
+$migrated = $wpdb->value;
+isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$crlf, 'expected_sha256'=>hash('sha256', $crlf)]));
+check($wpdb->value === $migrated, 'same CRLF bytes preserve previous version');
+$result = isp_geofeed_generator_write(new WP_REST_Request('PUT', ['csv'=>$old, 'expected_sha256'=>hash('sha256', $crlf)]));
+check(!is_wp_error($result) && isp_geofeed_generator_read()['csv'] === $old, 'guarded recovery can restore legacy LF');
 echo "PASS: $count offline WordPress checks\n";

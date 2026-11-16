@@ -72,7 +72,7 @@ class SonarSubnetTests(unittest.TestCase):
         snap = source.snapshot()
         selected = source.for_publication(snap)
         csv, report = build(selected, configuration())
-        self.assertEqual(csv, (V6 + ',US,US-IL,Example City,\n').encode())
+        self.assertEqual(csv, (V6 + ',US,US-IL,Example City,\r\n').encode())
         self.assertEqual(report[0]['pool_id'], 'subnet:101')
         self.assertNotIn('ip_pools', [call[0] for call in source.calls])
         self.assertNotIn('dhcp_servers', [call[0] for call in source.calls])

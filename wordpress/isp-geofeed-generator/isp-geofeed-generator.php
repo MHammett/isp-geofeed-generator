@@ -69,8 +69,11 @@ function isp_geofeed_generator_read() {
 function isp_geofeed_generator_valid_csv($csv) {
     if (!is_string($csv) || $csv === '' || strlen($csv) > 1000000 ||
         substr($csv, -1) !== "\n" || preg_match('//u', $csv) !== 1) { return false; }
+    // Keep exact bytes for CAS/recovery. Accept uniform CRLF or legacy uniform LF.
+    $ending = strpos($csv, "\r\n") !== false ? "\r\n" : "\n";
+    if (substr($csv, -strlen($ending)) !== $ending) { return false; }
     $seen = [];
-    foreach (explode("\n", substr($csv, 0, -1)) as $line) {
+    foreach (explode($ending, substr($csv, 0, -strlen($ending))) as $line) {
         // RFC 8805 has five unquoted fields. Postal code is deliberately empty.
         $row = explode(',', $line);
         if (count($row) !== 5 || $row[4] !== '' || strpos($line, '"') !== false ||
@@ -140,7 +143,7 @@ function isp_geofeed_generator_write(WP_REST_Request $request) {
         ));
     }
     if ($changed === false || $wpdb->last_error) {
-        return new WP_Error('geofeed_db', 'Cannot write feed state', ['status' => 503]);
+        return new WP_Error('geofeed_db', 'Cannot write feed state. Check database health and max_allowed_packet for large feeds', ['status' => 503]);
     }
     if ($changed !== 1) { return new WP_Error('geofeed_conflict', 'Concurrent update; read state before publishing', ['status' => 409]); }
     wp_cache_delete(ISP_GEOFEED_GENERATOR_OPTION, 'options');

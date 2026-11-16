@@ -145,7 +145,7 @@ def build_records(snapshot, config, fields=COARSE_FIELDS):
 
 def render_csv(records):
     out = io.StringIO(newline="")
-    writer = csv.writer(out, lineterminator="\n", quoting=csv.QUOTE_NONE)
+    writer = csv.writer(out, lineterminator="\r\n", quoting=csv.QUOTE_NONE)
     for row in records:
         value = row['location']
         loc = location({'id': 'output', 'addresses': [{'country': value.get('country'), 'subdivision': value.get('region'), 'city': value.get('city')}]})
@@ -179,7 +179,9 @@ def parse_feed(data):
             if a.version == b.version and a.overlaps(b):
                 raise ValueError()
         canonical = "".join(",".join(row) + "\n" for row in rows).encode()
-        if canonical != data:
+        # Accept legacy LF snapshots for guarded migration/recovery, or uniform CRLF.
+        # Never normalize stored bytes: hashes and recovery must compare exact content.
+        if data not in (canonical, canonical.replace(b'\n', b'\r\n')):
             raise ValueError()
         return nets
     except (ValueError, UnicodeError, csv.Error):

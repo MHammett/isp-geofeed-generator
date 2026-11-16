@@ -35,7 +35,8 @@ class WordPress:
         if not username or not password or ":" in username:
             raise GeofeedError("Set WP_USERNAME and WP_APP_PASSWORD")
         self.base = https_url(url) + "/wp-json/isp-geofeed-generator/v1"
-        self.http = http or JsonHTTP(max_bytes=4_000_000)
+        # State includes both 1 MB feeds; JSON Unicode escaping can triple their size.
+        self.http = http or JsonHTTP(max_bytes=8_000_000)
         token = base64.b64encode((username + ":" + password).encode()).decode()
         self.headers = {"Authorization": "Basic " + token}
 
@@ -62,9 +63,16 @@ class WordPress:
             raise GeofeedError("WordPress state response is invalid") from None
 
     def replace(self, csv, expected):
-        result = self.http.request(self.public_url, headers=self.headers,
-            body={"csv": csv.decode("utf-8"), "expected_sha256": digest(expected)},
-            method="PUT" if csv else "DELETE")
+        try:
+            result = self.http.request(self.public_url, headers=self.headers,
+                body={"csv": csv.decode("utf-8"), "expected_sha256": digest(expected)},
+                method="PUT" if csv else "DELETE")
+        except GeofeedError as exc:
+            if re.match(r'HTTP 413\b', str(exc)):
+                raise GeofeedError('WordPress upload refused (HTTP 413). Check request-body limits at the CDN, proxy, web server and PHP; JSON can be larger than the CSV. No retry was made') from None
+            if re.match(r'HTTP 503\b', str(exc)):
+                raise GeofeedError('WordPress write unavailable (HTTP 503). Check server and database logs, including max_allowed_packet for large feeds; HTTP status alone does not identify the cause. No retry was made') from None
+            raise
         if not isinstance(result, dict) or result.get("sha256") != digest(csv):
             raise GeofeedError("WordPress did not confirm the expected feed hash")
 

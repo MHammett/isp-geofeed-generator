@@ -115,7 +115,7 @@ class GaiiaTests(unittest.TestCase):
         source, http = self.source()
         snapshot = source.for_publication(source.snapshot())
         csv, _ = build(snapshot, {'allowed_prefixes': ['11.22.33.0/24']})
-        self.assertEqual(csv, b'11.22.33.0/24,US,US-IL,Example City,\n')
+        self.assertEqual(csv, b'11.22.33.0/24,US,US-IL,Example City,\r\n')
         self.assertEqual(snapshot['pools'][0]['source_id'], 'block-native-1')
         self.assertEqual(snapshot['pools'][0]['site_id'], normalized_id('site', 'site-native-1'))
         for _, request in http.calls:
