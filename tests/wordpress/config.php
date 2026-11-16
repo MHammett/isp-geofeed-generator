@@ -16,6 +16,8 @@ define('WP_HTTP_BLOCK_EXTERNAL', true);
 define('WP_DEBUG', false);
 define('WP_DEBUG_DISPLAY', false);
 define('WP_ENVIRONMENT_TYPE', 'staging');
+// Private test control only; the shipped plugin reads a normal wp-config constant.
+define('ISP_GEOFEED_GENERATOR_OVERLAP_POLICY', trim(@file_get_contents(getenv('GEOFEED_WP_CONTROL').'/overlap-policy') ?: 'reject'));
 // The front proxy overwrites this private header. Forged X-Forwarded-Proto alone
 // cannot make a direct HTTP request secure. Both listeners bind only to loopback.
 if (($_SERVER['REMOTE_ADDR'] ?? '') === '127.0.0.1' &&

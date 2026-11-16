@@ -34,11 +34,16 @@ from isp_geofeed_generator.cli import main
 from isp_geofeed_generator.feed import digest
 from isp_geofeed_generator.client import GeofeedError, JsonHTTP, NoRedirects
 from isp_geofeed_generator.publish import WordPress
+from isp_geofeed_generator.feed import render_csv,csv_records
+from isp_geofeed_generator.envelope import csv_body,wrap_csv
+from isp_geofeed_generator.overlap import REJECT,LONGEST_PREFIX
 import contextlib
 import yaml
 
 FEED = '/wp-json/isp-geofeed-generator/v1/feed'
 STATE = '/wp-json/isp-geofeed-generator/v1/state'
+FEED_V2 = '/wp-json/isp-geofeed-generator/v2/feed'
+STATE_V2 = '/wp-json/isp-geofeed-generator/v2/state'
 A = b'11.22.33.0/24,US,US-IL,Example City,\r\n2001:4860:1234::/126,US,US-IL,Example City,\r\n'
 B = A.replace(b'2001:', b'11.22.34.0/24,US,US-IL,Example City,\r\n2001:', 1)
 C = A.replace(b'2001:', b'11.22.35.0/24,US,US-IL,Example City,\r\n2001:', 1)
@@ -83,6 +88,8 @@ class Proxy(ThreadingHTTPServer):
         self.pending = False
         self.request_sizes = []
         self.publisher_headers = {}
+        self.last_policy_commit = None
+        self.nested_winner = None
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert, key)
         self.socket = context.wrap_socket(self.socket, server_side=True)
@@ -135,8 +142,9 @@ class Handler(BaseHTTPRequestHandler):
             mode = proxy.mode
             if self.command == 'GET' and self.path == FEED and mode == 'preflight-mismatch':
                 proxy.mode = None; proxy.faults.append('preflight-mismatch'); data = C
-            elif self.command == 'PUT' and self.path == FEED and status == 200 and mode:
+            elif self.command == 'PUT' and self.path in (FEED,FEED_V2) and status == 200 and mode:
                 proxy.pending = True
+                if self.path==FEED_V2:proxy.last_policy_commit=json.loads(body)
                 if mode == 'lost-reply':
                     proxy.mode = None; proxy.faults.append('reply-dropped')
                     self.close_connection = True
@@ -145,8 +153,15 @@ class Handler(BaseHTTPRequestHandler):
                 if mode != 'failed-recovery': proxy.mode = None
                 proxy.faults.append('public-mismatch')
                 if mode == 'winner':
-                    winner = json.dumps({'csv':C.decode(), 'expected_sha256':digest(B)}).encode()
-                    result = proxy.forward('PUT', FEED, winner, {**proxy.publisher_headers, 'Content-Type':'application/json'})
+                    if proxy.nested_winner is not None:
+                        previous=proxy.last_policy_commit
+                        winner=json.dumps({**previous,'csv':proxy.nested_winner.decode(),'operation':'publish',
+                            'expected_sha256':digest(previous['csv'].encode()),'expected_overlap_policy':LONGEST_PREFIX,
+                            'expected_publication_id':previous['publication_id'],'publication_id':secrets.token_hex(16)}).encode()
+                        endpoint=FEED_V2
+                    else:
+                        winner = json.dumps({'csv':C.decode(), 'expected_sha256':digest(B)}).encode();endpoint=FEED
+                    result = proxy.forward('PUT', endpoint, winner, {**proxy.publisher_headers, 'Content-Type':'application/json'})
                     check(result[0] == 200, 'injected real concurrent writer committed')
                     proxy.faults.append('winner-committed')
                 data = C
@@ -312,35 +327,39 @@ class Workload:
             print('PASS: real WordPress '+mode+' race preserves one winner',flush=True)
         check(self.plugin.read_text()==self.original,'original plugin restored after mutation controls')
 
-    def cli(self, csv, state):
+    def cli(self, csv, state, *, overlap_policy=REJECT, approve=False, command='publish', expected=None):
         inventory=self.directory/'inventory.json'
         pools=[]
-        locations=set()
-        for i,line in enumerate(csv.decode().splitlines()):
+        locations={}
+        for i,line in enumerate(csv_body(csv,overlap_policy).decode().splitlines()):
             prefix,country,region,city,_=line.split(',')
-            locations.add((country,region,city))
-            pools.append({'id':str(i+1),'ip_range':prefix,'subnet':{'subnet':prefix},'site_id':'1'})
-        check(len(locations)==1,'synthetic CLI fixture has one explicit coarse location')
-        country,region,city=locations.pop()
-        inventory.write_text(json.dumps({'pools':pools,'sites':[{'id':'1','addresses':[{'id':'1',
-            'country':country,'subdivision':region.replace('-','_'),'city':city}]}]}))
+            location=(country,region,city)
+            if location not in locations:locations[location]=str(len(locations)+1)
+            pools.append({'id':str(i+1),'ip_range':prefix,'subnet':{'subnet':prefix},'site_id':locations[location]})
+        sites=[{'id':sid,'addresses':[{'id':'1','country':country,'subdivision':region.replace('-','_'),'city':city}]}
+               for (country,region,city),sid in locations.items()]
+        inventory.write_text(json.dumps({'pools':pools,'sites':sites}))
         config={'source':{'type':'local_json','input_path':str(inventory),'allow_initial':True},
             'extensions':{'sources':['local_json']},'credentials':{'WP_APP_PASSWORD':'env:WP_APP_PASSWORD'},
             'allowed_prefixes':['11.22.0.0/16','2001:4860:1234::/48'],'bogons':bogon_files(self.directory),
             'state_dir':str(state),'publish':{'type':'wordpress'}}
+        if overlap_policy!=REJECT:config['overlap_policy']=overlap_policy
         path=self.directory/'config.yaml';path.write_text(yaml.safe_dump(config))
         previous={name:os.environ.get(name) for name in ('WP_SITE_URL','WP_USERNAME','WP_APP_PASSWORD','SSL_CERT_FILE')}
         os.environ.update({'WP_SITE_URL':self.url,'WP_USERNAME':'publisher','WP_APP_PASSWORD':self.accounts['publisher'],
             'SSL_CERT_FILE':self.environment['SSL_CERT_FILE']})
         try:
             with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
-                result=main(['publish','--config',str(path)])
+                    args=[command,'--config',str(path)]
+                    if approve:args+=['--approve-location-changes',digest(csv)]
+                    if expected:args+=['--expected-current-sha256',expected]
+                    result=main(args)
         finally:
             for name,value in previous.items():
                 if value is None:os.environ.pop(name,None)
                 else:os.environ[name]=value
         status=json.loads((state/'status.json').read_text())['data']
-        check(status.get('healthy')==(result==0),'CLI health is present and matches actual result')
+        check(status.get('healthy')==((result==0) if command=='publish' else False),'CLI health is present and matches actual operation')
         return result,status
 
     def publication_tests(self):
@@ -434,6 +453,94 @@ class Workload:
             flag.unlink(missing_ok=True)
         check(self.plugin.read_text()==self.original and not flag.exists(),'HTTP control and mutation removed')
 
+    def nested_policy_tests(self):
+        self.reset()
+        client=WordPress(self.url,'publisher',self.accounts['publisher'])
+        client.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+        rows=csv_records(A)
+        child={'prefix':'11.22.33.0/25','location':{'country':'US','region':'US-IL','city':'Override City'}}
+        n_a=render_csv(rows,overlap_policy=LONGEST_PREFIX)
+        n_b=render_csv([rows[0],child,*rows[1:]],overlap_policy=LONGEST_PREFIX)
+        n_c=render_csv(csv_records(C),overlap_policy=LONGEST_PREFIX)
+        n_d=render_csv([{**r,'location':{**r['location'],'city':'Other City'}} for r in rows],overlap_policy=LONGEST_PREFIX)
+        flag=self.control/'overlap-policy'
+        try:
+            result,status=self.cli(n_a,self.directory/'nested-setup',overlap_policy=LONGEST_PREFIX)
+            check(result==1 and 'configured for reject' in status['error'],'real protocol capability is separate from instance policy')
+            check(self.snapshot()[0]['raw'] is None and not (self.directory/'nested-setup/before.csv').exists(),'configuration refusal before write/history')
+            flag.write_text(LONGEST_PREFIX)
+            check(client.policy_state().required==LONGEST_PREFIX,'real PHP reads explicit fixture policy')
+            check(self.request('PUT',FEED,A,account='publisher')[0]==409 and self.snapshot()[0]['raw'] is None,'old writer refused on empty nested site')
+            check(self.request('GET',STATE_V2)[0] in (401,403),'anonymous v2 state refused')
+            state=self.directory/'nested-cli'
+            check(self.cli(n_a,state,overlap_policy=LONGEST_PREFIX)[0]==0,'real nested first CLI publication')
+            original=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            result,status=self.cli(n_b,state,overlap_policy=LONGEST_PREFIX)
+            check(result==1 and 'location changes' in status['error'] and self.snapshot()[0]['raw']==original,'real nested guard refuses override move')
+            check((self.control/'writes.log').read_bytes()==writes,'guarded override makes zero geofeed SQL writes')
+            check(self.cli(n_b,state,overlap_policy=LONGEST_PREFIX,approve=True)[0]==0,'exact approved nested override CLI publication')
+            snapshot,doc=self.snapshot()
+            check(doc['csv'].encode()==n_b and doc['previous_csv'].encode()==n_a and doc['overlap_policy']==doc['previous_overlap_policy']==LONGEST_PREFIX,'real nested current/prior policy stored together')
+            paths=[state/name for name in ('before.csv','before-policy.json','last-good.csv')]
+            stamps={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in paths};writes=(self.control/'writes.log').read_bytes()
+            check(self.cli(n_b,state,overlap_policy=LONGEST_PREFIX)[0]==0 and self.snapshot()[0]['raw']==snapshot['raw'],'nested unchanged run preserves raw document')
+            check((self.control/'writes.log').read_bytes()==writes and {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in paths}==stamps,'nested no-op preserves SQL and private history')
+            check(self.request('PUT',FEED,C,n_b,'publisher')[0]==409 and self.request('GET',FEED)[2]==n_b,'old writer cannot overwrite existing nested state')
+            print('PASS: real WordPress nested CLI policy, exact approval, old-client refusal and unchanged history',flush=True)
+            before=client.policy_state();raw=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            for bad in (wrap_csv(A.replace(b',US,',b',XX,')),wrap_csv(A+A),wrap_csv(A.replace(b'11.22.33.0/24',b'8.0.0.0/6'))):
+                try:client.replace_policy(bad,LONGEST_PREFIX,before,secrets.token_hex(16))
+                except GeofeedError as exc:check(str(exc).startswith('HTTP 400'),'real v2 invalid payload refusal')
+                else:raise AssertionError('real v2 accepted invalid payload')
+            from dataclasses import replace as changed_snapshot
+            for stale in (changed_snapshot(before,required=REJECT),changed_snapshot(before,publication_id='0'*32),changed_snapshot(before,policy=REJECT)):
+                try:client.replace_policy(n_d,LONGEST_PREFIX,stale,secrets.token_hex(16))
+                except GeofeedError as exc:check(str(exc).startswith('HTTP 409'),'real stale policy/owner refusal')
+                else:raise AssertionError('real v2 accepted stale policy or owner')
+            check(self.snapshot()[0]['raw']==raw and (self.control/'writes.log').read_bytes()==writes,'v2 refusal controls keep exact data and history')
+            print('PASS: real WordPress nested invalid payload and stale policy/owner refusals',flush=True)
+            self.reset()
+            for mode,candidates in [('first',[n_a,n_c]),('update',[n_b,n_d])]:
+                for name in self.control.glob('arrived-*'):name.unlink()
+                before=client.policy_state();identities=[secrets.token_hex(16),secrets.token_hex(16)]
+                (self.control/'mode').write_text(mode)
+                def write(index):
+                    try:client.replace_policy(candidates[index],LONGEST_PREFIX,before,identities[index]);return 200
+                    except GeofeedError as exc:
+                        if str(exc).startswith('HTTP 409'):return 409
+                        raise
+                try:
+                    with ThreadPoolExecutor(max_workers=2) as pool:statuses=list(pool.map(write,range(2)))
+                finally:(self.control/'mode').write_text('')
+                check(sorted(statuses)==[200,409] and len(list(self.control.glob('arrived-*')))==2,'two real v2 PHP workers preserve exactly one writer')
+                winner=statuses.index(200);after=client.policy_state()
+                check(after.csv==candidates[winner] and after.publication_id==identities[winner] and after.previous==before.csv and after.previous_policy==before.policy,'v2 race preserves winner ID and complete prior policy')
+            print('PASS: real WordPress nested first/update races preserve one owner and policy history',flush=True)
+            for mode in ('bad-readback','lost-reply','winner','failed-recovery'):
+                self.reset();target=self.directory/('nested-'+mode)
+                check(self.cli(n_a,target,overlap_policy=LONGEST_PREFIX)[0]==0,'nested fault baseline publication')
+                self.proxy.nested_winner=n_c;self.proxy.arm(mode)
+                result,status=self.cli(n_b,target,overlap_policy=LONGEST_PREFIX,approve=True)
+                observed=client.policy_state()
+                expected=n_c if mode=='winner' else n_b if mode=='failed-recovery' else n_a
+                check(result==1 and status['healthy'] is False and observed.csv==expected and observed.policy==LONGEST_PREFIX,'nested fault has explicit unhealthy stored policy outcome: '+mode)
+                check(self.request('GET',FEED)[2]==expected and (target/'before.csv').read_bytes()==n_a,'nested fault public bytes and baseline retained')
+                check(self.proxy.faults==({'bad-readback':['public-mismatch'],'lost-reply':['reply-dropped'],
+                    'winner':['public-mismatch','winner-committed'],'failed-recovery':['public-mismatch','recovery-refused']}[mode]),'nested fault really fired: '+mode)
+                if mode=='failed-recovery':
+                    self.proxy.arm(None)
+                    result,status=self.cli(n_b,target,overlap_policy=LONGEST_PREFIX,command='recover-wordpress',expected=digest(n_b))
+                    check(result==0 and status['recovered'] is True and status['healthy'] is False and client.policy_state().csv==n_a,'manual real WordPress recovery restores exact owned baseline without marking publication healthy')
+                print('PASS: real WordPress nested '+mode+' stored/public/policy recovery workload',flush=True)
+            # Restore a legacy baseline after a real strict-to-nested upgrade fault.
+            self.reset(A);self.proxy.arm('bad-readback');self.proxy.nested_winner=n_c
+            result,status=self.cli(n_a,self.directory/'nested-upgrade-recovery',overlap_policy=LONGEST_PREFIX)
+            observed=client.policy_state()
+            check(result==1 and observed.csv==A and observed.policy==REJECT and self.request('GET',FEED)[2]==A,'failed upgrade restores prior strict bytes and policy')
+            print('PASS: real WordPress failed nested upgrade restores strict baseline policy',flush=True)
+        finally:
+            flag.unlink(missing_ok=True);self.proxy.nested_winner=None;self.proxy.arm(None)
+
     def capacity_tests(self):
         self.reset()
         city='測'*60
@@ -503,7 +610,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.nested_policy_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 
