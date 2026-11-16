@@ -65,3 +65,8 @@ on-premises API versions separate rather than treating one vendor name as one co
 For each new adapter, verify exact prefix boundaries, stable IDs, complete pagination,
 permissions, native site links and missing/conflicting data. Report setup gaps separately
 from API gaps. Never invent a pool location from a matching name or one observed subscriber.
+
+The [2026-11-16 API triage](platform-api-triage.md) follows the nine conference leads
+through product-specific public docs and records exact contract, setup and verification
+gaps. It identifies NIOS WAPI as a concrete initial-adapter candidate and keeps distinct
+BlueCat and EfficientIP API families separate.
