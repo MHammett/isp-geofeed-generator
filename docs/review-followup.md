@@ -3,7 +3,7 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including
-reviews through `52ac290`. Coverage is limited to the work listed
+reviews through `dc3ffce`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -25,6 +25,9 @@ tenant/grid test. These reviews are not approval to merge.
 | [#59 NIOS](https://github.com/MHammett/isp-geofeed-generator/pull/59#pullrequestreview-5922376957) | Reviewed WAPI use, ran 253 tests and checked public examples of percent-encoded view names | No live grid test, including a spaced view name; public examples are not live verification |
 | [#60 adapter follow-up](https://github.com/MHammett/isp-geofeed-generator/pull/60#pullrequestreview-5922591864) | Reran 254 tests and proved the encoded-reference regression fails after loosening its guard | Synthetic contract and documentation checks; no live adapter test |
 | [#62 real WordPress](https://github.com/MHammett/isp-geofeed-generator/pull/62#pullrequestreview-5925077906) | Reran 254 tests, checked both hosted integration logs and actual unsafe SQL outcomes, and inspected fixture isolation | Direct HTTP was refused by core before reaching the plugin HTTPS check; no production host or CDN measured |
+| [#63 Unicode capacity](https://github.com/MHammett/isp-geofeed-generator/pull/63#pullrequestreview-5925817565) | Checked both actual hosted measurements and refusal controls; modeled later SQL growth | Steady-state estimates are offline models; finite host memory and production capacity remain unmeasured |
+| [#64 HTTPS follow-up](https://github.com/MHammett/isp-geofeed-generator/pull/64#pullrequestreview-5925790270) | Verified real core HTTP authentication, the removed-guard commit and restored HTTP refusal/HTTPS success | Disposable stack; actual managed host still unmeasured |
+| [#65 interval model](https://github.com/MHammett/isp-geofeed-generator/pull/65#pullrequestreview-5925817949) | Reran 265 tests; independent 3,000-case oracle had zero mismatches; two mutations broke the oracle/tests | Calculation model only at that revision; active nested publication not reviewed |
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The
@@ -45,6 +48,15 @@ A separate fixture now enables core password verification over loopback HTTP wit
 private control file. It requires evidence of real publisher authentication, then tests
 the plugin refusal, a removed-guard mutation and the restored HTTP/HTTPS behavior.
 This follow-up's author workload evidence is recorded separately from Claude's review.
+
+The later HTTPS review confirmed that follow-up closes the coverage gap. The capacity
+review identified a limit on the measured example: its SQL size covers the first change
+after empty history. The guides now separate that observation from offline steady-state
+estimates and require later changed publications in a host capacity trial. The interval
+review's independent oracle and mutations are supporting evidence for the model, not
+verification of the later core-policy or target work. The new cache issue records
+Claude's read-only managed-host observations; plugin-specific behavior there is still
+unmeasured. No cache, publication or recovery guard was changed for those observations.
 
 No defects were reported in those reviewed areas. That result does not fill the listed
 gaps. Author evidence, independent probes and live workloads remain separate claims.

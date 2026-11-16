@@ -56,6 +56,18 @@ The plugin asks caches not to store the public response. Exclude `/wp-json/isp-g
 from any cache that overrides those headers. A CDN returning stale data will fail public read-back.
 Test through your actual public domain, not just an origin or staging hostname.
 
+Managed hosting can add its own cache policy to REST responses or static files.
+Plugin `no-store` headers alone do not prove that every layer honors them. On staging,
+compare exact public bytes and response headers at the normal feed URL and once with
+a unique, non-secret diagnostic query string. Repeat after a changed publication and
+after recovery. A fresh query-string response does not verify that consumers receive
+fresh bytes at the normal URL. Do not mark a stale normal URL healthy or weaken read-back.
+Check host caches, edge caches, persistent object caches and error/stale-serving policies.
+Local file output also needs a separate public-path test if a web server exposes it.
+The remaining host-specific cache work is tracked in
+[issue #66](https://github.com/MHammett/isp-geofeed-generator/issues/66); the plugin's
+behavior on that host has not been measured. This guide does not enable a purge hook.
+
 ## Line endings and refresh policy
 
 New CSV uses CRLF line endings, as described in
@@ -88,6 +100,11 @@ The disposable integration test measured a 980,230-byte Unicode CSV using a
 1,842,098-byte upload, 3,693,183-byte state response and 6,434,412-byte SQL statement.
 See [the measured workload](wordpress-integration.md#measured-large-feed-example).
 Those values describe one synthetic feed and test stack; measure your own workload.
+The SQL figure is the first change after empty history. Later updates compare two full
+documents and can carry four feeds. Claude's offline model estimated roughly 8.6 MB
+with three-byte characters and 12.8 MB with four-byte characters near the CSV limit.
+Those estimates are not hosted measurements or universal bounds. Test at least three
+changed publications with populated history and leave packet headroom.
 
 - The runner sends JSON. Escaping non-ASCII characters can roughly triple the CSV's
   wire size. A proxy limit of 1 MB is not enough for every valid feed. For example,

@@ -123,7 +123,7 @@ MariaDB 10.11.14 completed first/change/unchanged publication.
 | Current CSV | 980,230 bytes |
 | Largest upload JSON | 1,842,098 bytes |
 | Authenticated state JSON | 3,693,183 bytes |
-| Largest geofeed SQL statement | 6,434,412 bytes |
+| Largest geofeed SQL statement, first change after empty history | 6,434,412 bytes |
 | Database `max_allowed_packet` | 16,777,216 bytes |
 | HTTP PHP `post_max_size` | `8M` |
 | HTTP PHP `memory_limit` | `-1` (unlimited in this test runner) |
@@ -137,3 +137,15 @@ These are measured values for this input and controlled stack, not worst-case bo
 or a recommendation to remove memory limits. The test proxy allows larger request
 bodies than a default production proxy. Finite host memory, CDN limits, packet limits
 and timeouts still need a representative staging workload on the operator's own path.
+
+The measured change started with an empty history field. A later changed publication
+carries two feeds in the new document and two in the old conditional-comparison document.
+Its SQL statement can therefore be much larger. Include at least three changed near-limit
+publications in a capacity trial, so both current and prior history are populated.
+
+[Claude's independent review](https://github.com/MHammett/isp-geofeed-generator/pull/63#pullrequestreview-5925817565)
+modeled about 8.58 MB for a steady-state update using three-byte city characters and
+12.83 MB with four-byte characters. Those are offline model estimates, not additional
+hosted measurements or universal maximums. A 4 MB or 8 MB packet budget can fail a later
+update even when the first publications passed. Measure the actual statement and leave
+headroom; keep the setup guide's separate server/client budget checks.
