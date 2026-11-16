@@ -48,6 +48,11 @@ artifacts are uploaded.
   and unchanged local recovery bytes and modification times.
 - Anonymous, subscriber, incorrect-password and direct-HTTP write refusals. A positive
   publisher workload must also succeed; denial alone cannot count as a passing setup.
+- A separate plugin HTTPS control. A private fixture file temporarily lets WordPress
+  core verify real application passwords over loopback HTTP. The authenticated publisher
+  must then receive HTTP 403 from the plugin, with no geofeed writes. Removing only the
+  plugin's HTTPS guard in the private copy must permit a real HTTP write and break that
+  refusal check. Restoring the plugin must refuse HTTP again while allowing HTTPS.
 - Invalid ISO, overlapping/duplicate and bogon payloads rejected by the real REST route
   without changing stored data.
 - Competing first inserts and later updates. Two real PHP workers meet at a bounded
@@ -72,7 +77,12 @@ artifacts are uploaded.
   and preserve the stored/public feed. Neither refusal can count as successful publication.
 
 The race/fault hooks live only under `tests/wordpress/`. They do not add an HTTP control
-route or bypass authentication. Query instrumentation records verbs, process IDs
+route or bypass passwords or roles. The core transport exception above is controlled
+by a private file outside the web root, applies only to the disposable loopback fixture
+and is removed in `finally`. It is not copied into the shipped plugin. The test records
+that core actually authenticated the publisher before trusting the plugin's refusal.
+The original direct-HTTP case alone measures core's transport refusal, not the plugin's
+HTTPS guard. Query instrumentation records verbs, process IDs
 and statement byte counts, not SQL, authorization headers, credentials or feed data. Each forced fault must be
 observed; an untriggered fault is a failed test.
 HTTP workers have opcode caching disabled for the mutation controls. The harness checks

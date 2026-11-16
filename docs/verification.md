@@ -1,5 +1,24 @@
 # Verification
 
+## Plugin HTTPS guard after core authentication
+
+Observed on 2026-11-16 from hosted run
+[43928343797](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43928343797)
+at `370260d`. All eight jobs passed. This author workload addresses the coverage gap
+in [Claude's review of #62](https://github.com/MHammett/isp-geofeed-generator/pull/62#pullrequestreview-5925077906).
+
+A private, temporary fixture setting let core verify real application passwords on
+loopback HTTP. The hook recorded a core-authenticated publisher before the plugin's
+HTTP 403, and the stored document and geofeed write log stayed unchanged. Removing only
+the plugin's HTTPS condition in the private copy produced HTTP 200 and committed the
+candidate with the correct prior feed. The refusal check detected that unsafe outcome.
+Restoring the original plugin again refused HTTP without writes and allowed HTTPS.
+The mutation and core transport exception were removed in `finally`.
+
+This is a measured disposable-stack control, not a change to the shipped authentication
+or a production proxy measurement. The prior race, recovery and large-Unicode workloads
+also passed. The review and this author follow-up remain separate evidence.
+
 ## Near-limit WordPress Unicode workload
 
 Observed on 2026-11-16 from hosted run

@@ -3,7 +3,7 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including the later
-15:15–15:16 UTC reviews through stack tip `c9e3f79`. Coverage is limited to the work listed
+later reviews through `52ac290`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -23,6 +23,8 @@ tenant/grid test. These reviews are not approval to merge.
 | [#56 NetBox guidance](https://github.com/MHammett/isp-geofeed-generator/pull/56#pullrequestreview-5922375295) | Confirmed the continent example and accuracy of recorded review scope | Docs review; no new live evidence |
 | [#58 platform triage](https://github.com/MHammett/isp-geofeed-generator/pull/58#pullrequestreview-5922376165) | Checked NIOS consistency and separation of platform/setup/API/adapter/live gaps | BlueCat, EfficientIP, Incognito and billing-vendor links not independently checked |
 | [#59 NIOS](https://github.com/MHammett/isp-geofeed-generator/pull/59#pullrequestreview-5922376957) | Reviewed WAPI use, ran 253 tests and checked public examples of percent-encoded view names | No live grid test, including a spaced view name; public examples are not live verification |
+| [#60 adapter follow-up](https://github.com/MHammett/isp-geofeed-generator/pull/60#pullrequestreview-5922591864) | Reran 254 tests and proved the encoded-reference regression fails after loosening its guard | Synthetic contract and documentation checks; no live adapter test |
+| [#62 real WordPress](https://github.com/MHammett/isp-geofeed-generator/pull/62#pullrequestreview-5925077906) | Reran 254 tests, checked both hosted integration logs and actual unsafe SQL outcomes, and inspected fixture isolation | Direct HTTP was refused by core before reaching the plugin HTTPS check; no production host or CDN measured |
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The
@@ -36,6 +38,13 @@ before publication; syntax and a POP association alone do not establish customer
 coverage. The NIOS guide and synthetic regression control preserve encoded view names
 as opaque references and refuse raw-space substitutes. Neither follow-up upgrades an
 initial adapter to live-verified support.
+
+The WordPress review identified a test-coverage gap. Core refuses application passwords
+over HTTP in staging, so that refusal alone could not prove the plugin's own HTTPS rule.
+A separate fixture now enables core password verification over loopback HTTP with a
+private control file. It requires evidence of real publisher authentication, then tests
+the plugin refusal, a removed-guard mutation and the restored HTTP/HTTPS behavior.
+This follow-up's author workload evidence is recorded separately from Claude's review.
 
 No defects were reported in those reviewed areas. That result does not fill the listed
 gaps. Author evidence, independent probes and live workloads remain separate claims.

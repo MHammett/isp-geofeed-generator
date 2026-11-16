@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Independent-review follow-up tests the plugin HTTPS guard after real core HTTP authentication, with a removed-guard negative control.
+
 - Real WordPress near-limit Unicode publication tests measure JSON/SQL growth and verify unchanged history, small-client refusal and oversized CSV rejection.
 
 - Disposable real WordPress/MariaDB integration for application-password publishing, unchanged history, competing writes and conditional recovery, with unsafe-SQL negative controls.
