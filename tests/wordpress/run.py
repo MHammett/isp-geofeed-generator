@@ -394,6 +394,46 @@ class Workload:
             check(self.proxy.faults==expected_faults[mode],'all intended fault injections actually ran: '+mode)
             print('PASS: real WordPress '+mode+' stored/public/recovery workload',flush=True)
 
+    def https_guard_tests(self):
+        flag=self.control/'allow-http-application-passwords'
+        authenticated=self.control/'http-auth.log'
+        find='return is_ssl() && ('
+        check(self.original.count(find)==1,'HTTPS mutation targets one plugin permission guard')
+        def direct():
+            return self.request('PUT',FEED,B,A,'publisher',direct=True,extra={'X-Forwarded-Proto':'https'})
+        def refused(response,prior,writes):
+            return (response[0]==403 and json.loads(response[2]).get('code')=='rest_forbidden'
+                    and self.snapshot()[0]['raw']==prior and (self.control/'writes.log').read_bytes()==writes)
+        try:
+            flag.write_text('test-only core HTTP availability; verify real password')
+            self.reset(A);authenticated.write_text('')
+            prior=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            response=direct()
+            check(refused(response,prior,writes),'plugin HTTPS guard refuses authenticated direct HTTP without writes')
+            check(authenticated.read_text().splitlines()==['http publisher'],'core really authenticated publisher over HTTP before plugin refusal')
+            print('PASS: real WordPress plugin HTTPS guard refuses core-authenticated HTTP',flush=True)
+            self.plugin.write_text(self.original.replace(find,'return ('))
+            response=direct()
+            doc=self.snapshot()[1]
+            check(response[0]==200 and doc['csv'].encode()==B and doc['previous_csv'].encode()==A,
+                  'unsafe permission mutation really publishes over direct HTTP')
+            check(not refused(response,prior,writes) and (self.control/'writes.log').read_bytes()!=writes,
+                  'HTTPS refusal check detects removed plugin guard')
+            print('HTTPS OBSERVATION: '+json.dumps({'unsafe_status':response[0],'stored_hash':digest(doc['csv'].encode()),
+                'candidate_hash':digest(B),'authenticated_http_publishers':authenticated.read_text().splitlines().count('http publisher')}),flush=True)
+            print('PASS: real WordPress plugin HTTPS control detects removed guard',flush=True)
+            self.plugin.write_text(self.original);self.reset(A);authenticated.write_text('')
+            prior=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            check(refused(direct(),prior,writes),'restored plugin HTTPS guard blocks direct HTTP and preserves feed')
+            check(authenticated.read_text().splitlines()==['http publisher'],'restored guard still reaches core-authenticated user')
+            check(self.request('PUT',FEED,B,A,'publisher')[0]==200 and self.snapshot()[1]['csv'].encode()==B,
+                  'restored plugin still permits real authenticated HTTPS publication')
+            print('PASS: real WordPress restored HTTPS guard blocks HTTP and allows HTTPS',flush=True)
+        finally:
+            self.plugin.write_text(self.original)
+            flag.unlink(missing_ok=True)
+        check(self.plugin.read_text()==self.original and not flag.exists(),'HTTP control and mutation removed')
+
     def capacity_tests(self):
         self.reset()
         city='測'*60
@@ -463,7 +503,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.capacity_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 
