@@ -24,6 +24,7 @@ data is LGPL-2.1 with [upstream notices](THIRD_PARTY_NOTICES.md).
 | phpIPAM | Initial support, based on public docs and synthetic fixtures; not live-tested |
 | Powercode legacy API | Initial support for documented range reads and explicit facility mappings; not live-tested |
 | gaiia | Initial support for native site/IP-block links; public-schema and fixture checks; not live-tested |
+| BillMax Core v1 | Initial selected IPv4 AP networks and native POP expansion; schema/fixture checks; not live-tested |
 
 [The platform matrix](docs/platforms.md) separates platform capability, instance setup and adapter verification.
 For a failed source read, see [record-level troubleshooting](docs/source-errors.md).
@@ -89,7 +90,7 @@ See [local customization](docs/customization.md) for separately installed input/
 The example allocation `192.0.2.0/24` is documentation space and cannot be published. Replace it.
 Do not select a parent prefix and overlapping children together.
 Record IDs are digit strings for Sonar pools and `subnet:<id>` for Sonar subnets, `prefix:<id>`/`range:<id>` for NetBox,
-`ipv4:<id>`/`ipv6:<id>` for Splynx, `subnet:<id>` for phpIPAM and `range:<id>` for Powercode.
+`ipv4:<id>`/`ipv6:<id>` for Splynx, `subnet:<id>` for phpIPAM, `range:<id>` for Powercode and `ap:<id>` for BillMax.
 gaiia uses native GlobalID values for selection and normalized IDs for overrides; discovery reports both.
 
 ## Sonar controller discovery

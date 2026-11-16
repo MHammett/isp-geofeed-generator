@@ -23,7 +23,7 @@ An unimplemented adapter or a missing live test is a project gap, not proof that
 | Nucleo | Research only | Internal sites can have subnets. API read/export shape needs verification. | Public migration model reviewed; no adapter claimed. |
 | UISP | Research only | Maintain infrastructure sites and device assignments; verify pool hosting separately from CRM customer endpoints. | Vendor API/site guides and existing integration code reviewed; no adapter claimed. |
 | gaiia | Initial native network-site/IP-block adapter | Assign IP blocks and structured addresses to sites; select native site or block IDs; grant only required reads. | Queries validated against the published schema, plus synthetic paging/failure checks. No authenticated tenant reads or live publication measured. |
-| BillMax | Next API candidate | Verify native pool/site reads, permissions and pagination for the chosen version. | Public API entry point found. No adapter claimed. |
+| BillMax Core v1 | Initial selected IPv4 AP-network adapter | Maintain AP networkMask and native POP assignment; select AP IDs and review whole-subnet geography. Display country/state values may need explicit ISO overrides. | Public schema and synthetic/installed-wheel tests. IPv4 /16 and /24 only; no live check, general pool completeness or IPv6 claim. See [setup](billmax.md). |
 | Other conference leads | Discovery only | Product and module may differ. | See the dated [research record](platform-research.md); no support claimed. |
 
 Initial adapters allow discovery and candidate generation. Publication requires an explicit

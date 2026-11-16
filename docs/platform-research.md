@@ -38,7 +38,9 @@ neither a suitable API nor market share.
 | [EDUCAUSE 2026 exhibitor profile](https://s23.a2zinc.net/clients/EDUCAUSE/E26/Public/eBooth.aspx?BoothID=105410&FromPage=Exhibitors.aspx&IndexInList=95&ListByBooth=true&Nav=False&ParentBoothID=) | EfficientIP | Check SOLIDserver subnet/site metadata and public API examples. |
 | [NANOG annual report for 2023](https://storage.googleapis.com/site-media-prod/documents/NANOG-Annual_report-2023.pdf) | BlueCat and Infoblox | Historical discovery evidence only. Check current product-specific APIs. |
 
-BillMax has a public REST documentation entry point and remains a next candidate.
+On 2026-11-16, BillMax's linked Core v1 Swagger schema established selected AP
+`networkMask` reads and native `_pop` expansion. These support an [initial narrow adapter](billmax.md).
+Its general pool, other mask and IPv6 contracts remain separate work.
 gaiia's published schema verified `networkSites`, `networkSite(id)` and the site's paginated
 `ipBlocks` connection. That contract now supports an initial adapter. GLDS/BroadHub, CDG, CHR, Amdocs and
 Innovative Systems are discovery leads, with no IPAM read contract claimed by this review.

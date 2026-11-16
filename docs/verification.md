@@ -1,5 +1,24 @@
 # Verification
 
+## BillMax selected AP networks
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 240 tests: 238 passed and two
+POSIX-only skips. Twelve new synthetic tests cover exact IPv4 /16 and /24 AP networks,
+native expanded POP IDs, both documented auth modes, private-field discarding, ISO
+overrides, named-input credentials and directory pagination with clamped pages.
+Forced invalid/missing details, bad native links, changed POP geography, unsupported
+boundaries, authentication failures and timeouts all stop the source read. CLI controls
+prove that initial publication needs opt-in, then publish successfully and retain feed
+and backup bytes when a link breaks or a second selected AP is missing. Failure status
+is unhealthy, separate from a successful read.
+
+An isolated installed wheel built a feed from an AP and its native POP outside the
+checkout, then passed the existing multi-input, location-approval and unchanged-output
+workloads. The public Core v1.0.0 schema supplies the response shapes. Its /pops
+collection inconsistency is avoided through AP detail expansion. This is initial narrow
+support; no live BillMax tenant, general pool completeness or IPv6 behavior was measured.
+See [BillMax setup and recovery](billmax.md).
+
 ## Operator review notes
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 228 tests: 226 passed and two

@@ -14,6 +14,7 @@ assert Path(isp_geofeed_generator.__file__).is_relative_to(Path(sys.prefix)), 'I
 sources,targets=load_extensions({'sources':['local_json'],'targets':['local_file']},SOURCES,TARGETS)
 assert sources['local_json'].initial and targets['local_file'].initial
 assert SOURCES['powercode'].initial and SOURCES['gaiia'].initial
+assert SOURCES['billmax'].initial
 print('PASS: installed core and separate input/output extension wheels')
 from isp_geofeed_generator.iso_codes import code_tables
 assert tuple(map(len,code_tables()))==(249,5046)
@@ -26,6 +27,13 @@ from isp_geofeed_generator.phpipam import PhpIPAM
 class Replies:
     def __init__(self,rows):self.rows=iter(rows)
     def request(self,*args,**kwargs):return next(self.rows)
+from isp_geofeed_generator.billmax import BillMax
+from isp_geofeed_generator.feed import build
+billmax=BillMax('https://example.net/api/billmaxCoreApi/v1','synthetic-key',{'ap_ids':['7']},http=Replies([
+    [{'id':'7','networkMask':'11.22.33.0/24','_pop':[{'id':12,'country':'US','stateProvince':'US-IL','city':'Example City'}]}]]))
+value,_=build(billmax.for_publication(billmax.snapshot()),{'allowed_prefixes':['11.22.33.0/24']})
+assert value==b'11.22.33.0/24,US,US-IL,Example City,\\r\\n'
+print('PASS: installed BillMax selected AP network and native POP workload')
 class ControllerSource(Sonar):
     def pages(self,root,*args,**kwargs):
         if root=='dhcp_servers':

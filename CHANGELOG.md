@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Initial BillMax Core v1 support for explicitly selected IPv4 AP networks and native POP links, with secure API-key/user-login modes and clear pool/IPv6 limits.
+
 - Operator-readable location-change percentages with exact enforcement retained, explicit Kosovo/XK policy limits and linked independent-review scope.
 - Explicit NetBox prefix custom-field and ISO country/state/city Region-hierarchy location modes, including GeoBox field mappings, reduced read permissions and fail-closed selected-record handling.
 - ISO country/subdivision membership checks in Python, rich records and WordPress, using identical pinned data with complete upstream licenses and integrity checks.

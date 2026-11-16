@@ -205,6 +205,10 @@ Rate-limit errors stop the run without retries. See the vendor's rate-limit guid
 
 ## Verify before scheduling
 
+For BillMax, see [initial AP-network setup](billmax.md). Select reviewed IPv4 `/16` or
+`/24` AP networks, keep their native POP assignments and supply ISO geography overrides
+when display values need translation. General pool exports and IPv6 are not claimed.
+
 Run discovery, compare its counts and associations with the platform, generate a candidate, and inspect
 the location policy. Test first publication and rollback on staging. Enable a timer only after the real workload passes.
 See [credential storage](security.md), [WordPress setup](wordpress.md), and the [capability matrix](platforms.md).

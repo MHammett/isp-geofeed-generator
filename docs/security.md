@@ -50,6 +50,8 @@ LoadCredentialEncrypted=WP_APP_PASSWORD:/etc/isp-geofeed-generator/credentials/W
 For NetBox, substitute `NETBOX_API_TOKEN`. Splynx needs `SPLYNX_API_KEY` and `SPLYNX_API_SECRET`.
 phpIPAM needs `PHPIPAM_API_TOKEN`. Load only the credentials needed by that service.
 Powercode needs `POWERCODE_API_KEY`; gaiia needs `GAIIA_API_KEY`.
+BillMax needs `BILLMAX_API_KEY`; its `userpass` mode also needs secure
+`BILLMAX_USERNAME` and `BILLMAX_PASSWORD` references. Session tokens stay in memory.
 URLs and the WordPress username belong in root:geofeed mode-0640 `runtime.env`.
 Never place tokens or passwords in that file for the recommended systemd setup.
 

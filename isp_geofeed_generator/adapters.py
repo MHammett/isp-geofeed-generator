@@ -8,6 +8,7 @@ from .splynx import Splynx
 from .phpipam import PhpIPAM
 from .powercode import Powercode
 from .gaiia import Gaiia
+from .billmax import BillMax, validate_settings as validate_billmax
 from .publish import WordPress, publish_file, publish_wordpress
 from .locations import LOCATION_FIELDS
 from .credentials import InputCredentialStore
@@ -26,6 +27,14 @@ def phpipam_source(settings, credentials):
         app_id = '' if isinstance(credentials, InputCredentialStore) else os.environ.get('PHPIPAM_APP_ID', '')
     return PhpIPAM(source_url(credentials, 'PHPIPAM_URL'), app_id,
                   credentials.get('PHPIPAM_API_TOKEN'), settings)
+
+
+def billmax_source(settings, credentials):
+    validate_billmax(settings)
+    login = {}
+    if settings.get('auth_mode') == 'userpass':
+        login = {'username': credentials.get('BILLMAX_USERNAME'), 'password': credentials.get('BILLMAX_PASSWORD')}
+    return BillMax(source_url(credentials, 'BILLMAX_URL'), credentials.get('BILLMAX_API_KEY'), settings, **login)
 
 
 def validate_settings(kind, settings):
@@ -88,6 +97,7 @@ class RecordFileTarget:
 # Factories read only the credentials needed by that adapter. No configuration
 # value is treated as an import path, executable command or arbitrary plugin.
 SOURCES = {
+    "billmax": SourceAdapter(billmax_source, initial=True, settings=frozenset({'ap_ids', 'auth_mode'}), validate=validate_billmax),
     "sonar": SourceAdapter(lambda s, c: Sonar(source_url(c, "SONAR_URL"), c.get("SONAR_API_TOKEN"), settings=s), initial=False,
                            settings=frozenset({"site_resolution", "pool_ids", "subnet_ids"}), validate=lambda s: validate_settings('sonar', s)),
     "netbox": SourceAdapter(lambda s, c: NetBox(source_url(c, "NETBOX_URL"), c.get("NETBOX_API_TOKEN"), s), initial=False,

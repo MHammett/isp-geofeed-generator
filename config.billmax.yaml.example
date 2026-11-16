@@ -1,0 +1,18 @@
+# Initial support: reviewed IPv4 /16 or /24 AP networks with a native expanded POP.
+# Set BILLMAX_URL to your full HTTPS Core v1 base, including its port and path.
+state_dir: state
+source:
+  type: billmax
+  ap_ids: ["7"] # AP IDs, not asset or subscriber IDs. Whole subnet is published.
+  auth_mode: api_key # Matches USER_AUTH=NONE; use userpass for USER_AUTH=USERPASS.
+  allow_initial: false
+credentials:
+  BILLMAX_API_KEY: systemd:BILLMAX_API_KEY
+  # Required only with source.auth_mode: userpass:
+  # BILLMAX_USERNAME: systemd:BILLMAX_USERNAME
+  # BILLMAX_PASSWORD: systemd:BILLMAX_PASSWORD
+allowed_prefixes: [192.0.2.0/24] # Replace documentation space with your allocation.
+site_locations:
+  # Use the linked native POP ID from selected-AP discovery. Never guess a name join.
+  "pop:12": {country: US, region: US-IL, city: Example City}
+publish: {type: file, path: output/geofeed.csv}
