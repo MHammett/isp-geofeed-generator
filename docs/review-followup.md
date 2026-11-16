@@ -51,6 +51,8 @@ covers Python and GitHub Actions. Repository settings must be checked live, sepa
 - Nested prefixes: rejected consistently by the core and WordPress plugin today. Supporting
   longest-prefix overrides needs one coordinated change to validation, overlap handling,
   coverage calculations, recovery and plugin tests. Do not relax only one check.
+  [The proposed contract and acceptance vectors](nested-prefixes.md) specify that work;
+  runtime support remains unimplemented and issue #16 stays open.
 - Location changes: #43 implements a separate retained-coverage guard and exact-candidate
   approval. Its runtime and tests are in the pending stack; the default branch still needs
   that change merged through the owning session before it can be deployed.

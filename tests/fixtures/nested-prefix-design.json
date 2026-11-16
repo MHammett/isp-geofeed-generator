@@ -1,0 +1,8 @@
+[
+  {"name":"add-override","before":[["11.22.33.0/24","A"]],"after":[["11.22.33.0/24","A"],["11.22.33.0/25","B"]],"expected":{"old":256,"new":256,"retained":256,"removed":0,"relocated":128}},
+  {"name":"same-location-child","before":[["11.22.33.0/24","A"]],"after":[["11.22.33.0/24","A"],["11.22.33.0/25","A"]],"expected":{"old":256,"new":256,"retained":256,"removed":0,"relocated":0}},
+  {"name":"remove-override-falls-back","before":[["11.22.33.0/24","A"],["11.22.33.0/25","B"]],"after":[["11.22.33.0/24","A"]],"expected":{"old":256,"new":256,"retained":256,"removed":0,"relocated":128}},
+  {"name":"remove-parent-keep-child","before":[["11.22.33.0/24","A"],["11.22.33.0/25","B"]],"after":[["11.22.33.0/25","B"]],"expected":{"old":256,"new":128,"retained":128,"removed":128,"relocated":0}},
+  {"name":"edit-only-effective-parent","before":[["11.22.33.0/24","A"],["11.22.33.0/25","B"]],"after":[["11.22.33.0/24","C"],["11.22.33.0/25","B"]],"expected":{"old":256,"new":256,"retained":256,"removed":0,"relocated":128}},
+  {"name":"equivalent-split","before":[["11.22.33.0/24","A"]],"after":[["11.22.33.0/25","A"],["11.22.33.128/25","A"]],"expected":{"old":256,"new":256,"retained":256,"removed":0,"relocated":0}}
+]
