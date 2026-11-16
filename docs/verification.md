@@ -1,5 +1,16 @@
 # Verification
 
+## Operator review notes
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 228 tests: 226 passed and two
+POSIX-only skips. The new diagnostic control first failed on raw IPv6 counts. It now
+checks 50% coverage, a tiny nonzero move and one address above a 50% threshold. Messages
+show readable percentages and note display rounding; exact integer comparisons still
+stop a one-address excess. Existing guard and approval workloads remain in the suite.
+The ISO control also explicitly refuses `XK`. The review guide links independent evidence
+and records unreviewed lock/live/publication/license areas instead of treating agreement
+or general CI passes as full review.
+
 ## Alternate NetBox geography models
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 227 tests: 225 passed and two

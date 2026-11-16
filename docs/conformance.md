@@ -10,6 +10,12 @@ its pinned snapshot. It does not guess aliases or accept reserved, withdrawn or 
 country codes. For example, use the reviewed assigned `GB` code rather than `UK`.
 A blank region remains allowed. This is the project's publisher policy; RFC 8805 also
 allows some optional features and exceptionally reserved codes that this tool does not emit.
+Kosovo's `XK` is also refused because it is not ISO-assigned, as explained by
+[RIPE NCC](https://www.ripe.net/about-us/news/ripe-ncc-response-to-arkep/).
+[MaxMind documents using `XK`](https://blog.maxmind.com/data-changes-to-geoip-legacy-and-minfraud-legacy-web-services-in-may-2022/),
+so this strict policy currently limits Kosovo operators. It is a limitation of this
+publisher's policy, not proof of a billing/IPAM platform problem. Do not relabel those
+addresses as another country or silently insert an exception to pass validation.
 
 ## Data and updates
 

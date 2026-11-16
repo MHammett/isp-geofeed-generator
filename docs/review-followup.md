@@ -1,8 +1,31 @@
 # Independent review follow-up
 
+## Latest review coverage
+
+Observed from Claude Code's GitHub reviews submitted on 2026-11-16. These reviews cover
+the stack through `3f3337b`. They are not approval to merge. Newer NetBox model changes
+at `7dfc8f0` have author checks and still need independent review.
+
+| Review | Supporting evidence reported | Limits still recorded |
+| --- | --- | --- |
+| [#42 credentials/proxy](https://github.com/MHammett/isp-geofeed-generator/pull/42#pullrequestreview-5921158053) | 212-test suite, seven CI jobs, source inspection and a foreign-next-link probe | New ACL code on target Debian service and live WordPress proxy not measured |
+| [#43 relocation](https://github.com/MHammett/isp-geofeed-generator/pull/43#pullrequestreview-5921158589) | Direct IPv4/IPv6 moves, equivalent splits, case changes, first publication and new-space controls | CLI exact-hash approval not independently run; its author tests pass |
+| [#45 publication verification](https://github.com/MHammett/isp-geofeed-generator/pull/45#pullrequestreview-5921159001) | Suite and installed-wheel CI evidence | Destination locks/path aliases and real public/stored WordPress state were not reviewed in depth |
+| [#46 wire format/limits](https://github.com/MHammett/isp-geofeed-generator/pull/46#pullrequestreview-5921159358) | CRLF/LF/mixed/bare-CR probes and guide review | Real host capacity not measured |
+| [#47 source errors](https://github.com/MHammett/isp-geofeed-generator/pull/47#pullrequestreview-5921159765) | New controls fail on old code and pass after the fix | Live billing/IPAM records not measured |
+| [#49 ISO/conformance](https://github.com/MHammett/isp-geofeed-generator/pull/49#pullrequestreview-5921160117) | Direct current/replaced/invalid ISO-code probes, suite and CI | Full license text and external-tool setup not reviewed in depth |
+
+No defects were reported in those reviewed areas. That result does not fill the listed
+gaps. Author evidence, independent probes and live workloads remain separate claims.
+Review notes prompted clearer coverage percentages and an explicit Kosovo/XK policy note.
+
+## Initial review corrections
+
 Claude Code reviewed revision `048ce92164099fe31b425de27687ddeb28e8f4a8` on 2026-11-15.
 The [review and evidence](https://github.com/MHammett/isp-geofeed-generator/issues/1#issuecomment-6900180754)
-remain part of the record. The author made the changes below. Independent re-review is still needed.
+remain part of the record. The table below records that initial fix set. The proxy row
+was later superseded by #42: `next` is only a continuation signal and all requests stay
+on the configured origin. Use the current guides and review coverage above for current behavior.
 
 | Finding | Change | Failure check |
 | --- | --- | --- |
@@ -28,8 +51,9 @@ covers Python and GitHub Actions. Repository settings must be checked live, sepa
 - Nested prefixes: rejected consistently by the core and WordPress plugin today. Supporting
   longest-prefix overrides needs one coordinated change to validation, overlap handling,
   coverage calculations, recovery and plugin tests. Do not relax only one check.
-- Location changes: the current change guard limits withdrawals, not relocation. A large
-  erroneous address edit is still a risk. A relocation guard needs separate policy and tests.
+- Location changes: #43 implements a separate retained-coverage guard and exact-candidate
+  approval. Its runtime and tests are in the pending stack; the default branch still needs
+  that change merged through the owning session before it can be deployed.
 - New Sonar pools: unresolved selected public pools continue to stop publication. Configure
   controller evidence or map/exclude the pool. Keeping the old feed is the current safe behavior.
 - Sonar IPv6: exact IPv6 generation is tested, but live Sonar pool coverage has not been

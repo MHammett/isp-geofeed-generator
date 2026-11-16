@@ -46,7 +46,7 @@ class IsoMembership(unittest.TestCase):
                 parse_feed(f'11.22.33.0/24,{country},{region},Example,\r\n'.encode())
 
     def test_shape_correct_but_unassigned_country_is_refused(self):
-        for code in ('XX','ZZ','UK','SU'):
+        for code in ('XX','ZZ','UK','SU','XK'):
             with self.subTest(code=code),self.assertRaises(GeofeedError):
                 parse_feed(f'11.22.33.0/24,{code},,Example,\r\n'.encode())
 

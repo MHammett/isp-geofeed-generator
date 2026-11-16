@@ -31,7 +31,11 @@ text encodings. City names remain case-sensitive. Equivalent numeric forms, such
 1.0, compare equal. Locations are compared across exact prefix intersections with integer
 address counts, including very large IPv6 ranges.
 
-The guard's error names the address family and affected/retained counts. It does not dump
+The guard's error names the address family, changed percentage of retained coverage and
+limit. It shows two decimal places; a smaller nonzero change appears as `<0.01%`.
+Nonzero remainders are marked as rounded down. Display rounding never changes enforcement:
+the guard compares exact integer coverage, including a single IPv6 address above a limit.
+It does not dump
 city names, coordinates or customer records. A stopped run keeps the public bytes and the
 prior recovery backup intact. Candidate generation validates data, but does not claim a
 comparison with the currently published baseline.

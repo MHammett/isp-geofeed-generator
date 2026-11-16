@@ -29,6 +29,14 @@ def fraction_limit(limit, name):
     return Fraction(str(limit))
 
 
+def coverage_percent(part, total):
+    hundredths, remainder = divmod(part * 10_000, total)
+    if part and not hundredths:
+        return '<0.01%'
+    value = f'{hundredths // 100}.{hundredths % 100:02d}%'
+    return value + (' (rounded down)' if remainder else '')
+
+
 def relocation_guard(old, new, max_relocated_fraction=0.10):
     limit = max_relocated_fraction
     threshold = fraction_limit(limit, 'max_relocated_fraction')
@@ -50,5 +58,6 @@ def relocation_guard(old, new, max_relocated_fraction=0.10):
             else:
                 j += 1
         if retained and moved * threshold.denominator > retained * threshold.numerator:
-            raise GeofeedError(f'IPv{version} location changes affect {moved} of {retained} retained addresses; '
-                               f'max_relocated_fraction={limit}; output stopped. Review a generated candidate before approving its exact hash')
+            raise GeofeedError(f'IPv{version} location changes affect {coverage_percent(moved, retained)} of retained address coverage; '
+                               f'limit {coverage_percent(threshold.numerator, threshold.denominator)} (compared exactly); '
+                               'output stopped. Review a generated candidate before approving its exact hash')
