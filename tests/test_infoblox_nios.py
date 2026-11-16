@@ -64,6 +64,23 @@ class NIOSTests(unittest.TestCase):
         self.assertEqual((follow.netloc,follow.path),('example.net','/wapi/v2.13.6/network'))
         self.assertEqual(parse_qs(follow.query),{'_page_id':[token]})
 
+    def test_percent_encoded_view_names_preserve_opaque_selection(self):
+        refs=[ref.rsplit('/',1)[0]+'/Company%201' for ref in (V4,V6)]
+        source,http=self.source([page([network(refs[0],view='Company 1')]),
+            page([network(refs[1],'2001:4860:1234::/126',view='Company 1')])],{'network_refs':refs})
+        snapshot=source.for_publication(source.snapshot())
+        self.assertEqual({p['source_id'] for p in snapshot['pools']},set(refs))
+        self.assertEqual({p['network_view'] for p in snapshot['pools']},{'Company 1'})
+        data,_=build(snapshot,{'allowed_prefixes':['11.22.33.0/24','2001:4860:1234::/48']})
+        self.assertEqual([(n.version,n.num_addresses) for n in parse_feed(data)],[(4,256),(6,4)])
+        self.assertEqual(len(http.calls),2)
+        # Negative controls: a decoded reference is not an accepted substitute,
+        # either in config or among the returned inventory records.
+        raw=refs[0].replace('%20',' ')
+        with self.assertRaises(GeofeedError):self.source(settings={'network_refs':[raw]})
+        source,_=self.source([page([network(raw,view='Company 1')])],{'network_refs':[refs[0]]})
+        with self.assertRaises(GeofeedError):source.snapshot()
+
     def test_repeated_token_duplicate_reference_bad_or_empty_intermediate_page_fails(self):
         other=network('network/second:11.22.34.0/24/external','11.22.34.0/24')
         for replies in ([{}],[[]],[{'result':{}}],[page([None])],[page([network()]*101)],

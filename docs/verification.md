@@ -1,5 +1,20 @@
 # Verification
 
+## Adapter review follow-up
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 254 tests: 252 passed and two
+POSIX-only skips. The new NIOS regression uses IPv4 and IPv6 references ending in
+`Company%201` while the returned view name is `Company 1`. Exact references survive
+selection and the feed retains 256 IPv4 addresses and four IPv6 addresses. Negative
+controls refuse decoded raw-space references in configuration and returned inventory.
+This verifies synthetic behavior; a spaced view on a live grid remains unmeasured.
+
+The cached vendor BillMax schema has no purpose description on `networkMask`. The
+setup guide and example now explicitly call for checking whether it is customer-serving
+or management-only before selection. Claude Code's four later reviews are linked in
+the [review record](review-followup.md), with their source checks and live-test limits.
+Runtime code is unchanged; no source tenant, grid or production feed was changed.
+
 ## Infoblox NIOS networks
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 253 tests: 251 passed and two

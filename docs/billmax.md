@@ -34,6 +34,12 @@ Maintain the AP's network/netmask and its POP assignment in BillMax. Check that 
 are a separate inventory. An AP network may contain unused addresses; this adapter does
 not claim to export only assigned addresses or to reproduce every pool in BillMax.
 
+The schema does not establish whether `networkMask` is customer-serving space or an
+AP management network. Confirm its purpose on your instance before selecting the AP.
+A valid public CIDR and a native POP link do not prove that it belongs in the customer
+geofeed. Leave management-only networks out unless your publication policy deliberately
+includes them at that location. Do not infer customer pool coverage from the field name.
+
 Start with [the example](../config.billmax.yaml.example). Set `BILLMAX_URL` to your full
 HTTPS Core v1 base, including its deployment port and path, for example
 `https://billing.example.net:3105/api/billmaxCoreApi/v1`. The adapter appends operations

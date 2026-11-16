@@ -3,9 +3,9 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including the later
-14:44 UTC reviews at stack tip `95164eb`. Coverage is limited to the work listed below;
-the later BillMax adapter at `ebfa5ff` has author checks and still needs independent review.
-These reviews are not approval to merge.
+15:15–15:16 UTC reviews through stack tip `c9e3f79`. Coverage is limited to the work listed
+below. BillMax and NIOS now have independent source/contract reviews; neither has a live
+tenant/grid test. These reviews are not approval to merge.
 
 | Review | Supporting evidence reported | Limits still recorded |
 | --- | --- | --- |
@@ -19,6 +19,10 @@ These reviews are not approval to merge.
 | [#52 operator notes](https://github.com/MHammett/isp-geofeed-generator/pull/52#pullrequestreview-5921886500) | Reran threshold/display probes, checked Kosovo references and review-scope table | No new live deployment evidence; author and independent checks remain separate |
 | [#53 nested-prefix design](https://github.com/MHammett/isp-geofeed-generator/pull/53#pullrequestreview-5921887222) | Compared policy with RFC 8805 and checked unchanged runtime overlap refusal | Reviewer did not hand-check the design fixture vectors; runtime support remains unimplemented |
 | [#54 provider plan](https://github.com/MHammett/isp-geofeed-generator/pull/54#pullrequestreview-5921887951) | Checked RDAP standard, IP2Location requirements, ipapi.is receipt semantics and Kosovo references | Other provider rows were not independently checked; no live submission or adapter verified |
+| [#55 BillMax](https://github.com/MHammett/isp-geofeed-generator/pull/55#pullrequestreview-5922374612) | Compared every used operation/field with the vendor's Core schema; ran the 253-test suite at `c9e3f79` | No live tenant test; the schema does not establish whether AP networkMask is customer-serving or management-only |
+| [#56 NetBox guidance](https://github.com/MHammett/isp-geofeed-generator/pull/56#pullrequestreview-5922375295) | Confirmed the continent example and accuracy of recorded review scope | Docs review; no new live evidence |
+| [#58 platform triage](https://github.com/MHammett/isp-geofeed-generator/pull/58#pullrequestreview-5922376165) | Checked NIOS consistency and separation of platform/setup/API/adapter/live gaps | BlueCat, EfficientIP, Incognito and billing-vendor links not independently checked |
+| [#59 NIOS](https://github.com/MHammett/isp-geofeed-generator/pull/59#pullrequestreview-5922376957) | Reviewed WAPI use, ran 253 tests and checked public examples of percent-encoded view names | No live grid test, including a spaced view name; public examples are not live verification |
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The
@@ -26,6 +30,12 @@ continent above country has four levels and is refused by the three-level mode. 
 or site/location mode rather than changing a shared hierarchy. GeoBox users also need
 to review unset/false flags and intentionally excluded blank rows before migration;
 these remain stopped selected records, not silent omissions.
+
+The BillMax guide now explicitly asks operators to verify the purpose of an AP mask
+before publication; syntax and a POP association alone do not establish customer pool
+coverage. The NIOS guide and synthetic regression control preserve encoded view names
+as opaque references and refuse raw-space substitutes. Neither follow-up upgrades an
+initial adapter to live-verified support.
 
 No defects were reported in those reviewed areas. That result does not fill the listed
 gaps. Author evidence, independent probes and live workloads remain separate claims.

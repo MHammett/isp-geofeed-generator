@@ -67,6 +67,11 @@ uses the raw reference. Discovery reports both. Hashing bounds the identifier wi
 decoding or truncating the reference. A recreated record can have a new reference and
 needs a reviewed selection/mapping update.
 
+View names can contain spaces. Copy the API's reference unchanged, including any `%20`
+encoding; the separate `network_view` value can still be `Company 1`. Raw spaces in a
+reference are refused. Synthetic fixtures cover encoded view names, but that case still
+needs confirmation on a live grid. Never decode or reconstruct a reference from a view name.
+
 Equal prefix text in different views retains distinct identity. Selecting both still
 triggers the normal duplicate/overlap refusal. Do not merge views by matching address text.
 No DHCP range or network-container expansion is included. Whole selected networks are

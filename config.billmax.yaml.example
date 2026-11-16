@@ -3,7 +3,7 @@
 state_dir: state
 source:
   type: billmax
-  ap_ids: ["7"] # AP IDs, not asset or subscriber IDs. Whole subnet is published.
+  ap_ids: ["7"] # Confirm networkMask purpose first; it may be management-only. Whole subnet is published.
   auth_mode: api_key # Matches USER_AUTH=NONE; use userpass for USER_AUTH=USERPASS.
   allow_initial: false
 credentials:
