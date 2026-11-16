@@ -53,6 +53,10 @@ class WordPress:
                 raise GeofeedError(f'WordPress state access refused (HTTP {match[1]}). Check application password, publisher permissions and Authorization header forwarding. Behind a trusted TLS proxy, WordPress must recognize the request as HTTPS') from None
             raise
         try:
+            if ('overlap_policy' in result or 'required_overlap_policy' in result) and (
+                    result.get('overlap_policy')!='reject' or result.get('required_overlap_policy')!='reject'):
+                from .wordpress_policy import PolicyMismatch
+                raise PolicyMismatch('WordPress state uses a different overlap policy; check the paired runner and plugin configuration before publishing')
             csv = result["csv"].encode("utf-8")
             if result["sha256"] != digest(csv):
                 raise ValueError()
@@ -84,6 +88,10 @@ class WordPress:
         from .wordpress_policy import replace
         return replace(self,csv,policy,expected,publication_id,operation)
 
+    def configure_policy(self,policy,expected,publication_id):
+        from .wordpress_policy import configure_request
+        return configure_request(self,policy,expected,publication_id)
+
     def read_public(self, *, overlap_policy='reject'):
         req = Request(self.public_url, headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Cache-Control": "no-cache"})
         try:
@@ -111,6 +119,9 @@ def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, m
     try:
         old = publisher.state()
     except GeofeedError as exc:
+        from .wordpress_policy import PolicyMismatch,publish
+        if isinstance(exc,PolicyMismatch):
+            return publish(publisher,csv,state_dir,max_removed_fraction,max_relocated_fraction,desired=overlap_policy)
         raise GeofeedError(f'WordPress preflight failed before any write: {exc}') from None
     change_guard(old, csv, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)
     state_dir = Path(state_dir)

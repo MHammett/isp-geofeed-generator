@@ -1,4 +1,4 @@
-"""Version 1 of the public adapter contract. Keep imports lightweight."""
+"""Version-1 source/legacy targets and version-2 policy-aware targets."""
 from dataclasses import dataclass
 from typing import Callable, Protocol
 from .locations import COARSE_FIELDS

@@ -166,7 +166,7 @@ def publication_run(directory, credentials, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
-    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress"))
+    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
@@ -183,8 +183,20 @@ def main(argv=None):
         config = load_config(args.config)
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
-        if args.expected_current_sha256 is not None and (args.command not in ('recover-local','recover-wordpress') or not re.fullmatch(r'[a-f0-9]{64}',args.expected_current_sha256)):
-            raise GeofeedError('--expected-current-sha256 requires recovery and a lowercase SHA-256 hash')
+        if args.expected_current_sha256 is not None and (args.command not in ('recover-local','recover-wordpress','configure-wordpress-policy') or not re.fullmatch(r'[a-f0-9]{64}',args.expected_current_sha256)):
+            raise GeofeedError('--expected-current-sha256 requires recovery/policy configuration and a lowercase SHA-256 hash')
+        if args.command=='configure-wordpress-policy':
+            if config.get('publish',{}).get('type')!='wordpress' or not args.expected_current_sha256:
+                raise GeofeedError('configure-wordpress-policy requires a wordpress target and --expected-current-sha256')
+            from .publish import WordPress
+            from .wordpress_policy import configure
+            stage='configuring WordPress policy'
+            with publication_run(directory,credentials,lambda:stage):
+                admin=WordPress(os.environ.get('WP_SITE_URL',''),os.environ.get('WP_POLICY_ADMIN_USERNAME',''),credentials.get('WP_POLICY_ADMIN_APP_PASSWORD'))
+                result=configure(admin,config.get('overlap_policy',REJECT),args.expected_current_sha256)
+                status(directory,{'healthy':False,**result,'error':'Policy configured; keep old writers stopped and verify a normal staging publication'})
+                print(json.dumps(result))
+            return 0
         if args.command=='recover-wordpress':
             settings=config.get('publish',{})
             if settings.get('type')!='wordpress' or not args.expected_current_sha256:

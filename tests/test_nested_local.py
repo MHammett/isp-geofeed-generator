@@ -119,7 +119,7 @@ class NestedLocalTests(unittest.TestCase):
 
     def test_missing_or_tampered_policy_cannot_be_assumed_from_header(self):
         self.publish(self.a);self.meta.unlink();before=self.target.read_bytes()
-        with self.assertRaises(GeofeedError):self.publish(self.b,max_relocated_fraction=1)
+        with self.assertRaisesRegex(GeofeedError,'recover-local'):self.publish(self.b,max_relocated_fraction=1)
         self.assertEqual(self.target.read_bytes(),before)
         bound_output.recover_bound(self.target,self.state,'csv',digest(self.a))
         self.assertFalse(self.target.exists());self.assertFalse(self.meta.exists())

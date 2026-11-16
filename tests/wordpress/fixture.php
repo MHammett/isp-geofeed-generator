@@ -14,7 +14,7 @@ if ($geofeed_test_action === 'install') {
     update_option('permalink_structure', '/%postname%/');
     flush_rewrite_rules(false);
     $accounts = [];
-    foreach (['publisher' => 'isp_geofeed_generator_publisher', 'reader' => 'subscriber'] as $name => $role) {
+    foreach (['publisher' => 'isp_geofeed_generator_publisher', 'reader' => 'subscriber', 'policy_admin' => 'administrator'] as $name => $role) {
         $id = wp_insert_user(['user_login' => $name, 'user_pass' => wp_generate_password(32),
             'user_email' => $name.'@example.invalid', 'role' => $role]);
         if (is_wp_error($id)) { throw new RuntimeException('Fixture user creation failed'); }

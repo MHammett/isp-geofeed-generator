@@ -1,16 +1,24 @@
 """Policy negotiation, publisher ownership and checked recovery outcomes."""
 import copy
+import contextlib
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import Mock,patch
+import yaml
 
 from isp_geofeed_generator.client import GeofeedError
 from isp_geofeed_generator.feed import digest,render_csv
 from isp_geofeed_generator.overlap import REJECT,LONGEST_PREFIX
 from isp_geofeed_generator.publish import WordPress,publish_wordpress
-from isp_geofeed_generator.wordpress_policy import Snapshot,recover
+from isp_geofeed_generator.wordpress_policy import Snapshot,recover,configure,PolicyMismatch
 from test_nested_core import PARENT,CHILD,row
+from isp_geofeed_generator.cli import main
+from isp_geofeed_generator.adapters import SOURCES
+from isp_geofeed_generator.contracts import SourceAdapter
+from isp_geofeed_generator.credentials import CredentialStore
 
 A=render_csv([PARENT],overlap_policy=LONGEST_PREFIX)
 B=render_csv([PARENT,CHILD],overlap_policy=LONGEST_PREFIX)
@@ -21,8 +29,16 @@ class PolicyWP:
     public_url='https://example.net/wp-json/isp-geofeed-generator/v1/feed'
     def __init__(self):
         self.current=Snapshot(b'',REJECT,LONGEST_PREFIX,b'',REJECT,None)
-        self.writes=[];self.mode=None;self.wrong_reads=0;self.deny_restore=False;self.lose_restore=False
+        self.writes=[];self.mode=None;self.wrong_reads=0;self.deny_restore=False;self.lose_restore=False;self.config_writes=[];self.lose_config=False
     def policy_state(self):return self.current
+    def state(self):
+        if self.current.policy!=REJECT or self.current.required!=REJECT:raise PolicyMismatch('different overlap policy')
+        return self.current.csv
+    def configure_policy(self,policy,expected,identity):
+        if expected!=self.current:raise GeofeedError('HTTP 409')
+        self.config_writes.append((policy,identity))
+        self.current=Snapshot(expected.csv,expected.policy,policy,expected.previous,expected.previous_policy,identity)
+        if self.lose_config:self.lose_config=False;raise GeofeedError('Lost policy configuration reply')
     def read_public(self,**kwargs):
         if self.wrong_reads:self.wrong_reads-=1;return C
         return self.current.csv
@@ -129,6 +145,36 @@ class WordPressPolicyTests(unittest.TestCase):
         self.wp.policy_state=state
         with self.assertRaisesRegex(GeofeedError,'changed during unchanged'):self.publish(A)
         self.assertEqual(len(self.wp.writes),1)
+    def test_administrator_switch_preserves_data_history_and_noop_makes_no_writes(self):
+        self.publish(A);self.wp.lose_config=True;before=self.wp.current
+        self.assertTrue(configure(self.wp,REJECT,digest(A))['changed'])
+        self.assertEqual(self.wp.current.csv,before.csv);self.assertEqual(self.wp.current.previous,before.previous)
+        self.assertEqual(self.wp.current.policy,LONGEST_PREFIX);self.assertEqual(self.wp.current.required,REJECT)
+        self.assertFalse(configure(self.wp,REJECT,digest(A))['changed']);self.assertEqual(len(self.wp.config_writes),1)
+        with self.assertRaisesRegex(GeofeedError,'hash does not match'):configure(self.wp,LONGEST_PREFIX,'0'*64)
+    def test_strict_migration_uses_versioned_guards_after_admin_policy_switch(self):
+        self.publish(A);self.publish(B,max_relocated_fraction=1)
+        configure(self.wp,REJECT,digest(B))
+        strict=render_csv([PARENT])
+        with self.assertRaisesRegex(GeofeedError,'location changes'):publish_wordpress(self.wp,strict,self.root)
+        result=publish_wordpress(self.wp,strict,self.root,max_relocated_fraction=1)
+        self.assertTrue(result['changed']);self.assertEqual(self.wp.current.csv,strict);self.assertEqual(self.wp.current.policy,REJECT)
+        recover(self.wp,self.root,digest(strict))
+        self.assertEqual(self.wp.current.csv,B);self.assertEqual(self.wp.current.policy,LONGEST_PREFIX)
+    def test_policy_cli_uses_only_separate_admin_secret_and_never_reads_input(self):
+        factory=Mock(side_effect=RuntimeError('input unavailable'))
+        path=self.root/'config.yaml'
+        path.write_text(yaml.safe_dump({'source':{'type':'offline_source'},'publish':{'type':'wordpress'},
+                                       'overlap_policy':LONGEST_PREFIX,'state_dir':str(self.root/'state')}))
+        with patch.dict(SOURCES,{'offline_source':SourceAdapter(factory,initial=False)}), \
+             patch('isp_geofeed_generator.publish.WordPress',return_value=self.wp), \
+             patch.object(CredentialStore,'get',autospec=True,return_value='synthetic-admin-password') as key, \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(main(['configure-wordpress-policy','--config',str(path),'--expected-current-sha256',digest(b'')]),0)
+        factory.assert_not_called();self.assertEqual(key.call_args.args[1],'WP_POLICY_ADMIN_APP_PASSWORD')
+        self.assertEqual(key.call_count,1)
+        status=json.loads((self.root/'state/status.json').read_text())['data']
+        self.assertTrue(status['configured_policy']);self.assertFalse(status['healthy'])
 
 
 class PolicyHTTPTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ISP Geofeed Generator
  * Description: Publish a validated CSV geofeed through a dedicated REST endpoint.
- * Version: 0.2.0
+ * Version: 0.3.0
  * License: MIT AND LGPL-2.1-only
  * Requires PHP: 8.0
  */
@@ -59,7 +59,8 @@ function isp_geofeed_generator_read() {
     ));
     if ($wpdb->last_error) { return new WP_Error('geofeed_db', 'Cannot read feed state', ['status' => 503]); }
     if ($raw === null) { return ['raw' => null, 'csv' => '', 'previous_csv' => '',
-        'overlap_policy' => 'reject', 'previous_overlap_policy' => 'reject', 'publication_id' => null]; }
+        'overlap_policy' => 'reject', 'previous_overlap_policy' => 'reject', 'publication_id' => null,
+        'required_overlap_policy' => 'reject']; }
     $doc = json_decode($raw, true);
     if (!is_array($doc) || !isset($doc['csv'], $doc['previous_csv'])) {
         return new WP_Error('geofeed_state', 'Stored feed is invalid', ['status' => 503]);
@@ -67,20 +68,24 @@ function isp_geofeed_generator_read() {
     $policy = $doc['overlap_policy'] ?? 'reject';
     $previous_policy = $doc['previous_overlap_policy'] ?? 'reject';
     $id = $doc['publication_id'] ?? null;
+    $required = $doc['required_overlap_policy'] ?? 'reject';
+    $versioned = count(array_intersect(array_keys($doc), ['protocol_version','overlap_policy','previous_overlap_policy','publication_id','required_overlap_policy'])) > 0;
     if (!is_string($doc['csv']) || !is_string($doc['previous_csv']) ||
         !in_array($policy, ['reject','longest_prefix'], true) ||
         !in_array($previous_policy, ['reject','longest_prefix'], true) ||
+        !in_array($required, ['reject','longest_prefix'], true) ||
         ($id !== null && (!is_string($id) || !preg_match('/^[0-9a-f]{32}$/D', $id))) ||
-        ((isset($doc['protocol_version']) || isset($doc['overlap_policy']) || isset($doc['publication_id'])) &&
-            ($id === null || ($doc['protocol_version'] ?? null) !== 2))) {
+        ($versioned && ($id === null || ($doc['protocol_version'] ?? null) !== 2 ||
+            !isset($doc['overlap_policy'], $doc['previous_overlap_policy'], $doc['required_overlap_policy'])))) {
         return new WP_Error('geofeed_state', 'Stored policy state is invalid', ['status' => 503]);
     }
     return ['raw' => $raw, 'csv' => $doc['csv'], 'previous_csv' => $doc['previous_csv'],
-        'overlap_policy' => $policy, 'previous_overlap_policy' => $previous_policy, 'publication_id' => $id];
+        'overlap_policy' => $policy, 'previous_overlap_policy' => $previous_policy, 'publication_id' => $id,
+        'required_overlap_policy' => $required];
 }
 
-function isp_geofeed_generator_required_policy() {
-    $policy = defined('ISP_GEOFEED_GENERATOR_OVERLAP_POLICY') ? ISP_GEOFEED_GENERATOR_OVERLAP_POLICY : 'reject';
+function isp_geofeed_generator_required_policy($doc) {
+    $policy = $doc['required_overlap_policy'];
     return in_array($policy, ['reject','longest_prefix'], true) ? $policy :
         new WP_Error('geofeed_policy', 'Configured overlap policy is invalid', ['status' => 503]);
 }
@@ -181,7 +186,7 @@ function isp_geofeed_generator_write(WP_REST_Request $request) {
     }
     $before = isp_geofeed_generator_read();
     if (is_wp_error($before)) { return $before; }
-    $required = isp_geofeed_generator_required_policy();
+    $required = isp_geofeed_generator_required_policy($before);
     if (is_wp_error($required)) { return $required; }
     if ($required !== 'reject' || $before['overlap_policy'] !== 'reject') {
         return new WP_Error('geofeed_protocol', 'This feed requires the version-2 policy protocol', ['status' => 409]);
@@ -191,6 +196,11 @@ function isp_geofeed_generator_write(WP_REST_Request $request) {
     }
     if ($before['csv'] === $csv) { return ['sha256' => hash('sha256', $csv)]; }
     $next = wp_json_encode(['csv' => $csv, 'previous_csv' => $before['csv']]);
+    if ($before['publication_id'] !== null) {
+        $next = wp_json_encode(['protocol_version' => 2, 'csv' => $csv, 'previous_csv' => $before['csv'],
+            'overlap_policy' => 'reject', 'previous_overlap_policy' => 'reject',
+            'required_overlap_policy' => $required, 'publication_id' => bin2hex(random_bytes(16))]);
+    }
     $result = isp_geofeed_generator_commit($before, $next);
     if (is_wp_error($result)) { return $result; }
     return ['sha256' => hash('sha256', $csv)];
@@ -223,7 +233,7 @@ function isp_geofeed_generator_commit($before, $next) {
 function isp_geofeed_generator_state_v2() {
     $doc = isp_geofeed_generator_read();
     if (is_wp_error($doc)) { return $doc; }
-    $required = isp_geofeed_generator_required_policy();
+    $required = isp_geofeed_generator_required_policy($doc);
     if (is_wp_error($required)) { return $required; }
     return new WP_REST_Response(['protocol_version' => 2, 'required_overlap_policy' => $required,
         'supported_overlap_policies' => ['reject','longest_prefix'], 'overlap_policy' => $doc['overlap_policy'],
@@ -234,8 +244,6 @@ function isp_geofeed_generator_state_v2() {
 
 function isp_geofeed_generator_write_v2(WP_REST_Request $request) {
     $input = $request->get_json_params();
-    $required = isp_geofeed_generator_required_policy();
-    if (is_wp_error($required)) { return $required; }
     if (!is_array($input) || ($input['protocol_version'] ?? null) !== 2 ||
         !in_array($input['overlap_policy'] ?? null, ['reject','longest_prefix'], true) ||
         !in_array($input['operation'] ?? null, ['publish','restore'], true) ||
@@ -250,6 +258,8 @@ function isp_geofeed_generator_write_v2(WP_REST_Request $request) {
     }
     $before = isp_geofeed_generator_read();
     if (is_wp_error($before)) { return $before; }
+    $required = isp_geofeed_generator_required_policy($before);
+    if (is_wp_error($required)) { return $required; }
     if (($input['expected_required_overlap_policy'] ?? null) !== $required ||
         ($input['expected_overlap_policy'] ?? null) !== $before['overlap_policy'] ||
         !array_key_exists('expected_publication_id', $input) || $input['expected_publication_id'] !== $before['publication_id'] ||
@@ -268,14 +278,51 @@ function isp_geofeed_generator_write_v2(WP_REST_Request $request) {
         return new WP_Error('geofeed_invalid', 'Changed publication needs a fresh publication ID', ['status' => 400]);
     }
     $next = wp_json_encode(['protocol_version' => 2, 'csv' => $csv, 'previous_csv' => $before['csv'],
-        'overlap_policy' => $policy, 'previous_overlap_policy' => $before['overlap_policy'], 'publication_id' => $input['publication_id']]);
+        'overlap_policy' => $policy, 'previous_overlap_policy' => $before['overlap_policy'],
+        'required_overlap_policy' => $required, 'publication_id' => $input['publication_id']]);
     $result = isp_geofeed_generator_commit($before, $next);
     if (is_wp_error($result)) { return $result; }
     return ['protocol_version' => 2, 'sha256' => hash('sha256', $csv), 'overlap_policy' => $policy,
             'publication_id' => $input['publication_id']];
 }
 
+function isp_geofeed_generator_policy_permission() {
+    return is_ssl() && current_user_can('manage_options');
+}
+
+function isp_geofeed_generator_configure_policy(WP_REST_Request $request) {
+    $input = $request->get_json_params();
+    if (!is_array($input) || ($input['protocol_version'] ?? null) !== 2 ||
+        !in_array($input['required_overlap_policy'] ?? null, ['reject','longest_prefix'], true) ||
+        !is_string($input['publication_id'] ?? null) || !preg_match('/^[0-9a-f]{32}$/D', $input['publication_id']) ||
+        !is_string($input['expected_sha256'] ?? null) || !preg_match('/^[0-9a-f]{64}$/D', $input['expected_sha256'])) {
+        return new WP_Error('geofeed_invalid', 'Invalid policy configuration', ['status' => 400]);
+    }
+    $before = isp_geofeed_generator_read();
+    if (is_wp_error($before)) { return $before; }
+    if (($input['expected_required_overlap_policy'] ?? null) !== $before['required_overlap_policy'] ||
+        ($input['expected_overlap_policy'] ?? null) !== $before['overlap_policy'] ||
+        !array_key_exists('expected_publication_id', $input) || $input['expected_publication_id'] !== $before['publication_id'] ||
+        !hash_equals(hash('sha256', $before['csv']), $input['expected_sha256'])) {
+        return new WP_Error('geofeed_conflict', 'Feed or policy changed; read state before configuring', ['status' => 409]);
+    }
+    if ($input['publication_id'] === $before['publication_id']) {
+        return new WP_Error('geofeed_invalid', 'Policy configuration needs a fresh publication ID', ['status' => 400]);
+    }
+    $next = wp_json_encode(['protocol_version' => 2, 'csv' => $before['csv'], 'previous_csv' => $before['previous_csv'],
+        'overlap_policy' => $before['overlap_policy'], 'previous_overlap_policy' => $before['previous_overlap_policy'],
+        'required_overlap_policy' => $input['required_overlap_policy'], 'publication_id' => $input['publication_id']]);
+    $result = isp_geofeed_generator_commit($before, $next);
+    if (is_wp_error($result)) { return $result; }
+    return ['protocol_version' => 2, 'sha256' => hash('sha256', $before['csv']),
+        'required_overlap_policy' => $input['required_overlap_policy'], 'publication_id' => $input['publication_id']];
+}
+
 add_action('rest_api_init', function () {
+    register_rest_route('isp-geofeed-generator/v2', '/policy', [
+        'methods' => 'PUT', 'permission_callback' => 'isp_geofeed_generator_policy_permission',
+        'callback' => 'isp_geofeed_generator_configure_policy',
+    ]);
     register_rest_route('isp-geofeed-generator/v2', '/state', [
         'methods' => 'GET', 'permission_callback' => 'isp_geofeed_generator_permission',
         'callback' => 'isp_geofeed_generator_state_v2',
@@ -302,8 +349,12 @@ add_action('rest_api_init', function () {
         'callback' => function () {
             $doc = isp_geofeed_generator_read();
             if (is_wp_error($doc)) { return $doc; }
+            $required = isp_geofeed_generator_required_policy($doc);
+            if (is_wp_error($required)) { return $required; }
             return new WP_REST_Response(['csv' => $doc['csv'], 'previous_csv' => $doc['previous_csv'],
-                'sha256' => hash('sha256', $doc['csv'])], 200, ['Cache-Control' => 'no-store']);
+                'sha256' => hash('sha256', $doc['csv']), 'protocol_version' => 2,
+                'overlap_policy' => $doc['overlap_policy'], 'required_overlap_policy' => $required],
+                200, ['Cache-Control' => 'no-store']);
         },
     ]);
 });

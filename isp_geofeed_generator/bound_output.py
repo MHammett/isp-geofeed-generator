@@ -69,7 +69,21 @@ def publish_bound(path, value, state_dir, kind, validate, max_bytes):
         if old is not None and (before.identity is None or not before.data or old['sha256'] != digest(before.data)):
             raise GeofeedError('Local feed/policy pair is incomplete or mismatched; recovery needs attention')
         old_policy = LONGEST_PREFIX if old is not None else REJECT
-        validate_bytes(before.data,kind,old_policy)
+        try:
+            validate_bytes(before.data,kind,old_policy)
+        except GeofeedError:
+            if old is None:
+                from .envelope import PREFIX
+                marked=kind=='csv' and before.data.startswith(PREFIX)
+                if kind=='records':
+                    try:
+                        doc=json.loads(before.data)
+                        marked=isinstance(doc,dict) and doc.get('schema_version')==2 and doc.get('overlap_policy')==LONGEST_PREFIX
+                    except (ValueError,TypeError):pass
+                if marked:
+                    raise GeofeedError('Nested local output has no matching policy file; recovery needs attention. '
+                                       'Keep the schedule stopped and inspect recover-local with the original state directory and candidate hash') from None
+            raise
         validate_bytes(value,kind,LONGEST_PREFIX)
         validate(before.data,value,old_policy)
         if before.data == value:
