@@ -25,7 +25,7 @@ from test_nested_core import PARENT,CHILD,row
 class NestedLocalTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name);self.target=self.root/'public.csv';self.state=self.root/'state'
+        self.root=Path(self.temp.name);self.target=bound_output.destination(self.root/'public.csv');self.state=self.root/'state'
         self.a=render_csv([PARENT],overlap_policy=LONGEST_PREFIX)
         self.b=render_csv([PARENT,CHILD],overlap_policy=LONGEST_PREFIX)
         self.c=render_csv([row(PARENT['prefix'],'C')],overlap_policy=LONGEST_PREFIX)

@@ -1,10 +1,10 @@
 # Coordinated nested-prefix support
 
-Status: core candidate/guard support for issue #16. Built-in nested publication is
-not implemented. The default remains `overlap_policy: reject` everywhere. Private
-generation, parsing and merging can use an explicit `overlap_policy: longest_prefix`.
-All shipped output targets still refuse that mode before reading inputs or credentials.
-Do not remove a target check to enable it.
+Status: core and local CSV/JSON support for issue #16. The default remains
+`overlap_policy: reject` everywhere. Explicit `overlap_policy: longest_prefix` enables
+nested candidates, guards and policy-bound local publication. WordPress still refuses
+that mode before reading inputs or credentials. Its server protocol work is incomplete.
+See [local setup and recovery](local-nested-output.md). Do not remove a target check.
 
 ## Core policy and extension contract
 
@@ -30,9 +30,10 @@ installed by the operator, not a sandbox.
 
 Declaring a capability is a target author's contract, not proof of a live service. A
 version-2 target must bind policy to state/history, check exact stored/public bytes,
-refuse incompatible writers and recover conditionally. Shipped targets do not advertise
-nested support yet because that work is incomplete. Do not wrap an old file/WordPress
-publisher and label it capable. Existing version-1 wrappers keep their old strict calls.
+refuse incompatible writers and recover conditionally. Local file/JSON targets advertise
+nested support through checked policy pairs. WordPress does not advertise it yet.
+Do not wrap an old publisher and label it capable. Existing version-1 wrappers keep
+their old strict calls and refuse policy-bound destinations.
 
 ## Calculation groundwork
 
