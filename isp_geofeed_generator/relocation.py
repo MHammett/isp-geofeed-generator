@@ -37,6 +37,23 @@ def coverage_percent(part, total):
     return value + (' (rounded down)' if remainder else '')
 
 
+def effective_change_guard(old, new, max_removed_fraction=0.10, max_relocated_fraction=0.10, *, fields=None):
+    """Union coverage and whole-location changes under explicit longest-prefix policy."""
+    from ._effective import compare_effective
+    from .locations import COARSE_FIELDS
+    removed_limit = fraction_limit(max_removed_fraction, 'max_removed_fraction')
+    moved_limit = fraction_limit(max_relocated_fraction, 'max_relocated_fraction')
+    result = compare_effective(old, new, fields=COARSE_FIELDS if fields is None else fields)
+    for version, counts in result.items():
+        if counts.old and counts.removed * removed_limit.denominator > counts.old * removed_limit.numerator:
+            raise GeofeedError(f'IPv{version} feed removal exceeds configured change limit')
+        if counts.retained and counts.relocated * moved_limit.denominator > counts.retained * moved_limit.numerator:
+            raise GeofeedError(f'IPv{version} location changes affect {coverage_percent(counts.relocated, counts.retained)} of retained address coverage; '
+                               f'limit {coverage_percent(moved_limit.numerator, moved_limit.denominator)} (compared exactly); '
+                               'output stopped. Review a generated candidate before approving its exact hash')
+    return result
+
+
 def relocation_guard(old, new, max_relocated_fraction=0.10):
     limit = max_relocated_fraction
     threshold = fraction_limit(limit, 'max_relocated_fraction')

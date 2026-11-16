@@ -18,6 +18,7 @@ from .locations import COARSE_FIELDS
 import ipaddress
 from .publish import atomic_write
 from .inputs import validate_source, validate_inputs, read_inputs, combine_inputs
+from .overlap import REJECT, validate_policy, require_target_policy
 
 
 def shared_module(name):
@@ -62,9 +63,10 @@ def load_config(path):
         raise GeofeedError("Cannot read YAML configuration") from None
     if not isinstance(config, dict):
         raise GeofeedError("Configuration must be a YAML mapping")
-    allowed = {"source", "inputs", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "max_relocated_fraction", "extensions", "bogons"}
+    allowed = {"source", "inputs", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "max_relocated_fraction", "extensions", "bogons", "overlap_policy"}
     if set(config) - allowed:
         raise GeofeedError("Unknown configuration keys: " + ", ".join(sorted(set(config) - allowed)))
+    validate_policy(config.get('overlap_policy', REJECT))
     limit = config.get("max_removed_fraction", 0.10)
     if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not 0 <= limit <= 1:
         raise GeofeedError("max_removed_fraction must be between 0 and 1")
@@ -180,6 +182,9 @@ def main(argv=None):
         config = load_config(args.config)
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
+        overlap_policy = config.get('overlap_policy', REJECT)
+        if args.command == 'publish':
+            require_target_policy(config.targets.get(config.get('publish', {}).get('type')), overlap_policy)
         with publication_run(directory, credentials, lambda: stage) if args.command == "publish" else nullcontext():
             inputs = None
             if 'inputs' in config:
@@ -234,11 +239,11 @@ def main(argv=None):
             policy = load_policy(config)
             policy.check([ipaddress.ip_network(row['prefix']) for row in records])
             if payload_format == 'csv':
-                candidate = render_csv(records)
+                candidate = render_csv(records, overlap_policy=overlap_policy)
                 payload = candidate
             else:
                 from .records import encode_records
-                candidate = encode_records(records)
+                candidate = encode_records(records, overlap_policy=overlap_policy)
                 payload = records
             if args.command == "generate":
                 if args.output:
@@ -259,6 +264,8 @@ def main(argv=None):
                 raise GeofeedError('Location-change approval does not match this generated candidate; no write attempted')
             kwargs = {"max_removed_fraction": config.get("max_removed_fraction", 0.10),
                       'max_relocated_fraction': 1.0 if args.approve_location_changes else config.get('max_relocated_fraction', 0.10)}
+            if getattr(target, 'api_version', 1) == 2:
+                kwargs['overlap_policy'] = overlap_policy
             target_kind = settings.get("type")
             if target_kind not in config.targets:
                 raise GeofeedError("Choose publish.type from: " + ", ".join(sorted(config.targets)))

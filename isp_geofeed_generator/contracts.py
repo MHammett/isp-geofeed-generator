@@ -4,6 +4,7 @@ from typing import Callable, Protocol
 from .locations import COARSE_FIELDS
 
 ADAPTER_API_VERSION = 1
+TARGET_API_VERSION = 2
 
 
 class Source(Protocol):
@@ -33,6 +34,7 @@ class TargetAdapter:
     payload_format: str = 'csv'
     location_fields: frozenset = COARSE_FIELDS
     required_fields: frozenset = COARSE_FIELDS
+    overlap_policies: frozenset = frozenset({'reject'})
 
     def __call__(self, settings, credentials):
         return self.create(settings, credentials)

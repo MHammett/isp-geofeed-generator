@@ -73,6 +73,15 @@ The loader rejects missing or duplicate entry points, built-in name collisions a
 API versions. Registries are scoped to that run. Enabling an extension in one configuration
 does not silently enable it for another. No module-path or shell-command hook is accepted.
 
+Version-2 targets have a separate `isp_geofeed_generator.targets.v2` entry-point group
+and explicit `extensions.targets_v2` list. Declare `api_version=TARGET_API_VERSION`
+and `overlap_policies` on their `TargetAdapter`. The CLI passes `overlap_policy` as
+a required publish keyword. Version 1 remains strict-only and receives its old call.
+The installed example includes `local_file_v2`, which demonstrates the new contract
+while supporting strict output only. A version number alone never enables nesting.
+See [nested-prefix policy](nested-prefixes.md) for the policy-bound state and recovery
+contract a nested-capable target must implement. Shipped nested publication is not ready.
+
 Local input adapters can wrap a built-in source, but must return the documented normalized
 model. Use the SDK's `builtin_source(name, settings, credentials)` and
 `builtin_target(name, settings, credentials)` helpers to create those wrapped adapters.

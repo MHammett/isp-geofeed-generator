@@ -17,6 +17,21 @@ assert SOURCES['powercode'].initial and SOURCES['gaiia'].initial
 assert SOURCES['billmax'].initial
 assert SOURCES['infoblox_nios'].initial
 print('PASS: installed core and separate input/output extension wheels')
+from isp_geofeed_generator.sdk import TARGET_API_VERSION, REJECT, LONGEST_PREFIX, require_target_policy, GeofeedError
+_,v2targets=load_extensions({'targets_v2':['local_file_v2']},SOURCES,TARGETS)
+descriptor=v2targets['local_file_v2']
+assert descriptor.api_version==TARGET_API_VERSION==2
+require_target_policy(descriptor,REJECT)
+try:require_target_policy(descriptor,LONGEST_PREFIX)
+except GeofeedError:pass
+else:raise AssertionError('Version-2 discovery silently enabled nesting')
+v2path=Path.cwd()/'v2-example.csv'
+v2=descriptor({'path':str(v2path)},None)
+v2bytes=b'11.22.33.0/24,US,US-IL,A,\\r\\n'
+assert v2.publish(v2bytes,Path.cwd()/'v2-state',overlap_policy=REJECT)['changed'] is True
+assert v2path.read_bytes()==v2bytes
+assert v2.publish(v2bytes,Path.cwd()/'v2-state',overlap_policy=REJECT)['changed'] is False
+print('PASS: installed version-2 target discovery, explicit strict policy and unchanged publication')
 from isp_geofeed_generator.iso_codes import code_tables
 assert tuple(map(len,code_tables()))==(249,5046)
 for name in ('LICENSE.txt','COPYRIGHT.txt','sources.json'):

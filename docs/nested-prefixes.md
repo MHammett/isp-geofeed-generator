@@ -1,15 +1,44 @@
 # Coordinated nested-prefix support
 
-Status: proposed design for issue #16, with an internal calculation model. Publication
-support is not implemented. Current
-generation, parsing, merging, rich JSON and WordPress continue to reject overlaps.
-Do not remove an individual overlap check to enable this feature.
+Status: core candidate/guard support for issue #16. Built-in nested publication is
+not implemented. The default remains `overlap_policy: reject` everywhere. Private
+generation, parsing and merging can use an explicit `overlap_policy: longest_prefix`.
+All shipped output targets still refuse that mode before reading inputs or credentials.
+Do not remove a target check to enable it.
+
+## Core policy and extension contract
+
+Set the top-level `overlap_policy` explicitly to `longest_prefix` to generate a private
+nested candidate. It applies to the entire combined inventory. Input order does not
+set priority. Exact duplicates still stop with source IDs, and each raw parent and child
+must pass ownership, location and fullbogon checks. Selected nonpublic records stop a
+nested run unless deliberately excluded. Normal CSV/JSON byte limits and the combined
+50,000-record limit still apply. An approval hash can approve a location move only.
+
+The core CSV change guard uses the effective interval model for both withdrawal and
+relocation in nested mode. The public `effective_change_guard` SDK helper provides the
+same exact counts and limits for an explicit rich profile. Child removal can count as
+a move through parent fallback. Default strict behavior remains available for old clients.
+
+Version-1 extensions remain supported in `extensions.targets` and cannot declare nested
+support. A version-2 target uses `TargetAdapter(api_version=2, overlap_policies=...)`,
+the `isp_geofeed_generator.targets.v2` entry-point group and the separate opt-in list
+`extensions.targets_v2`. It receives `overlap_policy` as an explicit publish keyword,
+including `reject` in strict mode. Unknown versions/policies and mismatched discovery
+groups stop. Sources retain their version-1 contract. Trusted extensions remain code
+installed by the operator, not a sandbox.
+
+Declaring a capability is a target author's contract, not proof of a live service. A
+version-2 target must bind policy to state/history, check exact stored/public bytes,
+refuse incompatible writers and recover conditionally. Shipped targets do not advertise
+nested support yet because that work is incomplete. Do not wrap an old file/WordPress
+publisher and label it capable. Existing version-1 wrappers keep their old strict calls.
 
 ## Calculation groundwork
 
-The private `_effective` module implements the interval calculation below. No CLI,
-source adapter, SDK target, guard or publisher calls it yet. There is no nesting setting
-to enable. It is not a public extension API or an alternate publication validator.
+The private `_effective` module implements the interval calculation below. Core nested
+guards now call it. The internal module is not a public extension API or an alternate
+publication validator; use the documented guard helper for a version-2 extension.
 
 The model validates canonical raw prefixes and complete locations for an explicit
 profile, refuses exact duplicates and uses the longest prefix's whole location. It
@@ -35,7 +64,7 @@ vectors. Actual publication parsing still refuses the nested examples.
 
 ## Operator policy
 
-RFC 8805 allows a broad prefix with a more-specific location. In a future explicit nested
+RFC 8805 allows a broad prefix with a more-specific location. In the explicit nested
 mode, the longest matching prefix would provide the whole location for an address.
 Input order, platform and record ID would not decide priority. The default would remain
 strict rejection. A target that cannot verify this policy would stop before writing.

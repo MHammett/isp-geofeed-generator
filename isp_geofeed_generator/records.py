@@ -5,9 +5,11 @@ from pathlib import Path
 from .client import GeofeedError
 from .feed import public, coverage_guard
 from .locations import validate_location
+from .overlap import REJECT, LONGEST_PREFIX, validate_policy, validate_networks
 
 
-def parse_records(data):
+def parse_records(data, *, overlap_policy=REJECT):
+    validate_policy(overlap_policy)
     try:
         if not data or len(data) > 8_000_000:
             raise ValueError()
@@ -27,16 +29,18 @@ def parse_records(data):
             validate_location(row['location'], set(row['location']))
             nets.append(net)
         nets.sort(key=lambda n: (n.version, int(n.network_address)))
-        if any(a.version == b.version and a.overlaps(b) for a, b in zip(nets, nets[1:])):
-            raise ValueError()
+        validate_networks(nets, overlap_policy)
+        if overlap_policy == LONGEST_PREFIX:
+            from ._effective import effective_intervals
+            effective_intervals(rows, fields=frozenset(rows[0]['location']))
         return rows, nets
-    except (TypeError, KeyError, ValueError, UnicodeError):
+    except (TypeError, KeyError, ValueError, UnicodeError, GeofeedError):
         raise GeofeedError('Invalid normalized geolocation record document') from None
 
 
-def encode_records(records):
+def encode_records(records, *, overlap_policy=REJECT):
     value = json.dumps({'schema_version': 1, 'records': records}, ensure_ascii=False, sort_keys=True, allow_nan=False, separators=(',', ':')).encode() + b'\n'
-    parse_records(value)
+    parse_records(value, overlap_policy=overlap_policy)
     return value
 
 

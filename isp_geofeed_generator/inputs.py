@@ -6,6 +6,8 @@ from urllib.parse import urlsplit
 from .client import GeofeedError, https_url
 from .credentials import InputCredentialStore
 from .feed import build_records
+from .overlap import REJECT, LONGEST_PREFIX, validate_policy, validate_networks
+from ._effective import MAX_RECORDS
 
 POLICIES = {'pool_sites', 'exclude_pools', 'site_locations'}
 
@@ -88,11 +90,12 @@ def read_inputs(config, parent, command, *, assignments=False, controllers=False
 
 
 def combine_inputs(results, config, fields):
+    overlap_policy = validate_policy(config.get('overlap_policy', REJECT))
     entries, report = [], []
     for name, result in results.items():
         try:
             snapshot = result['snapshot']
-            policy = {'allowed_prefixes': config.get('allowed_prefixes', []),
+            policy = {'allowed_prefixes': config.get('allowed_prefixes', []), 'overlap_policy': overlap_policy,
                       **{key: config['inputs'][name].get(key, {}) for key in POLICIES}}
             records, rows = build_records(snapshot, policy, fields)
             source_rows = {str(row['id']): row for row in snapshot['pools']}
@@ -107,15 +110,19 @@ def combine_inputs(results, config, fields):
                 for cidr in row.get('cidrs', []):
                     origins[cidr] = origin
             for record in records:
+                if overlap_policy == LONGEST_PREFIX and len(entries) >= MAX_RECORDS:
+                    raise GeofeedError('Combined nested-prefix policy exceeds record limit')
                 entries.append((ipaddress.ip_network(record['prefix']), record, origins[record['prefix']]))
         except GeofeedError as exc:
             raise GeofeedError(f'Input {name}: {exc}') from None
     entries.sort(key=lambda row: (row[0].version, int(row[0].network_address), row[0].prefixlen))
     for previous, current in zip(entries, entries[1:]):
-        if previous[0].version == current[0].version and previous[0].overlaps(current[0]):
+        if (previous[0] == current[0] or (overlap_policy == REJECT
+                and previous[0].version == current[0].version and previous[0].overlaps(current[0]))):
             left, right = previous[2], current[2]
             detail = 'conflicting locations' if previous[1]['location'] != current[1]['location'] else 'duplicate/overlapping coverage'
             raise GeofeedError(f"Combined input {detail}: {left['input']}/{left['pool_id']} and {right['input']}/{right['pool_id']}; no precedence was applied")
     if not entries:
         raise GeofeedError('No combined public records; refusing an empty feed')
+    validate_networks([row[0] for row in entries], overlap_policy)
     return [row[1] for row in entries], report

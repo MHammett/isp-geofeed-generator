@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Explicit nested-prefix candidate validation, exact effective-coverage guards and a version-2 output capability contract. Shipped outputs still refuse nested publication pending policy-bound history and recovery.
+
 - Private bounded longest-prefix interval analysis for future nested-prefix support, with exact IPv6 counts and independent-oracle controls. Publishing continues to reject overlaps.
 
 - Independent-review follow-up tests the plugin HTTPS guard after real core HTTP authentication, with a removed-guard negative control.

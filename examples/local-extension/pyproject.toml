@@ -13,3 +13,6 @@ local_json = "geofeed_local:SOURCE"
 
 [project.entry-points."isp_geofeed_generator.targets.v1"]
 local_file = "geofeed_local:TARGET"
+
+[project.entry-points."isp_geofeed_generator.targets.v2"]
+local_file_v2 = "geofeed_local:TARGET_V2"

@@ -1,7 +1,7 @@
 """Copy this package to a separate repository before making local changes."""
 import json
 from pathlib import Path
-from isp_geofeed_generator.sdk import GeofeedError, SourceAdapter, TargetAdapter, publish_file
+from isp_geofeed_generator.sdk import GeofeedError, SourceAdapter, TargetAdapter, TARGET_API_VERSION, REJECT, publish_file
 
 
 class JsonSource:
@@ -33,3 +33,15 @@ SOURCE = SourceAdapter(lambda settings, credentials: JsonSource(settings['input_
                        settings=frozenset({'input_path'}))
 TARGET = TargetAdapter(lambda settings, credentials: LocalFile(settings['path']),
                        settings=frozenset({'path'}))
+
+
+class StrictFileV2(LocalFile):
+    def publish(self, csv, state_dir, *, overlap_policy, **guards):
+        if overlap_policy != REJECT:
+            raise GeofeedError('This example supports strict output only')
+        return super().publish(csv, state_dir, **guards)
+
+
+# A new contract version does not itself mean a target supports nesting.
+TARGET_V2 = TargetAdapter(lambda settings, credentials: StrictFileV2(settings['path']),
+                          api_version=TARGET_API_VERSION, settings=frozenset({'path'}))

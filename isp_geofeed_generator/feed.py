@@ -7,6 +7,8 @@ import re
 from .client import GeofeedError
 from .locations import COARSE_FIELDS, project_site
 from .iso_codes import valid_country, valid_region
+from .overlap import REJECT, LONGEST_PREFIX, validate_policy, validate_networks
+from ._effective import MAX_RECORDS
 
 
 def digest(data):
@@ -64,6 +66,7 @@ def location(site, override=None):
 
 
 def build_records(snapshot, config, fields=COARSE_FIELDS):
+    overlap_policy = validate_policy(config.get('overlap_policy', REJECT))
     if not isinstance(snapshot, dict):
         raise GeofeedError("Source returned an invalid snapshot; expected pools and sites")
     for kind in ("pools", "sites"):
@@ -102,6 +105,8 @@ def build_records(snapshot, config, fields=COARSE_FIELDS):
         except GeofeedError:
             raise GeofeedError(f"Pool {pid} has an invalid IP range or noncanonical prefix") from None
         if not all(public(n) for n in nets):
+            if overlap_policy == LONGEST_PREFIX and pid not in ignored:
+                raise GeofeedError(f'Pool {pid} contains nonpublic or special address space; nested selection stopped')
             if any(public(n) for n in nets):
                 raise GeofeedError(f"Pool {pid} crosses public and special address space")
             report.append({"pool_id": pid, "result": "nonpublic"})
@@ -129,6 +134,8 @@ def build_records(snapshot, config, fields=COARSE_FIELDS):
                 raise GeofeedError(f"Pool {pid} extends outside its parent subnet")
             if not any(net.version == n.version and net.subnet_of(n) for n in owned):
                 raise GeofeedError(f"Pool {pid} is outside allowed_prefixes")
+            if overlap_policy == LONGEST_PREFIX and len(entries) >= MAX_RECORDS:
+                raise GeofeedError('Nested-prefix policy exceeds record limit')
             entries.append((net, loc, pid))
         report.append({"pool_id": pid, "site_id": sid, "result": "mapped", "prefixes": len(nets),
                        "cidrs": [str(net) for net in nets],
@@ -136,30 +143,39 @@ def build_records(snapshot, config, fields=COARSE_FIELDS):
     if not entries:
         raise GeofeedError("No public mapped prefixes; refusing an empty feed")
     entries.sort(key=lambda e: (e[0].version, int(e[0].network_address), e[0].prefixlen))
-    previous = None
+    previous, seen = None, set()
     for net, loc, pid in entries:
-        if previous and previous.version == net.version and int(net.network_address) <= int(previous.broadcast_address):
-            raise GeofeedError(f"Overlapping/duplicate pool ranges near pool {pid}")
+        if net in seen or (overlap_policy == REJECT and previous is not None
+                           and previous.version == net.version and previous.overlaps(net)):
+            raise GeofeedError(f'Overlapping/duplicate pool ranges near pool {pid}')
+        seen.add(net)
         previous = net
+    try:
+        validate_networks([entry[0] for entry in entries], overlap_policy)
+    except GeofeedError as exc:
+        raise GeofeedError(f'Overlapping/duplicate pool ranges or unsupported record count: {exc}') from None
     return [{'prefix': str(net), 'location': loc} for net, loc, _ in entries], report
 
 
-def render_csv(records):
+def render_csv(records, *, overlap_policy=REJECT):
     out = io.StringIO(newline="")
     writer = csv.writer(out, lineterminator="\r\n", quoting=csv.QUOTE_NONE)
     for row in records:
         value = row['location']
         loc = location({'id': 'output', 'addresses': [{'country': value.get('country'), 'subdivision': value.get('region'), 'city': value.get('city')}]})
         writer.writerow((row['prefix'], *loc))
-    return out.getvalue().encode('utf-8')
+    value = out.getvalue().encode('utf-8')
+    parse_feed(value, overlap_policy=overlap_policy)
+    return value
 
 
 def build(snapshot, config):
     records, report = build_records(snapshot, config)
-    return render_csv(records), report
+    return render_csv(records, overlap_policy=config.get('overlap_policy', REJECT)), report
 
 
-def parse_feed(data):
+def parse_feed(data, *, overlap_policy=REJECT):
+    validate_policy(overlap_policy)
     try:
         if not data or len(data) > 1_000_000:
             raise ValueError()
@@ -176,16 +192,14 @@ def parse_feed(data):
         if not nets:
             raise ValueError()
         nets.sort(key=lambda n: (n.version, int(n.network_address), n.prefixlen))
-        for a, b in zip(nets, nets[1:]):
-            if a.version == b.version and a.overlaps(b):
-                raise ValueError()
+        validate_networks(nets, overlap_policy)
         canonical = "".join(",".join(row) + "\n" for row in rows).encode()
         # Accept legacy LF snapshots for guarded migration/recovery, or uniform CRLF.
         # Never normalize stored bytes: hashes and recovery must compare exact content.
         if data not in (canonical, canonical.replace(b'\n', b'\r\n')):
             raise ValueError()
         return nets
-    except (ValueError, UnicodeError, csv.Error):
+    except (ValueError, UnicodeError, csv.Error, GeofeedError):
         raise GeofeedError("Invalid or unsafe geofeed CSV") from None
 
 
@@ -199,10 +213,14 @@ def csv_records(data):
     return rows
 
 
-def change_guard(old, new, max_removed_fraction=0.10, *, max_relocated_fraction=0.10):
+def change_guard(old, new, max_removed_fraction=0.10, *, max_relocated_fraction=0.10, overlap_policy=REJECT):
     from .relocation import relocation_guard
-    new_nets = parse_feed(new)
-    old_nets = parse_feed(old) if old else []
+    new_nets = parse_feed(new, overlap_policy=overlap_policy)
+    old_nets = parse_feed(old, overlap_policy=overlap_policy) if old else []
+    if overlap_policy == LONGEST_PREFIX:
+        from .relocation import effective_change_guard
+        return effective_change_guard(csv_records(old) if old else [], csv_records(new),
+                                      max_removed_fraction, max_relocated_fraction)
     coverage_guard(old_nets, new_nets, max_removed_fraction)
     relocation_guard(csv_records(old) if old else [], csv_records(new), max_relocated_fraction)
 
