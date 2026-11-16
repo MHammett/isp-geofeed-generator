@@ -146,9 +146,11 @@ class NestedContractTests(unittest.TestCase):
             point.load.return_value=adapter
             with patch('isp_geofeed_generator.extensions.metadata.entry_points',return_value=[point]),self.assertRaises(GeofeedError):
                 load_extensions(settings,SOURCES,TARGETS)
-        for adapter in TARGETS.values():
+        for name,adapter in TARGETS.items():
             require_target_policy(adapter,REJECT)
-            with self.assertRaisesRegex(GeofeedError,'does not support'):require_target_policy(adapter,LONGEST_PREFIX)
+            if name=='wordpress':
+                with self.assertRaisesRegex(GeofeedError,'does not support'):require_target_policy(adapter,LONGEST_PREFIX)
+            else:require_target_policy(adapter,LONGEST_PREFIX)
 
     def test_cli_candidate_and_contract_forwarding_and_refusal_before_source_or_credentials(self):
         source=Mock();source.snapshot.return_value=inventory([PARENT,CHILD]);source.for_publication.side_effect=lambda value:value
@@ -170,7 +172,7 @@ class NestedContractTests(unittest.TestCase):
                 self.assertEqual(run('publish')[0],0)
                 self.assertEqual(output.publish.call_args.kwargs['overlap_policy'],LONGEST_PREFIX)
                 output_factory.reset_mock();source_factory.reset_mock()
-                for kind in ('file','json','wordpress'):
+                for kind in ('wordpress',):
                     config['publish']={'type':kind,'path':str(root/'public.csv')} if kind!='wordpress' else {'type':kind}
                     result,error=run('publish','--approve-location-changes',digest(candidate.read_bytes()))
                     self.assertEqual(result,1);self.assertIn('does not support',error)

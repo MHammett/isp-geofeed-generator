@@ -14,7 +14,8 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from isp_geofeed_generator.client import GeofeedError
-from isp_geofeed_generator.feed import parse_feed
+from isp_geofeed_generator.feed import parse_feed,render_csv
+from isp_geofeed_generator.overlap import LONGEST_PREFIX
 
 def run(argv,**kwargs):
     return subprocess.run(argv,capture_output=True,timeout=45,**kwargs)
@@ -32,6 +33,10 @@ def main():
     assert revision=='ede8916ee1045fa806554bb76112d0fecc63b40d','Unexpected Candela source revision'
     subprocess.run(['git','-C',str(args.candela),'diff','--exit-code','HEAD','--','src','package-lock.json','.babelrc'],check=True,capture_output=True)
     cases=json.loads((ROOT/'tests/fixtures/conformance.json').read_text(encoding='utf-8'))
+    for name,prefixes in [('versioned-marker',['11.22.33.0/24']),('versioned-nested-marker',['11.22.33.0/24','11.22.33.0/25'])]:
+        value=render_csv([{'prefix':prefix,'location':{'country':'US','region':'US-IL','city':'Example'}} for prefix in prefixes],overlap_policy=LONGEST_PREFIX)
+        assert len(parse_feed(value,overlap_policy=LONGEST_PREFIX))==len(prefixes)
+        cases.append({'name':name,'kind':'valid','csv':value.decode(),'core_refuses':True})
     candela=run(['node',str(ROOT/'tests/candela_loader.cjs'),str(args.candela.resolve())],input=json.dumps(cases).encode())
     assert candela.returncode==0,candela.stderr.decode(errors='replace')
     external={row['name']:bool(row['errors']) for row in json.loads(candela.stdout)}

@@ -154,6 +154,29 @@ result=json.loads((root/'state/status.json').read_text())['data']
 assert result['changed'] is False and result['verification']=='local-bytes'
 assert result['recovery_backup_changed'] is False
 print('PASS: installed external target verifies unchanged output without rewriting feed or recovery backup')
+from isp_geofeed_generator.bound_output import policy_path,recover_bound
+from isp_geofeed_generator.overlap import LONGEST_PREFIX
+for index,name in enumerate(entries):
+    inventory=root/(name+'.json');value=json.loads(inventory.read_text())
+    prefix='11.22.33.0/24' if index==0 else '11.22.33.0/25'
+    value['pools'][0]['ip_range']=prefix;value['pools'][0]['subnet']['subnet']=prefix
+    value['sites'][0]['addresses'][0]['city']='Nested '+str(index)
+    inventory.write_text(json.dumps(value))
+nested=root/'nested.csv';nested_state=root/'nested-state'
+config.update(overlap_policy=LONGEST_PREFIX,state_dir=str(nested_state),publish={'type':'file','path':str(nested)})
+path.write_text(yaml.safe_dump(config))
+assert main(['publish','--config',str(path)])==0
+assert nested.read_bytes().startswith(b'# isp-geofeed-generator v2 ')
+paths=[nested,policy_path(nested),nested_state/'before.csv',nested_state/'before.policy.json',nested_state/'local-transaction.json']
+stamps={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in paths}
+assert main(['publish','--config',str(path)])==0
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in paths}==stamps
+try:targets['local_file']({'path':str(nested)},None).publish(nested.read_bytes(),root/'old-extension-state')
+except GeofeedError:pass
+else:raise AssertionError('Version-1 target overwrote a policy-bound destination')
+assert recover_bound(nested,nested_state,'csv',digest(nested.read_bytes()))['recovered'] is True
+assert not nested.exists() and not policy_path(nested).exists()
+print('PASS: installed nested multi-input local publication, unchanged policy history and conditional recovery')
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

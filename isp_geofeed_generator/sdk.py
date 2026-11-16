@@ -7,10 +7,11 @@ from .records import publish_records_file
 from .adapters import source_url
 from .relocation import relocation_guard, effective_change_guard
 from .overlap import REJECT, LONGEST_PREFIX, require_target_policy
+from .bound_output import recover_bound as recover_local
 
 __all__ = ['ADAPTER_API_VERSION', 'TARGET_API_VERSION', 'REJECT', 'LONGEST_PREFIX', 'require_target_policy', 'SourceAdapter', 'TargetAdapter', 'Source', 'Target',
            'GeofeedError', 'JsonHTTP', 'https_url', 'publish_file', 'publish_wordpress', 'atomic_write',
-           'builtin_source', 'builtin_target', 'LOCATION_FIELDS', 'COARSE_FIELDS', 'publish_records_file', 'source_url', 'relocation_guard', 'effective_change_guard']
+           'builtin_source', 'builtin_target', 'LOCATION_FIELDS', 'COARSE_FIELDS', 'publish_records_file', 'source_url', 'relocation_guard', 'effective_change_guard', 'recover_local']
 
 
 def builtin_source(name, settings, credentials):

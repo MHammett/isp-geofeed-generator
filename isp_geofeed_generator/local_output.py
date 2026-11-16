@@ -88,6 +88,15 @@ def publish_local(path, value, state_dir, backup_name, validate, max_bytes):
     # Canonical parent aliases share a lock; retain the final component for symlink refusal.
     target = target.parent.resolve()/target.name
     with output_lock(target):
+        from .bound_output import policy_path
+        try:
+            policy_path(target).lstat()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            raise GeofeedError('Cannot inspect destination policy state; no write attempted') from None
+        else:
+            raise GeofeedError('Destination has policy-bound state; use its matching overlap_policy or conditional recovery')
         before = read_output(target, max_bytes)
         validate(before.data, value)
         if before.data == value:

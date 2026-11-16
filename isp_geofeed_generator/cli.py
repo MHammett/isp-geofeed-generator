@@ -166,12 +166,13 @@ def publication_run(directory, credentials, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
-    parser.add_argument("command", choices=("discover", "generate", "publish"))
+    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
+    parser.add_argument('--expected-current-sha256',metavar='SHA256',help='recover-local only: exact candidate hash from the failed transaction')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
@@ -182,6 +183,19 @@ def main(argv=None):
         config = load_config(args.config)
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
+        if args.expected_current_sha256 is not None and (args.command!='recover-local' or not re.fullmatch(r'[a-f0-9]{64}',args.expected_current_sha256)):
+            raise GeofeedError('--expected-current-sha256 requires recover-local and a lowercase SHA-256 hash')
+        if args.command=='recover-local':
+            settings=config.get('publish',{});kind=settings.get('type')
+            if kind not in ('file','json') or not settings.get('path') or not args.expected_current_sha256:
+                raise GeofeedError('recover-local requires a file/json target and --expected-current-sha256')
+            from .bound_output import recover_bound
+            stage='recovering a local feed and its policy'
+            with publication_run(directory,credentials,lambda:stage):
+                result=recover_bound(settings['path'],directory,'csv' if kind=='file' else 'records',args.expected_current_sha256)
+                status(directory,{'healthy':False,**result,'error':'Previous local feed/policy restored; inspect before resuming publication'})
+                print(json.dumps(result))
+            return 0
         overlap_policy = config.get('overlap_policy', REJECT)
         if args.command == 'publish':
             require_target_policy(config.targets.get(config.get('publish', {}).get('type')), overlap_policy)

@@ -137,7 +137,17 @@ def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, m
             'verification': 'authenticated-and-public', 'recovery_backup_changed': True}
 
 
-def publish_file(path, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
+def publish_file(path, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10, overlap_policy='reject'):
+    from .overlap import validate_policy, LONGEST_PREFIX
+    validate_policy(overlap_policy)
+    if overlap_policy == LONGEST_PREFIX:
+        from .bound_output import publish_bound
+        def validate(old,new,old_policy):
+            change_guard(old,new,max_removed_fraction,max_relocated_fraction=max_relocated_fraction,
+                         overlap_policy=overlap_policy,old_overlap_policy=old_policy)
+        changed=publish_bound(path,csv,state_dir,'csv',validate,1_000_000)
+        return {'changed':changed,'sha256':digest(csv),'path':str(Path(path)),
+                'overlap_policy':overlap_policy,'verification':'local-bytes-and-policy','recovery_backup_changed':changed}
     from .local_output import publish_local
     def validate(old, new):
         change_guard(old, new, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)

@@ -165,6 +165,9 @@ def render_csv(records, *, overlap_policy=REJECT):
         loc = location({'id': 'output', 'addresses': [{'country': value.get('country'), 'subdivision': value.get('region'), 'city': value.get('city')}]})
         writer.writerow((row['prefix'], *loc))
     value = out.getvalue().encode('utf-8')
+    if overlap_policy == LONGEST_PREFIX:
+        from .envelope import wrap_csv
+        value = wrap_csv(value)
     parse_feed(value, overlap_policy=overlap_policy)
     return value
 
@@ -179,6 +182,8 @@ def parse_feed(data, *, overlap_policy=REJECT):
     try:
         if not data or len(data) > 1_000_000:
             raise ValueError()
+        from .envelope import csv_body
+        data = csv_body(data, overlap_policy)
         nets, rows = [], []
         for row in csv.reader(io.StringIO(data.decode("utf-8")), strict=True):
             if len(row) != 5 or row[4] != "":
@@ -203,9 +208,11 @@ def parse_feed(data, *, overlap_policy=REJECT):
         raise GeofeedError("Invalid or unsafe geofeed CSV") from None
 
 
-def csv_records(data):
+def csv_records(data, *, overlap_policy=REJECT):
     """Read validated CSV locations without losing their prefix associations."""
     rows = []
+    from .envelope import csv_body
+    data = csv_body(data, overlap_policy)
     for row in csv.reader(io.StringIO(data.decode('utf-8'))):
         country, region, city, _ = location({'id': 'comparison', 'addresses': [
             {'country': row[1], 'subdivision': row[2], 'city': row[3]}]})
@@ -213,13 +220,14 @@ def csv_records(data):
     return rows
 
 
-def change_guard(old, new, max_removed_fraction=0.10, *, max_relocated_fraction=0.10, overlap_policy=REJECT):
+def change_guard(old, new, max_removed_fraction=0.10, *, max_relocated_fraction=0.10, overlap_policy=REJECT, old_overlap_policy=None):
     from .relocation import relocation_guard
     new_nets = parse_feed(new, overlap_policy=overlap_policy)
-    old_nets = parse_feed(old, overlap_policy=overlap_policy) if old else []
-    if overlap_policy == LONGEST_PREFIX:
+    old_policy = overlap_policy if old_overlap_policy is None else validate_policy(old_overlap_policy)
+    old_nets = parse_feed(old, overlap_policy=old_policy) if old else []
+    if LONGEST_PREFIX in (overlap_policy, old_policy):
         from .relocation import effective_change_guard
-        return effective_change_guard(csv_records(old) if old else [], csv_records(new),
+        return effective_change_guard(csv_records(old, overlap_policy=old_policy) if old else [], csv_records(new, overlap_policy=overlap_policy),
                                       max_removed_fraction, max_relocated_fraction)
     coverage_guard(old_nets, new_nets, max_removed_fraction)
     relocation_guard(csv_records(old) if old else [], csv_records(new), max_relocated_fraction)
