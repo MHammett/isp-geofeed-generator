@@ -119,7 +119,8 @@ SOURCES = {
 TARGETS = {
     "file": TargetAdapter(lambda s, c: FileTarget(s.get("path", "")), initial=False, settings=frozenset({'path'}),
                           api_version=2,overlap_policies=OVERLAP_POLICIES),
-    "wordpress": TargetAdapter(lambda s, c: WordPressTarget(WordPress(os.environ.get("WP_SITE_URL", ""), os.environ.get("WP_USERNAME", ""), c.get("WP_APP_PASSWORD"))), initial=False),
+    "wordpress": TargetAdapter(lambda s, c: WordPressTarget(WordPress(os.environ.get("WP_SITE_URL", ""), os.environ.get("WP_USERNAME", ""), c.get("WP_APP_PASSWORD"))),
+                               initial=False,api_version=2,overlap_policies=OVERLAP_POLICIES),
     "json": TargetAdapter(lambda s, c: RecordFileTarget(s.get('path', '')), settings=frozenset({'path'}),
                           payload_format='records', location_fields=LOCATION_FIELDS, required_fields=frozenset(),
                           api_version=2,overlap_policies=OVERLAP_POLICIES),

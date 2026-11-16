@@ -166,13 +166,13 @@ def publication_run(directory, credentials, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
-    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local"))
+    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
-    parser.add_argument('--expected-current-sha256',metavar='SHA256',help='recover-local only: exact candidate hash from the failed transaction')
+    parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Recovery only: exact candidate hash from the failed transaction')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
@@ -183,8 +183,20 @@ def main(argv=None):
         config = load_config(args.config)
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
-        if args.expected_current_sha256 is not None and (args.command!='recover-local' or not re.fullmatch(r'[a-f0-9]{64}',args.expected_current_sha256)):
-            raise GeofeedError('--expected-current-sha256 requires recover-local and a lowercase SHA-256 hash')
+        if args.expected_current_sha256 is not None and (args.command not in ('recover-local','recover-wordpress') or not re.fullmatch(r'[a-f0-9]{64}',args.expected_current_sha256)):
+            raise GeofeedError('--expected-current-sha256 requires recovery and a lowercase SHA-256 hash')
+        if args.command=='recover-wordpress':
+            settings=config.get('publish',{})
+            if settings.get('type')!='wordpress' or not args.expected_current_sha256:
+                raise GeofeedError('recover-wordpress requires a wordpress target and --expected-current-sha256')
+            from .wordpress_policy import recover
+            stage='recovering WordPress feed and policy'
+            with publication_run(directory,credentials,lambda:stage):
+                client=config.targets['wordpress'](settings,credentials).client
+                result=recover(client,directory,args.expected_current_sha256)
+                status(directory,{'healthy':False,**result,'error':'Previous WordPress feed/policy restored; inspect before resuming publication'})
+                print(json.dumps(result))
+            return 0
         if args.command=='recover-local':
             settings=config.get('publish',{});kind=settings.get('type')
             if kind not in ('file','json') or not settings.get('path') or not args.expected_current_sha256:

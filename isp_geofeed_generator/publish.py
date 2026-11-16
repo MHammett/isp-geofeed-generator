@@ -76,14 +76,22 @@ class WordPress:
         if not isinstance(result, dict) or result.get("sha256") != digest(csv):
             raise GeofeedError("WordPress did not confirm the expected feed hash")
 
-    def read_public(self):
+    def policy_state(self):
+        from .wordpress_policy import read_state
+        return read_state(self)
+
+    def replace_policy(self,csv,policy,expected,publication_id,operation='publish'):
+        from .wordpress_policy import replace
+        return replace(self,csv,policy,expected,publication_id,operation)
+
+    def read_public(self, *, overlap_policy='reject'):
         req = Request(self.public_url, headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Cache-Control": "no-cache"})
         try:
             with self.http.opener.open(req, timeout=self.http.timeout) as response:
                 data = response.read(1_000_001)
                 if response.headers.get_content_type() not in ("text/csv", "text/plain"):
                     raise GeofeedError("Public feed has the wrong content type")
-                parse_feed(data)
+                parse_feed(data,overlap_policy=overlap_policy)
                 return data
         except HTTPError as exc:
             exc.close()
@@ -94,7 +102,12 @@ class WordPress:
             raise GeofeedError("Cannot read the unauthenticated public feed") from None
 
 
-def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
+def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10, overlap_policy='reject'):
+    from .overlap import validate_policy,LONGEST_PREFIX
+    validate_policy(overlap_policy)
+    if overlap_policy==LONGEST_PREFIX:
+        from .wordpress_policy import publish
+        return publish(publisher,csv,state_dir,max_removed_fraction,max_relocated_fraction)
     try:
         old = publisher.state()
     except GeofeedError as exc:

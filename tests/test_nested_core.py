@@ -148,9 +148,7 @@ class NestedContractTests(unittest.TestCase):
                 load_extensions(settings,SOURCES,TARGETS)
         for name,adapter in TARGETS.items():
             require_target_policy(adapter,REJECT)
-            if name=='wordpress':
-                with self.assertRaisesRegex(GeofeedError,'does not support'):require_target_policy(adapter,LONGEST_PREFIX)
-            else:require_target_policy(adapter,LONGEST_PREFIX)
+            require_target_policy(adapter,LONGEST_PREFIX)
 
     def test_cli_candidate_and_contract_forwarding_and_refusal_before_source_or_credentials(self):
         source=Mock();source.snapshot.return_value=inventory([PARENT,CHILD]);source.for_publication.side_effect=lambda value:value
@@ -166,14 +164,14 @@ class NestedContractTests(unittest.TestCase):
                 path.write_text(yaml.safe_dump(config));err=io.StringIO()
                 with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(err):result=main([command,'--config',str(path),*args])
                 return result,err.getvalue()
-            with patch.dict(SOURCES,{'contract_source':SourceAdapter(source_factory,initial=False)}),patch.dict(TARGETS,{'contract_output':adapter}):
+            with patch.dict(SOURCES,{'contract_source':SourceAdapter(source_factory,initial=False)}),patch.dict(TARGETS,{'contract_output':adapter,'legacy_output':TargetAdapter(output_factory,initial=False)}):
                 self.assertEqual(run('generate','--output',str(candidate))[0],0)
                 self.assertEqual(len(parse_feed(candidate.read_bytes(),overlap_policy=LONGEST_PREFIX)),2)
                 self.assertEqual(run('publish')[0],0)
                 self.assertEqual(output.publish.call_args.kwargs['overlap_policy'],LONGEST_PREFIX)
                 output_factory.reset_mock();source_factory.reset_mock()
-                for kind in ('wordpress',):
-                    config['publish']={'type':kind,'path':str(root/'public.csv')} if kind!='wordpress' else {'type':kind}
+                for kind in ('legacy_output',):
+                    config['publish']={'type':kind}
                     result,error=run('publish','--approve-location-changes',digest(candidate.read_bytes()))
                     self.assertEqual(result,1);self.assertIn('does not support',error)
                 source_factory.assert_not_called();output_factory.assert_not_called()
