@@ -57,6 +57,10 @@ extra columns to the shared CSV to satisfy one provider.
 
 ## Registry discovery
 
+The [Geoflaw workflow](geoflaw.md) adds a manual check for reference, retrieval and
+coverage findings. Keep its dataset dates and reported findings separate from current
+local checks and actual provider ingestion. Implementation is tracked in issue #70.
+
 [RFC 9632](https://www.rfc-editor.org/rfc/rfc9632.html) describes RPSL registry references,
 including coordination with the RIR/NIR/LIR responsible for the address records. The
 registry reference must cover the address space being claimed. One organization's postal

@@ -2,11 +2,13 @@
 
 ## Unreleased
 
-- Nested local CSV/JSON publication with versioned payloads, policy-bound state, unchanged history and conditional `recover-local`, including interruption and concurrent-writer controls. WordPress nested publication remains refused.
+- WordPress version-2 policy publication with a separate administrator switch, atomic policy/feed concurrency checks, guarded strict migration, conditional recovery and read-only inspection. Core/plugin development version 0.3.0; staging validation remains required.
 
-- Explicit nested-prefix candidate validation, exact effective-coverage guards and a version-2 output capability contract. Shipped outputs still refuse nested publication pending policy-bound history and recovery.
+- Nested local CSV/JSON publication with versioned payloads, policy-bound state, unchanged history and conditional `recover-local`, including interruption and concurrent-writer controls.
 
-- Private bounded longest-prefix interval analysis for future nested-prefix support, with exact IPv6 counts and independent-oracle controls. Publishing continues to reject overlaps.
+- Explicit nested-prefix candidate validation, exact effective-coverage guards and a version-2 output capability contract. Old extensions stay strict unless they separately adopt the new contract.
+
+- Private bounded longest-prefix interval analysis, with exact IPv6 counts and independent-oracle controls. Publishing rejects overlaps by default.
 
 - Independent-review follow-up tests the plugin HTTPS guard after real core HTTP authentication, with a removed-guard negative control.
 

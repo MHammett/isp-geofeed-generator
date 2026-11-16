@@ -9,10 +9,14 @@ The core never invents coordinates from a city or guesses a city from coordinate
 | Output | Fields | Payload |
 | --- | --- | --- |
 | `file`, `wordpress` | Country, region, city | RFC 8805 CSV; postal column stays empty |
-| `json` (initial support) | Any supported field selection | Normalized location-record JSON version 1 |
+| `json` (initial support) | Any supported field selection | Normalized location-record JSON version 1; version 2 in explicit nested mode |
 | Installed target extension | Its declared supported and required fields | CSV bytes or normalized records for its own serializer |
 
 CSV keeps the existing policy: country and city are required, and region can be empty.
+Strict output remains the default. [Nested mode](nested-prefixes.md) adds a bound policy
+record and a hash-bearing comment to CSV, or explicit schema/policy fields to rich JSON.
+WordPress also needs its separate [administrator policy switch](wordpress-nested-output.md).
+The selected fields and their validation do not change when nesting is enabled.
 Rich fields are `country`, `region`, `city`, `latitude`, `longitude`, `postal_code` and
 `accuracy_km`. Coordinates must be finite numbers in range; booleans are refused.
 Accuracy is a nonnegative radius in kilometers, supplied by the operator or input.

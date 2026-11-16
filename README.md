@@ -41,7 +41,8 @@ Read-only inputs -> selected exact public prefixes and site links -> validation 
 - Handles each API's documented pagination and bounded responses.
 - Uses native site links or reviewed configuration; never guesses from names.
 - Converts exact ranges to CIDR without expanding to the parent subnet.
-- Applies an operator-owned public-prefix allow list and rejects overlaps.
+- Applies an operator-owned public-prefix allow list and rejects overlaps by default.
+  Explicit [nested mode](docs/nested-prefixes.md) uses longest-prefix locations and versioned output state.
 - Refuses bogons using current reserved and unallocated space lists; see [bogon policy](docs/bogons.md).
 - Publishes country, region and city in CSV, or selected [rich location fields](docs/output-formats.md) in JSON.
 - Stops on missing data or large withdrawals and keeps the last good feed.
@@ -89,7 +90,8 @@ See [local customization](docs/customization.md) for separately installed input/
 5. Explain exclusions in `exclude_pools` and choose a private writable `state_dir`.
 
 The example allocation `192.0.2.0/24` is documentation space and cannot be published. Replace it.
-Do not select a parent prefix and overlapping children together.
+The default policy refuses a parent prefix and overlapping children together. Use the
+[nested rollout guide](docs/nested-prefixes.md) before deliberately enabling overrides.
 Record IDs are digit strings for Sonar pools and `subnet:<id>` for Sonar subnets, `prefix:<id>`/`range:<id>` for NetBox,
 `ipv4:<id>`/`ipv6:<id>` for Splynx, `subnet:<id>` for phpIPAM, `range:<id>` for Powercode and `ap:<id>` for BillMax.
 gaiia uses native GlobalID values for selection and normalized IDs for overrides; discovery reports both.

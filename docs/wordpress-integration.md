@@ -149,3 +149,26 @@ modeled about 8.58 MB for a steady-state update using three-byte city characters
 hosted measurements or universal maximums. A 4 MB or 8 MB packet budget can fail a later
 update even when the first publications passed. Measure the actual statement and leave
 headroom; keep the setup guide's separate server/client budget checks.
+
+## Version-2 policy workload
+
+The 0.3.0 workload also runs the real policy commands with separate administrator and
+publisher accounts. It checks default refusal, exact-hash setup, unchanged setup with
+no SQL write, old-client refusal and unchanged feed/history. Removing a child triggers
+the parent-fallback location guard before any publication write.
+
+Competing initial policy inserts, feed updates and administrator-versus-publisher
+updates must leave one complete winner. Stale policy and owner IDs are refused. Faults
+include bad public bytes, lost replies, another publisher, refused recovery and an
+administrator owning identical candidate bytes. Recovery must preserve that other
+owner. Separate trials restore strict and empty baselines and migrate back to strict
+output with the exact-candidate location approval.
+
+The administrator HTTPS control first proves core authenticated the HTTP administrator.
+The plugin must refuse the write. Removing only that route's HTTPS check must allow an
+actual HTTP policy commit; restoring it must again refuse HTTP and permit HTTPS.
+This is separate from the publisher's HTTPS mutation control.
+
+Read-only inspection after recovery must leave the unhealthy publication status and
+its modification time intact. These workloads run only on the disposable stack. See
+the [rollout and recovery guide](wordpress-nested-output.md) before host staging.

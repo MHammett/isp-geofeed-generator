@@ -1,5 +1,35 @@
 # Verification
 
+## Nested policy publication and review follow-up
+
+Observed on 2026-11-16 at 20:53:15 UTC from hosted run
+[43952432969](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43952432969)
+at `c0ecc5c`. All eight jobs passed. Each of the five Python jobs ran 306 tests;
+Windows skipped two POSIX-only checks. Each of the four Linux Python jobs also passed
+89 legacy and 37 policy-v2 PHP checks. Installed-wheel workloads exercised nested
+multi-input publication, unchanged local policy/history and conditional recovery on
+Linux and Windows. Both pinned external validators accepted both versioned CSV cases.
+
+Real disposable WordPress trials covered separate administrator setup, publisher
+refusal, policy/feed races, parent-fallback refusal, lost replies, failed recovery,
+other-writer preservation, empty/strict baseline restoration and approved strict
+migration. Read-only inspection preserved the failed publication status after recovery.
+
+The administrator HTTPS mutation recorded two core-authenticated HTTP administrator
+requests: the intact guard refused, while the removed guard committed a policy change
+with HTTP 200. Restoring the guard again refused HTTP and allowed HTTPS. The earlier
+publisher HTTPS and unsafe SQL mutation controls also passed.
+
+Claude's reviews of #67, #68 and #69 cover their earlier heads. Their independent
+guard oracle and crash probes are recorded in [review scope](review-followup.md),
+separately from this author's WordPress workload. This later protocol has not yet had
+an independent review or a managed-host staging test. A local Windows fault-test run
+also encountered `PermissionError` at a private backup replacement; its cause was not
+established. It stopped before publication. Hosted Windows passed the full suite; that
+does not establish the local machine's cause. No runtime retry was added.
+
+No production plugin, credentials, feed, timer or registry record was changed.
+
 ## Plugin HTTPS guard after core authentication
 
 Observed on 2026-11-16 from hosted run

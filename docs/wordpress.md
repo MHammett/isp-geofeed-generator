@@ -1,5 +1,10 @@
 # WordPress setup and recovery
 
+For nested prefixes use paired 0.3.0 core/plugin versions and the
+[versioned policy rollout and recovery](wordpress-nested-output.md). Strict mode stays
+the default. An administrator configures accepted policy separately from the ordinary
+Geofeed Publisher account.
+
 Use WordPress 6.x or newer with PHP 8.0+, HTTPS, REST access and application passwords.
 The plugin does not need a page-builder change or a theme change.
 The [disposable integration workload](wordpress-integration.md) checks real WordPress,

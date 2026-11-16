@@ -94,6 +94,13 @@ They may be visible to administrators or diagnostics. Do not put their values in
 
 ## Network and output controls
 
+WordPress policy setup uses a separate administrator application password,
+`WP_POLICY_ADMIN_APP_PASSWORD`, only for `configure-wordpress-policy`. The unattended
+publisher and read-only inspection use `WP_APP_PASSWORD` from the limited publisher
+account. Keep the admin reference in a separate private configuration; do not load it
+into the normal service. Both use the same secure credential backends. Passwords never
+belong in YAML values or command arguments. See [policy setup](wordpress-nested-output.md).
+
 - TLS certificate verification stays enabled. Authenticated redirects are refused.
 - Tokens are sent in headers, never query strings. Splynx uses a signed request header.
 - NetBox permits a deliberate `source.allow_http: true` exception for a private deployment that has no TLS.

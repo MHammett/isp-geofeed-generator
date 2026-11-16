@@ -1,7 +1,7 @@
 # Nested local files and recovery
 
-The `file` and `json` targets support explicit longest-prefix locations. WordPress
-still refuses nested publication. Default strict mode is unchanged. This work does not
+The `file` and `json` targets support explicit longest-prefix locations. WordPress uses
+a [separate versioned protocol](wordpress-nested-output.md). Default strict mode is unchanged. This work does not
 install anything, change a website or start a schedule. Contributions and sanitized
 operator staging results are welcome.
 
@@ -50,6 +50,9 @@ A mode-0600 sidecar next to the output binds its exact hash, format and publicat
 to the policy. Protect sidecars from public web serving. New strict publishers also
 refuse a destination with bound state. Do not delete the marker or sidecar to bypass
 the policy. Private before-data, before-policy and transaction files live in `state_dir`.
+Mode 0600 is a POSIX permission setting. On Windows, access depends on the folder's
+Windows permissions; keep the state and sidecar folders restricted to the service
+account and administrators. A Windows chmod result does not prove a private ACL.
 
 Data and sidecar cannot be replaced in one filesystem operation. The destination lock
 and exact identity checks protect cooperating writers. An interruption between writes
@@ -90,4 +93,4 @@ file and removes the nested sidecar. If it is also nested, keep the compatible v
 For a planned strict migration, generate and validate a reviewed nonoverlapping feed
 at a separate destination, then verify its public route before any service switch.
 Never strip markers, drop children or flatten unlike locations just to fit a limit.
-WordPress policy negotiation and nested server recovery remain open in issue #16.
+Keep issue #16 open for independent review, merge and full operator staging verification.

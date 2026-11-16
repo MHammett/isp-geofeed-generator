@@ -81,8 +81,10 @@ The installed example includes `local_file_v2`, which demonstrates the new contr
 while supporting strict output only. A version number alone never enables nesting.
 See [nested-prefix policy](nested-prefixes.md) for the policy-bound state and recovery
 contract a nested-capable target must implement. The shipped local CSV/JSON publishers
-support nested mode and conditional `recover_local` through the SDK; WordPress does not
-yet. Existing version-1 file wrappers stay strict-only and refuse a bound destination.
+support nested mode and conditional `recover_local` through the SDK. WordPress uses
+the [version-2 server protocol](wordpress-nested-output.md). Existing version-1 wrappers
+stay strict-only and refuse a nested destination. Policy configuration uses a separate
+administrator credential and is not part of ordinary target publication.
 
 Local input adapters can wrap a built-in source, but must return the documented normalized
 model. Use the SDK's `builtin_source(name, settings, credentials)` and

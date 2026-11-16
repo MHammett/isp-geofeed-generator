@@ -1,9 +1,13 @@
 # Prior art and reuse decisions
 
-Reviewed on 2026-11-15. These are source and documentation reviews, not live tests of
+Initial review on 2026-11-15; dated additions are linked below. These are source and documentation reviews, not live tests of
 the listed projects. No third-party implementation has been copied into this repository.
 
 ## Closest geofeed generators
+
+The 2026-11-16 NANOG announcement adds [Geoflaw diagnostic prior art](geoflaw.md).
+It covers registry discovery and retrieval/coverage findings beyond local syntax checks.
+Its dated snapshot is not live provider acceptance or a required publication gate.
 
 | Project | What it does | License checked | Useful next step |
 | --- | --- | --- | --- |

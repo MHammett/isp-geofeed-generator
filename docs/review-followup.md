@@ -3,7 +3,7 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including
-reviews through `dc3ffce`. Coverage is limited to the work listed
+reviews through `19d3fc1`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -28,6 +28,9 @@ tenant/grid test. These reviews are not approval to merge.
 | [#63 Unicode capacity](https://github.com/MHammett/isp-geofeed-generator/pull/63#pullrequestreview-5925817565) | Checked both actual hosted measurements and refusal controls; modeled later SQL growth | Steady-state estimates are offline models; finite host memory and production capacity remain unmeasured |
 | [#64 HTTPS follow-up](https://github.com/MHammett/isp-geofeed-generator/pull/64#pullrequestreview-5925790270) | Verified real core HTTP authentication, the removed-guard commit and restored HTTP refusal/HTTPS success | Disposable stack; actual managed host still unmeasured |
 | [#65 interval model](https://github.com/MHammett/isp-geofeed-generator/pull/65#pullrequestreview-5925817949) | Reran 265 tests; independent 3,000-case oracle had zero mismatches; two mutations broke the oracle/tests | Calculation model only at that revision; active nested publication not reviewed |
+| [#67 nested core](https://github.com/MHammett/isp-geofeed-generator/pull/67#pullrequestreview-5926438570) | Reran 278 tests; independent 3,000-case guard oracle had zero mismatches; multi-input early refusal, shadowed-parent probes and two mutations | Shipped outputs refused nesting at that revision; later publication work is outside this review |
+| [#68 review guidance](https://github.com/MHammett/isp-geofeed-generator/pull/68#pullrequestreview-5926360393) | Checked capacity estimates, canonical/cache-busting guidance and review links | Issue #66 remains open; no managed-host plugin measurement or cache code fix |
+| [#69 nested local output](https://github.com/MHammett/isp-geofeed-generator/pull/69#pullrequestreview-5926408601) | Reran 291 tests; 57 independent crash points restored the exact old pair; same-byte other-owner refusal and removed-hash mutation | Windows ACL privacy is not established by mode 0600; WordPress protocol is later work |
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The
@@ -62,6 +65,18 @@ No defects were reported in those reviewed areas. That result does not fill the 
 gaps. Author evidence, independent probes and live workloads remain separate claims.
 Review notes prompted clearer coverage percentages and an explicit Kosovo/XK policy note.
 
+The nested-core review requested a parent-fallback refusal test when built-in outputs
+gain support. Local CSV, rich JSON and WordPress now have those controls, including a
+real WordPress workload. The local-output review prompted a recovery hint for a marked
+feed whose policy file is missing, plus a Windows folder-ACL note. These changes keep
+the existing refusal and ownership checks. Their author verification is separate from
+the reviews of the earlier heads.
+
+[Claude's Geoflaw source check](https://github.com/MHammett/isp-geofeed-generator/issues/70#issuecomment-6928003968)
+confirmed the public snapshot facts and added two RFC rules to the plan: native attribute
+precedence and unsigned rows limited to the referring object's range. The
+[guide](geoflaw.md) records both. No machine integration or registry write is implemented.
+
 ## Initial review corrections
 
 Claude Code reviewed revision `048ce92164099fe31b425de27687ddeb28e8f4a8` on 2026-11-15.
@@ -91,11 +106,11 @@ covers Python and GitHub Actions. Repository settings must be checked live, sepa
 
 ## Design work kept open
 
-- Nested prefixes: rejected consistently by the core and WordPress plugin today. Supporting
-  longest-prefix overrides needs one coordinated change to validation, overlap handling,
-  coverage calculations, recovery and plugin tests. Do not relax only one check.
-  [The proposed contract and acceptance vectors](nested-prefixes.md) specify that work;
-  runtime support remains unimplemented and issue #16 stays open.
+- Nested prefixes: explicit support now coordinates candidate validation, exact guards,
+  local bound state and the WordPress version-2 protocol in the pending stack.
+  [The rollout and acceptance vectors](nested-prefixes.md) describe the contract.
+  Issue #16 stays open for review, ordered merges and operator staging. External validator
+  acceptance does not prove how a GeoIP provider resolves overlapping rows.
 - Location changes: #43 implements a separate retained-coverage guard and exact-candidate
   approval. Its runtime and tests are in the pending stack; the default branch still needs
   that change merged through the owning session before it can be deployed.
