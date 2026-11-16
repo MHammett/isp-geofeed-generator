@@ -329,7 +329,7 @@ class Workload:
                 if value is None:os.environ.pop(name,None)
                 else:os.environ[name]=value
         status=json.loads((state/'status.json').read_text())['data']
-        check(status.get('healthy',True)==(result==0),'CLI health matches actual result')
+        check(status.get('healthy')==(result==0),'CLI health is present and matches actual result')
         return result,status
 
     def publication_tests(self):

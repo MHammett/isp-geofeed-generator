@@ -1,5 +1,36 @@
 # Verification
 
+## Real WordPress/database integration
+
+Observed on 2026-11-16 from hosted run
+[43924616247](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43924616247)
+at `710d93a`. All eight jobs passed. The new workload ran official hash-pinned
+WordPress 7.1.4 with PHP 8.3.6 and MariaDB 10.11.14 on a disposable Ubuntu 24.04 runner.
+This is a measured local test stack, not a production-host or CDN measurement.
+
+Real application-password/role checks passed, including denied anonymous, subscriber,
+incorrect-password and forged-forwarding HTTP writes. The installed generator CLI
+published first and changed feeds, verified exact unauthenticated CSV bytes/headers,
+and performed an unchanged run without geofeed SQL writes or recovery-history changes.
+Invalid ISO, duplicate and bogon payloads kept the stored feed intact.
+
+Two actual PHP workers reached each pre-write barrier. The first-insert negative control
+executed `REPLACE` twice and exposed a losing request overwriting the winner; the normal
+insert preserved one winner. The case-only update control held history constant on a
+case-insensitive column: without binary comparison both writes succeeded, while the
+normal comparison preserved one winner. The tests first refused to claim a negative
+control when HTTP workers were still executing cached original code. HTTP cache settings
+and observed SQL verbs are now explicit preconditions.
+
+Stale public preflight stopped before writes and preserved local history. Bad read-back
+and a lost successful reply both led to verified conditional recovery. A concurrent
+authenticated winner was left intact. Refused recovery kept candidate bytes, old private
+backups and unhealthy status, with no false restored claim. Every forced fault was observed.
+
+Local checks also refused a changed core archive before extraction and refused unsupported
+Windows/non-disposable execution before application imports. Windows did not run the real
+stack. [The workload guide](wordpress-integration.md) records scope, isolation and limits.
+
 ## Adapter review follow-up
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 254 tests: 252 passed and two

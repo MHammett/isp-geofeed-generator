@@ -2,6 +2,9 @@
 
 Use WordPress 6.x or newer with PHP 8.0+, HTTPS, REST access and application passwords.
 The plugin does not need a page-builder change or a theme change.
+The [disposable integration workload](wordpress-integration.md) checks real WordPress,
+database races, authentication and recovery on CI. Keep the staging checks below for
+your own hosting path.
 
 ## Before installation
 

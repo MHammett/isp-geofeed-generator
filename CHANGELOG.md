@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Disposable real WordPress/MariaDB integration for application-password publishing, unchanged history, competing writes and conditional recovery, with unsafe-SQL negative controls.
+
 - Initial Infoblox NIOS WAPI 2.13.6 IPv4/IPv6 network input with explicit selection, declared geography attributes and bounded fail-closed paging.
 
 - Initial BillMax Core v1 support for explicitly selected IPv4 AP networks and native POP links, with secure API-key/user-login modes and clear pool/IPv6 limits.

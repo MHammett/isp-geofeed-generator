@@ -1,5 +1,9 @@
 # Publication verification
 
+The [disposable WordPress integration workload](wordpress-integration.md) exercises
+the plugin and runner with a real database and local TLS. It complements the fast
+stub tests and does not replace checks of the operator's actual public hosting path.
+
 Each built-in output reads the current destination before publishing. If its exact bytes
 match the candidate, the runner verifies them again and skips replacement. It preserves
 the existing recovery files. Health status and allocation-cache files may still be updated.
