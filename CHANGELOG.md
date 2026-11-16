@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Initial Infoblox NIOS WAPI 2.13.6 IPv4/IPv6 network input with explicit selection, declared geography attributes and bounded fail-closed paging.
+
 - Initial BillMax Core v1 support for explicitly selected IPv4 AP networks and native POP links, with secure API-key/user-login modes and clear pool/IPv6 limits.
 
 - Operator-readable location-change percentages with exact enforcement retained, explicit Kosovo/XK policy limits and linked independent-review scope.

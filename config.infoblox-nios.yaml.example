@@ -1,0 +1,14 @@
+# Initial NIOS WAPI support. This is separate from Infoblox cloud APIs.
+# Set INFOBLOX_NIOS_URL to the full HTTPS /wapi/v2.13.6 base for your instance.
+state_dir: state
+source:
+  type: infoblox_nios
+  network_refs: ["network/replace-with-native-reference-from-discovery"]
+  # These are operator-created string attributes, not NIOS default attribute names.
+  location_fields: {country: geofeed_country, region: geofeed_region, city: geofeed_city}
+  allow_initial: false
+credentials:
+  INFOBLOX_NIOS_USERNAME: systemd:INFOBLOX_NIOS_USERNAME
+  INFOBLOX_NIOS_PASSWORD: systemd:INFOBLOX_NIOS_PASSWORD
+allowed_prefixes: [192.0.2.0/24] # Replace documentation space with your allocation.
+publish: {type: file, path: output/geofeed.csv}

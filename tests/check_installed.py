@@ -15,6 +15,7 @@ sources,targets=load_extensions({'sources':['local_json'],'targets':['local_file
 assert sources['local_json'].initial and targets['local_file'].initial
 assert SOURCES['powercode'].initial and SOURCES['gaiia'].initial
 assert SOURCES['billmax'].initial
+assert SOURCES['infoblox_nios'].initial
 print('PASS: installed core and separate input/output extension wheels')
 from isp_geofeed_generator.iso_codes import code_tables
 assert tuple(map(len,code_tables()))==(249,5046)
@@ -34,6 +35,14 @@ billmax=BillMax('https://example.net/api/billmaxCoreApi/v1','synthetic-key',{'ap
 value,_=build(billmax.for_publication(billmax.snapshot()),{'allowed_prefixes':['11.22.33.0/24']})
 assert value==b'11.22.33.0/24,US,US-IL,Example City,\\r\\n'
 print('PASS: installed BillMax selected AP network and native POP workload')
+from isp_geofeed_generator.infoblox_nios import InfobloxNIOS
+ref='ipv6network/opaque:2001%3A4860%3A1234%3A%3A/126/external'
+nios=InfobloxNIOS('https://example.net/wapi/v2.13.6','reader','synthetic-password',{'network_refs':[ref]},Replies([
+    {'result':[{'_ref':ref,'network':'2001:4860:1234::/126','network_view':'external','extattrs':{
+        'geofeed_country':{'value':'US'},'geofeed_region':{'value':'US-IL'},'geofeed_city':{'value':'Example City'}}}]}]))
+value,_=build(nios.for_publication(nios.snapshot()),{'allowed_prefixes':['2001:4860:1234::/48']})
+assert value==b'2001:4860:1234::/126,US,US-IL,Example City,\\r\\n'
+print('PASS: installed NIOS IPv6 network and declared geography workload')
 class ControllerSource(Sonar):
     def pages(self,root,*args,**kwargs):
         if root=='dhcp_servers':

@@ -205,6 +205,10 @@ Rate-limit errors stop the run without retries. See the vendor's rate-limit guid
 
 ## Verify before scheduling
 
+For Infoblox NIOS, see [network input setup](infoblox-nios.md). Select native network
+references and declare string geography attributes. Keep network views separate from
+physical locations. Certificate-auth and cloud API families are not implemented here.
+
 For BillMax, see [initial AP-network setup](billmax.md). Select reviewed IPv4 `/16` or
 `/24` AP networks, keep their native POP assignments and supply ISO geography overrides
 when display values need translation. General pool exports and IPv6 are not claimed.

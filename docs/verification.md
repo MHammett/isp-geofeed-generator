@@ -1,5 +1,22 @@
 # Verification
 
+## Infoblox NIOS networks
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 253 tests: 251 passed and two
+POSIX-only skips. Thirteen new synthetic NIOS tests cover exact IPv4/IPv6 coverage,
+declared/inherited attribute values, opaque references, distinct views, credential
+scope, paging and failure controls. A foreign-looking continuation token stays encoded
+as data on the configured endpoint. Duplicate references, repeated/invalid tokens,
+empty intermediate pages, malformed results, wrong-family boundaries and inventory
+budget exhaustion stop the read. Oversize declared values are discarded as invalid.
+
+CLI controls first refuse publication without initial-support opt-in, then publish and
+force malformed attributes or a missing selected network. Both failures leave the feed
+and backup bytes intact and record unhealthy status. An isolated installed wheel builds
+the exact IPv6 feed outside the checkout, alongside the existing BillMax, NetBox,
+multi-input, approval and unchanged-output workloads. No live NIOS access or behavior
+was measured. See [NIOS setup and recovery](infoblox-nios.md).
+
 ## BillMax selected AP networks
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 240 tests: 238 passed and two

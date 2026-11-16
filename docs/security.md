@@ -52,6 +52,8 @@ phpIPAM needs `PHPIPAM_API_TOKEN`. Load only the credentials needed by that serv
 Powercode needs `POWERCODE_API_KEY`; gaiia needs `GAIIA_API_KEY`.
 BillMax needs `BILLMAX_API_KEY`; its `userpass` mode also needs secure
 `BILLMAX_USERNAME` and `BILLMAX_PASSWORD` references. Session tokens stay in memory.
+Infoblox NIOS needs `INFOBLOX_NIOS_USERNAME` and `INFOBLOX_NIOS_PASSWORD`, sent as
+Basic authentication only over verified HTTPS to the configured WAPI base.
 URLs and the WordPress username belong in root:geofeed mode-0640 `runtime.env`.
 Never place tokens or passwords in that file for the recommended systemd setup.
 

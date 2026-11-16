@@ -9,6 +9,7 @@ from .phpipam import PhpIPAM
 from .powercode import Powercode
 from .gaiia import Gaiia
 from .billmax import BillMax, validate_settings as validate_billmax
+from .infoblox_nios import InfobloxNIOS, validate_settings as validate_nios
 from .publish import WordPress, publish_file, publish_wordpress
 from .locations import LOCATION_FIELDS
 from .credentials import InputCredentialStore
@@ -97,6 +98,8 @@ class RecordFileTarget:
 # Factories read only the credentials needed by that adapter. No configuration
 # value is treated as an import path, executable command or arbitrary plugin.
 SOURCES = {
+    "infoblox_nios": SourceAdapter(lambda s, c: InfobloxNIOS(source_url(c, 'INFOBLOX_NIOS_URL'), c.get('INFOBLOX_NIOS_USERNAME'), c.get('INFOBLOX_NIOS_PASSWORD'), s),
+        initial=True, settings=frozenset({'network_refs', 'location_fields'}), validate=validate_nios),
     "billmax": SourceAdapter(billmax_source, initial=True, settings=frozenset({'ap_ids', 'auth_mode'}), validate=validate_billmax),
     "sonar": SourceAdapter(lambda s, c: Sonar(source_url(c, "SONAR_URL"), c.get("SONAR_API_TOKEN"), settings=s), initial=False,
                            settings=frozenset({"site_resolution", "pool_ids", "subnet_ids"}), validate=lambda s: validate_settings('sonar', s)),
