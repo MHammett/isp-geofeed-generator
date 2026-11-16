@@ -166,13 +166,13 @@ def publication_run(directory, credentials, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
-    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy"))
+    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy", "inspect-wordpress"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
-    parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Recovery only: exact candidate hash from the failed transaction')
+    parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Policy configuration/recovery only: exact current feed or failed candidate hash')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
@@ -185,6 +185,18 @@ def main(argv=None):
         directory = Path(config.get("state_dir", "state"))
         if args.expected_current_sha256 is not None and (args.command not in ('recover-local','recover-wordpress','configure-wordpress-policy') or not re.fullmatch(r'[a-f0-9]{64}',args.expected_current_sha256)):
             raise GeofeedError('--expected-current-sha256 requires recovery/policy configuration and a lowercase SHA-256 hash')
+        if args.command=='inspect-wordpress':
+            settings=config.get('publish',{})
+            if settings.get('type')!='wordpress':raise GeofeedError('inspect-wordpress requires a wordpress target')
+            stage='inspecting WordPress bytes and policy'
+            client=config.targets['wordpress'](settings,credentials).client
+            before=client.policy_state();public=client.read_public(overlap_policy=before.policy);after=client.policy_state()
+            result={'inspection_only':True,'feed_present':bool(before.csv),'url':client.public_url,'sha256':digest(before.csv),
+                    'overlap_policy':before.policy,'required_overlap_policy':before.required,'publication_id':before.publication_id,
+                    'previous_sha256':digest(before.previous),'previous_overlap_policy':before.previous_policy,
+                    'public_matches_stored':public==before.csv,'policy_state_stable':before==after}
+            print(json.dumps(result))
+            return 0 if result['public_matches_stored'] and result['policy_state_stable'] else 1
         if args.command=='configure-wordpress-policy':
             if config.get('publish',{}).get('type')!='wordpress' or not args.expected_current_sha256:
                 raise GeofeedError('configure-wordpress-policy requires a wordpress target and --expected-current-sha256')
@@ -192,7 +204,9 @@ def main(argv=None):
             from .wordpress_policy import configure
             stage='configuring WordPress policy'
             with publication_run(directory,credentials,lambda:stage):
-                admin=WordPress(os.environ.get('WP_SITE_URL',''),os.environ.get('WP_POLICY_ADMIN_USERNAME',''),credentials.get('WP_POLICY_ADMIN_APP_PASSWORD'))
+                username=os.environ.get('WP_POLICY_ADMIN_USERNAME','')
+                if not username or ':' in username:raise GeofeedError('Set a valid WP_POLICY_ADMIN_USERNAME for policy configuration')
+                admin=WordPress(os.environ.get('WP_SITE_URL',''),username,credentials.get('WP_POLICY_ADMIN_APP_PASSWORD'))
                 result=configure(admin,config.get('overlap_policy',REJECT),args.expected_current_sha256)
                 status(directory,{'healthy':False,**result,'error':'Policy configured; keep old writers stopped and verify a normal staging publication'})
                 print(json.dumps(result))

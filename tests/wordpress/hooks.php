@@ -10,8 +10,9 @@ add_action('application_password_did_authenticate', function ($user) {
     $dir = getenv('GEOFEED_WP_CONTROL');
     if ($dir && is_file($dir.'/allow-http-application-passwords')) {
         // Record only transport and capability, never the user or password.
-        file_put_contents($dir.'/http-auth.log', (is_ssl() ? 'https' : 'http').' '.
-            ($user->has_cap('publish_geofeed') ? 'publisher' : 'other')."\n", FILE_APPEND | LOCK_EX);
+        $capability = $user->has_cap('manage_options') ? 'administrator' :
+            ($user->has_cap('publish_geofeed') ? 'publisher' : 'other');
+        file_put_contents($dir.'/http-auth.log', (is_ssl() ? 'https' : 'http').' '.$capability."\n", FILE_APPEND | LOCK_EX);
     }
 });
 add_filter('pre_wp_mail', function () { return true; });

@@ -91,6 +91,7 @@ class WordPressPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(GeofeedError,'location changes'):self.publish(B)
         self.assertEqual((self.root/'before-policy.json').read_bytes(),before)
         self.publish(B,max_relocated_fraction=1)
+        with self.assertRaisesRegex(GeofeedError,'location changes'):self.publish(A)
         with self.assertRaisesRegex(GeofeedError,'feed removal'):
             self.publish(render_csv([CHILD],overlap_policy=LONGEST_PREFIX),max_relocated_fraction=1)
     def test_bad_readback_lost_write_and_lost_restore_reply_are_checked(self):
@@ -168,6 +169,7 @@ class WordPressPolicyTests(unittest.TestCase):
                                        'overlap_policy':LONGEST_PREFIX,'state_dir':str(self.root/'state')}))
         with patch.dict(SOURCES,{'offline_source':SourceAdapter(factory,initial=False)}), \
              patch('isp_geofeed_generator.publish.WordPress',return_value=self.wp), \
+             patch.dict('os.environ',{'WP_POLICY_ADMIN_USERNAME':'policy-admin'}), \
              patch.object(CredentialStore,'get',autospec=True,return_value='synthetic-admin-password') as key, \
              contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(main(['configure-wordpress-policy','--config',str(path),'--expected-current-sha256',digest(b'')]),0)
@@ -175,6 +177,21 @@ class WordPressPolicyTests(unittest.TestCase):
         self.assertEqual(key.call_count,1)
         status=json.loads((self.root/'state/status.json').read_text())['data']
         self.assertTrue(status['configured_policy']);self.assertFalse(status['healthy'])
+    def test_readonly_inspection_uses_publisher_secret_and_never_changes_status_or_input(self):
+        self.publish(A);factory=Mock(side_effect=RuntimeError('input unavailable'))
+        path=self.root/'inspect.yaml'
+        path.write_text(yaml.safe_dump({'source':{'type':'offline_source'},'publish':{'type':'wordpress'},'state_dir':str(self.root/'state')}))
+        state=self.root/'state';state.mkdir();status=state/'status.json';status.write_bytes(b'failed-publication-status')
+        prior=(status.read_bytes(),status.stat().st_mtime_ns);out=io.StringIO()
+        with patch.dict(SOURCES,{'offline_source':SourceAdapter(factory,initial=False)}), \
+             patch('isp_geofeed_generator.adapters.WordPress',return_value=self.wp), \
+             patch.object(CredentialStore,'get',autospec=True,return_value='synthetic-publisher-password') as key, \
+             contextlib.redirect_stdout(out):
+            self.assertEqual(main(['inspect-wordpress','--config',str(path)]),0)
+        factory.assert_not_called();self.assertEqual(key.call_args.args[1],'WP_APP_PASSWORD');self.assertEqual(key.call_count,1)
+        result=json.loads(out.getvalue());self.assertTrue(result['inspection_only']);self.assertTrue(result['public_matches_stored'])
+        self.assertTrue(result['policy_state_stable']);self.assertNotIn('healthy',result);self.assertNotIn('csv',result)
+        self.assertEqual((status.read_bytes(),status.stat().st_mtime_ns),prior)
 
 
 class PolicyHTTPTests(unittest.TestCase):

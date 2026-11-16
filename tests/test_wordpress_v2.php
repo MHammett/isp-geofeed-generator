@@ -83,6 +83,11 @@ $result=isp_geofeed_generator_write_v2(policy_request($a));
 check(is_wp_error($result) && $result->data['status']===503 && strpos($result->message,'private')===false, 'v2 database error stays private');
 $wpdb = new FakeDB();$wpdb->value=json_encode(['protocol_version'=>3,'csv'=>$legacy,'previous_csv'=>'','publication_id'=>str_repeat('a',32)]);
 check(is_wp_error(isp_geofeed_generator_read()), 'unknown stored protocol refused');
+foreach ([null,'unknown'] as $invalid_policy) {
+    $wpdb->value=json_encode(['protocol_version'=>2,'csv'=>$legacy,'previous_csv'=>'','overlap_policy'=>'reject',
+        'previous_overlap_policy'=>'reject','required_overlap_policy'=>$invalid_policy,'publication_id'=>str_repeat('a',32)]);
+    check(is_wp_error(isp_geofeed_generator_read()), 'versioned state cannot assume a missing/invalid required policy');
+}
 $wpdb=new FakeDB();isp_geofeed_generator_configure_policy(configure_request('longest_prefix'));
 $raw=$wpdb->value;
 $result=isp_geofeed_generator_configure_policy(configure_request('reject',['expected_publication_id'=>str_repeat('f',32)]));

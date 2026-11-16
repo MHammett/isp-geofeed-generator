@@ -30,6 +30,8 @@ def read_state(client):
     except GeofeedError as exc:
         if re.match(r'HTTP 404\b',str(exc)):
             raise GeofeedError('WordPress lacks version-2 policy state; upgrade the plugin before nested publication') from None
+        if re.match(r'HTTP (401|403)\b',str(exc)):
+            raise GeofeedError('WordPress policy state access refused; check application password, role, Authorization forwarding and HTTPS recognition') from None
         raise
     try:
         if (not isinstance(value,dict) or type(value.get('protocol_version')) is not int or value['protocol_version']!=2
@@ -180,10 +182,10 @@ def configure(client,desired,expected_hash):
     identity=secrets.token_hex(16)
     try:
         client.configure_policy(desired,before,identity)
-    except GeofeedError:
+    except GeofeedError as exc:
         observed=client.policy_state()
         if not matches(observed,before.csv,before.policy,identity) or observed.required!=desired:
-            raise GeofeedError('Policy configuration failed or changed concurrently; state inspected, no retry was made') from None
+            raise GeofeedError(f'Policy configuration failed or changed concurrently ({exc}); state inspected, no retry was made') from None
     after=client.policy_state()
     if (not matches(after,before.csv,before.policy,identity) or after.required!=desired
             or after.previous!=before.previous or after.previous_policy!=before.previous_policy
@@ -196,7 +198,12 @@ def configure_request(client,policy,expected,identity):
     body={'protocol_version':2,'required_overlap_policy':policy,'expected_sha256':digest(expected.csv),
           'expected_overlap_policy':expected.policy,'expected_required_overlap_policy':expected.required,
           'expected_publication_id':expected.publication_id,'publication_id':identity}
-    value=client.http.request(client.base.removesuffix('/v1')+'/v2/policy',headers=client.headers,body=body,method='PUT')
+    try:
+        value=client.http.request(client.base.removesuffix('/v1')+'/v2/policy',headers=client.headers,body=body,method='PUT')
+    except GeofeedError as exc:
+        if re.match(r'HTTP (401|403)\b',str(exc)):
+            raise GeofeedError('WordPress policy administration refused; use the separate administrator account with manage_options over HTTPS') from None
+        raise
     if (not isinstance(value,dict) or type(value.get('protocol_version')) is not int or value['protocol_version']!=2
             or value.get('sha256')!=digest(expected.csv) or value.get('required_overlap_policy')!=policy
             or value.get('publication_id')!=identity):

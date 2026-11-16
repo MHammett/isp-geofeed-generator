@@ -369,7 +369,8 @@ class Workload:
         else:
             os.environ.pop('WP_POLICY_ADMIN_USERNAME',None);os.environ.pop('WP_POLICY_ADMIN_APP_PASSWORD',None)
         try:
-            with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            output=io.StringIO()
+            with contextlib.redirect_stdout(output),contextlib.redirect_stderr(io.StringIO()):
                     args=[command,'--config',str(path)]
                     if approve:args+=['--approve-location-changes',digest(csv)]
                     if expected:args+=['--expected-current-sha256',expected]
@@ -378,8 +379,11 @@ class Workload:
             for name,value in previous.items():
                 if value is None:os.environ.pop(name,None)
                 else:os.environ[name]=value
-        status=json.loads((state/'status.json').read_text())['data']
-        check(status.get('healthy')==((result==0) if command=='publish' else False),'CLI health is present and matches actual operation')
+        if command=='inspect-wordpress':
+            status=json.loads(output.getvalue());check(status.get('inspection_only') is True and 'healthy' not in status,'inspection cannot claim full publication health')
+        else:
+            status=json.loads((state/'status.json').read_text())['data']
+            check(status.get('healthy')==((result==0) if command=='publish' else False),'CLI health is present and matches actual operation')
         return result,status
 
     def publication_tests(self):
@@ -468,6 +472,35 @@ class Workload:
             check(self.request('PUT',FEED,B,A,'publisher')[0]==200 and self.snapshot()[1]['csv'].encode()==B,
                   'restored plugin still permits real authenticated HTTPS publication')
             print('PASS: real WordPress restored HTTPS guard blocks HTTP and allows HTTPS',flush=True)
+            admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+            admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+            def direct_policy():
+                before=admin.policy_state()
+                body=json.dumps({'protocol_version':2,'required_overlap_policy':LONGEST_PREFIX,
+                    'expected_sha256':digest(before.csv),'expected_overlap_policy':before.policy,
+                    'expected_required_overlap_policy':before.required,'expected_publication_id':before.publication_id,
+                    'publication_id':secrets.token_hex(16)}).encode()
+                connection=http.client.HTTPConnection('127.0.0.1',self.backend,timeout=20)
+                try:
+                    connection.request('PUT',POLICY_V2,body,{**self.auth('policy_admin'),'Content-Type':'application/json','X-Forwarded-Proto':'https'})
+                    response=connection.getresponse();data=response.read();return response.status,data
+                finally:connection.close()
+            self.reset(A);authenticated.write_text('');prior=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            check(direct_policy()[0]==403 and self.snapshot()[0]['raw']==prior and (self.control/'writes.log').read_bytes()==writes,'administrative plugin HTTPS guard refuses a core-authenticated HTTP administrator')
+            check(authenticated.read_text().splitlines().count('http administrator')==1,'core really authenticated HTTP administrator')
+            admin_find="return is_ssl() && current_user_can('manage_options');"
+            check(self.original.count(admin_find)==1,'administrative HTTPS mutation targets one guard')
+            self.plugin.write_text(self.original.replace(admin_find,"return current_user_can('manage_options');"))
+            unsafe=direct_policy()
+            check(unsafe[0]==200 and admin.policy_state().required==LONGEST_PREFIX and self.snapshot()[0]['raw']!=prior,'removed administrative HTTPS guard really changes stored policy over HTTP')
+            print('POLICY HTTPS OBSERVATION: '+json.dumps({'unsafe_status':unsafe[0],'required_policy':admin.policy_state().required,
+                'authenticated_http_administrators':authenticated.read_text().splitlines().count('http administrator')}),flush=True)
+            self.plugin.write_text(self.original);self.reset(A)
+            prior=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            check(direct_policy()[0]==403 and self.snapshot()[0]['raw']==prior and (self.control/'writes.log').read_bytes()==writes,'restored administrative guard again refuses HTTP')
+            admin.configure_policy(LONGEST_PREFIX,admin.policy_state(),secrets.token_hex(16))
+            check(admin.policy_state().required==LONGEST_PREFIX and admin.policy_state().csv==A,'restored administrative guard permits authenticated HTTPS configuration')
+            print('PASS: real WordPress administrative HTTPS guard detects mutation and restores HTTP refusal',flush=True)
         finally:
             self.plugin.write_text(self.original)
             flag.unlink(missing_ok=True)
@@ -492,7 +525,7 @@ class Workload:
             check(result==1 and 'configured for reject' in status['error'],'real protocol capability is separate from instance policy')
             check(self.snapshot()[0]['raw'] is None and not (self.directory/'nested-setup/before.csv').exists(),'configuration refusal before write/history')
             try:client.configure_policy(LONGEST_PREFIX,client.policy_state(),secrets.token_hex(16))
-            except GeofeedError as exc:check(str(exc).startswith('HTTP 403'),'ordinary publisher cannot configure policy')
+            except GeofeedError as exc:check('administration refused' in str(exc),'ordinary publisher cannot configure policy')
             else:raise AssertionError('publisher was allowed to change server policy')
             check(self.snapshot()[0]['raw'] is None,'publisher policy refusal keeps empty database')
             result,status=self.cli(n_a,self.directory/'policy-admin-setup',overlap_policy=LONGEST_PREFIX,
@@ -521,6 +554,10 @@ class Workload:
             stamps={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in paths};writes=(self.control/'writes.log').read_bytes()
             check(self.cli(n_b,state,overlap_policy=LONGEST_PREFIX)[0]==0 and self.snapshot()[0]['raw']==snapshot['raw'],'nested unchanged run preserves raw document')
             check((self.control/'writes.log').read_bytes()==writes and {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in paths}==stamps,'nested no-op preserves SQL and private history')
+            result,status=self.cli(n_a,state,overlap_policy=LONGEST_PREFIX)
+            check(result==1 and 'location changes' in status['error'] and self.snapshot()[0]['raw']==snapshot['raw'] and
+                  (self.control/'writes.log').read_bytes()==writes and {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in paths}==stamps,'parent fallback guard preserves real data, policy and recovery history')
+            print('PASS: real WordPress nested parent-fallback guard preserves data policy and history',flush=True)
             check(self.request('PUT',FEED,C,n_b,'publisher')[0]==409 and self.request('GET',FEED)[2]==n_b,'old writer cannot overwrite existing nested state')
             print('PASS: real WordPress nested CLI policy, exact approval, old-client refusal and unchanged history',flush=True)
             before=client.policy_state();raw=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
@@ -606,6 +643,10 @@ class Workload:
                     self.proxy.arm(None)
                     result,status=self.cli(n_b,target,overlap_policy=LONGEST_PREFIX,command='recover-wordpress',expected=digest(n_b))
                     check(result==0 and status['recovered'] is True and status['healthy'] is False and client.policy_state().csv==n_a,'manual real WordPress recovery restores exact owned baseline without marking publication healthy')
+                    prior=((target/'status.json').read_bytes(),(target/'status.json').stat().st_mtime_ns)
+                    result,inspection=self.cli(n_a,target,overlap_policy=LONGEST_PREFIX,command='inspect-wordpress')
+                    check(result==0 and inspection['public_matches_stored'] and inspection['policy_state_stable'] and
+                          ((target/'status.json').read_bytes(),(target/'status.json').stat().st_mtime_ns)==prior,'read-only inspection leaves failed publication status untouched')
                 if mode=='policy-winner':
                     original=self.snapshot()[0]['raw'];self.proxy.arm(None)
                     result,status=self.cli(n_b,target,overlap_policy=LONGEST_PREFIX,command='recover-wordpress',expected=digest(n_b))
@@ -626,7 +667,10 @@ class Workload:
             check(self.cli(n_a,target,overlap_policy=LONGEST_PREFIX)[0]==0 and self.cli(n_b,target,overlap_policy=LONGEST_PREFIX,approve=True)[0]==0,'strict migration baseline')
             result,status=self.cli(n_b,self.directory/'admin-strict-migration',command='configure-wordpress-policy',expected=digest(n_b))
             check(result==0 and client.policy_state().required==REJECT and client.policy_state().csv==n_b,'administrator changes accepted policy without changing feed')
-            check(self.cli(A,target)[0]==1,'strict migration still guards parent fallback move')
+            raw=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+            result,status=self.cli(A,target)
+            check(result==1 and 'location changes' in status['error'] and self.snapshot()[0]['raw']==raw and
+                  (self.control/'writes.log').read_bytes()==writes,'strict migration still guards parent fallback move')
             check(self.cli(A,target,approve=True)[0]==0 and client.policy_state().policy==REJECT and self.request('GET',FEED)[2]==A,'approved strict migration verifies exact bytes and policy')
             check(self.request('PUT',FEED,C,A,'publisher')[0]==200 and client.policy_state().required==REJECT and client.policy_state().csv==C,'legacy strict writes preserve the stored policy binding')
             print('PASS: real WordPress approved strict migration and legacy strict compatibility',flush=True)
