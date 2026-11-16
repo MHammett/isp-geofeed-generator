@@ -12,6 +12,16 @@ class GeofeedError(Exception):
     """An actionable failure; the last published feed must be retained."""
 
 
+def record_id(row):
+    """Only bounded native numeric IDs are suitable for source diagnostics."""
+    value = row.get('id') if isinstance(row, dict) else None
+    if type(value) is int and 0 <= value < 10**20:
+        return str(value)
+    if isinstance(value, str) and re.fullmatch(r'[0-9]{1,20}', value):
+        return value
+    return '(unknown ID)'
+
+
 class NoRedirects(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -117,21 +127,23 @@ class Sonar:
                 if total is None:
                     total = count
                 if count != total:
-                    raise GeofeedError("Sonar inventory changed during pagination; run again after review")
+                    raise GeofeedError(f'Sonar {root} inventory changed during pagination on page {page}; run again after review')
                 for row in rows:
-                    key = str(row["id"])
+                    key = record_id(row)
+                    if key == '(unknown ID)':
+                        raise GeofeedError(f'Sonar {root} record (unknown ID) has a missing or invalid ID on page {page}')
                     if key in ids:
-                        raise GeofeedError("Duplicate entity while paging Sonar; inventory is incomplete")
+                        raise GeofeedError(f'Sonar {root} record {key} is duplicated on page {page}; inventory is incomplete')
                     ids.add(key)
                     entities.append(row)
                 if page >= pages:
                     if len(entities) != total:
-                        raise GeofeedError("Sonar page count does not match returned entity count")
+                        raise GeofeedError(f'Sonar {root} result count is incomplete on page {page}')
                     return entities
                 if not rows:
-                    raise GeofeedError("Sonar returned an empty intermediate page")
-            except (KeyError, TypeError, ValueError):
-                raise GeofeedError("Sonar pagination metadata is missing or invalid") from None
+                    raise GeofeedError(f'Sonar {root} returned an empty intermediate page {page}')
+            except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+                raise GeofeedError(f'Sonar {root} pagination metadata is missing or invalid on page {page}') from None
         raise GeofeedError("Pagination limit exceeded")
 
     def snapshot(self):
@@ -155,9 +167,15 @@ class Sonar:
         sites = self.pages("network_sites", """id name addresses(paginator: {page: 1, records_per_page: 100}) {
             page_info {total_count} entities {id city country subdivision}}""")
         for site in sites:
-            conn = site["addresses"]
-            if len(conn["entities"]) == int(conn["page_info"]["total_count"]):
-                site["addresses"] = conn["entities"]
+            try:
+                conn = site['addresses']
+                batch, count = conn['entities'], int(conn['page_info']['total_count'])
+                if not isinstance(batch, list) or count < len(batch):
+                    raise ValueError()
+            except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+                raise GeofeedError(f'Sonar network site {record_id(site)} has invalid addresses connection metadata') from None
+            if len(batch) == count:
+                site["addresses"] = batch
             else:
                 site["addresses"] = self.pages("addresses", "id city country subdivision",
                     arguments=", $site: Int64Bit!", filters=", addressable_type: NetworkSite, addressable_id: $site",
@@ -175,6 +193,16 @@ class Sonar:
         return snapshot
 
     def _related_pages(self, root, entity_id, relation, fields, *, expected_total=None):
+        kind = 'DHCP server' if root == 'dhcp_servers' else 'inline device'
+        label = f'Sonar {kind} {record_id({"id": entity_id})}'
+        try:
+            return self._controller_relation_pages(root, entity_id, relation, fields, expected_total=expected_total)
+        except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+            raise GeofeedError(f'{label} has invalid {relation} pagination metadata') from None
+        except GeofeedError as exc:
+            raise GeofeedError(f'{label}: {exc}') from None
+
+    def _controller_relation_pages(self, root, entity_id, relation, fields, *, expected_total=None):
         rows, seen, total = [], set(), None
         for page in range(1, 10001):
             q = f'''query Related($id: Int64Bit!, $page: Int!, $size: Int!) {{
@@ -216,6 +244,8 @@ class Sonar:
                   for p in snapshot["pools"]}
         subnets = {}
         for pool in snapshot["pools"]:
+            if not isinstance(pool, dict) or pool.get('subnet_id') is None:
+                raise GeofeedError(f'Sonar IP pool {record_id(pool)} has a missing parent subnet_id')
             subnets.setdefault(str(pool["subnet_id"]), []).append(str(pool["id"]))
         ip_sites = {}
         site_ids = {str(s["id"]) for s in snapshot["sites"]}
@@ -227,24 +257,32 @@ class Sonar:
             assignments = self.pages("ip_assignments", assignment_fields, arguments=", $ip: SubnetScalar!",
                 filters=", subnet: $ip", variables={"ip": ip})
             matches = set()
+            def add_site(value, assignment):
+                sid = record_id({'id': value})
+                if sid == '(unknown ID)':
+                    raise GeofeedError(f'Sonar IP assignment {record_id(assignment)} has an invalid network site reference')
+                if sid not in site_ids:
+                    raise GeofeedError(f'Sonar IP assignment {record_id(assignment)} references a missing network site')
+                matches.add(sid)
             for assignment in assignments:
-                net = ipaddress.ip_network(assignment["subnet"], strict=True)
-                if net.num_addresses != 1 or str(net.network_address) != ip:
-                    continue
-                owner = assignment.get("ipassignmentable") or {}
-                if owner.get("__typename") == "NetworkSite":
-                    matches.add(str(owner["id"]))
-                    continue
-                if owner.get("__typename") == "InventoryModelFieldData":
-                    owner = owner.get("inventory_item") or {}
-                if owner.get("inventoryitemable_type") == "NetworkSite":
-                    matches.add(str(owner["inventoryitemable_id"]))
-                elif owner.get("inventoryitemable_type") == "Address":
-                    address = owner.get("inventoryitemable") or {}
-                    if address.get("addressable_type") == "NetworkSite":
-                        matches.add(str(address["addressable_id"]))
-            if matches - site_ids:
-                raise GeofeedError("Controller references a missing site")
+                try:
+                    net = ipaddress.ip_network(assignment["subnet"], strict=True)
+                    if net.num_addresses != 1 or str(net.network_address) != ip:
+                        continue
+                    owner = assignment.get("ipassignmentable") or {}
+                    if owner.get("__typename") == "NetworkSite":
+                        add_site(owner['id'], assignment)
+                        continue
+                    if owner.get("__typename") == "InventoryModelFieldData":
+                        owner = owner.get("inventory_item") or {}
+                    if owner.get("inventoryitemable_type") == "NetworkSite":
+                        add_site(owner['inventoryitemable_id'], assignment)
+                    elif owner.get("inventoryitemable_type") == "Address":
+                        address = owner.get("inventoryitemable") or {}
+                        if address.get("addressable_type") == "NetworkSite":
+                            add_site(address['addressable_id'], assignment)
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    raise GeofeedError(f'Sonar IP assignment {record_id(assignment)} has invalid subnet or inventory/site ownership fields') from None
             ip_sites[ip] = sorted(matches)
             return ip_sites[ip]
 
@@ -255,25 +293,32 @@ class Sonar:
             fields = f'''id name ip_address enabled {flag} {relation}(paginator: {{page: 1, records_per_page: 100}}) {{
                 page_info {{total_count}} entities {{id}} }}'''
             for controller in self.pages(root, fields):
+                label = f'Sonar {"DHCP server" if kind == "dhcp" else "inline device"} {record_id(controller)}'
+                if record_id(controller) == '(unknown ID)':
+                    raise GeofeedError(f'{label} has a missing or invalid ID')
                 if type(controller.get('enabled')) is not bool or type(controller.get(flag)) is not bool:
-                    raise GeofeedError('Sonar controller has invalid enabled/global flags')
+                    raise GeofeedError(f'{label} has invalid enabled/global flags')
                 if not controller["enabled"] or controller[flag]:
                     continue
-                conn = controller[relation]
                 try:
+                    conn = controller[relation]
                     batch, count = conn['entities'], conn['page_info']['total_count']
                     if type(count) is not int or count < 0 or not isinstance(batch, list) or len(batch) > count:
                         raise ValueError()
                     ids = [str(row['id']) for row in batch]
                     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[1-9][0-9]{0,19}', value) for value in ids):
                         raise ValueError()
-                except (KeyError, TypeError, ValueError):
-                    raise GeofeedError('Sonar controller link metadata is missing, invalid or duplicated') from None
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    raise GeofeedError(f'{label} link metadata is missing, invalid or duplicated') from None
                 linked = batch if len(batch) == count else self._related_pages(root, controller['id'], relation, 'id', expected_total=count)
                 pool_ids = [str(row["id"]) for row in linked] if kind == "dhcp" else [pid for row in linked for pid in subnets.get(str(row["id"]), [])]
                 if not pool_ids:
                     continue
-                sites = sites_for_ip(controller["ip_address"])
+                try:
+                    management_ip = str(ipaddress.ip_address(controller['ip_address']))
+                except (KeyError, TypeError, ValueError):
+                    raise GeofeedError(f'{label} has an invalid or missing management IP') from None
+                sites = sites_for_ip(management_ip)
                 evidence = {"kind": kind, "controller_id": str(controller["id"]), "site_ids": sites}
                 for pid in set(pool_ids):
                     if pid not in result:
@@ -299,37 +344,53 @@ class Sonar:
                     inventory_model_field_data(paginator: {page: 1, records_per_page: 100}) {
                         page_info {total_count} entities {id """ + assignment + """}}}}""")
 
-        def complete(conn, fallback):
-            if len(conn["entities"]) == int(conn["page_info"]["total_count"]):
-                return conn["entities"]
+        def complete(row, relation, kind, fallback):
+            try:
+                conn = row[relation]
+                batch, count = conn['entities'], int(conn['page_info']['total_count'])
+                if not isinstance(batch, list) or count < len(batch):
+                    raise ValueError()
+            except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+                raise GeofeedError(f'Sonar {kind} {record_id(row)} has invalid {relation} connection metadata') from None
+            if len(batch) == count:
+                return batch
             return fallback()
 
         if {str(s["id"]) for s in observed} != {str(s["id"]) for s in sites}:
             raise GeofeedError("Network sites changed during discovery")
         for site in observed:
             sid = str(site["id"])
-            direct = complete(site["ip_assignments"], lambda: self.pages("ip_assignments", "id ip_pool_id",
+            direct = complete(site, 'ip_assignments', 'network site', lambda: self.pages("ip_assignments", "id ip_pool_id",
                 arguments=", $site: Int64Bit!", filters=", ipassignmentable_type: NetworkSite, ipassignmentable_id: $site",
                 variables={"site": sid}))
-            items = complete(site["inventory_items"], lambda: self.pages("inventory_items", "id " + assignment + """
+            items = complete(site, 'inventory_items', 'network site', lambda: self.pages("inventory_items", "id " + assignment + """
                 inventory_model_field_data(paginator: {page: 1, records_per_page: 100}) {
                     page_info {total_count} entities {id """ + assignment + """}}""",
                 arguments=", $site: Int64Bit!", filters=", inventoryitemable_type: NetworkSite, inventoryitemable_id: $site",
                 variables={"site": sid}))
             assignments = list(direct)
             for item in items:
-                iid = str(item["id"])
-                assignments += complete(item["ip_assignments"], lambda: self.pages("ip_assignments", "id ip_pool_id",
+                iid = record_id(item)
+                if iid == '(unknown ID)':
+                    raise GeofeedError(f'Sonar network site {sid} has an inventory item with a missing or invalid ID')
+                assignments += complete(item, 'ip_assignments', 'inventory item', lambda: self.pages("ip_assignments", "id ip_pool_id",
                     arguments=", $item: Int64Bit!", filters=", ipassignmentable_type: InventoryItem, ipassignmentable_id: $item",
                     variables={"item": iid}))
-                fields = complete(item["inventory_model_field_data"], lambda: self.pages("inventory_model_field_data", "id " + assignment,
+                fields = complete(item, 'inventory_model_field_data', 'inventory item', lambda: self.pages("inventory_model_field_data", "id " + assignment,
                     arguments=", $item: Int64Bit!", filters=", inventory_item_id: $item", variables={"item": iid}))
                 for field in fields:
-                    assignments += complete(field["ip_assignments"], lambda: self.pages("ip_assignments", "id ip_pool_id",
+                    fid = record_id(field)
+                    if fid == '(unknown ID)':
+                        raise GeofeedError(f'Sonar inventory item {iid} has field data with a missing or invalid ID')
+                    assignments += complete(field, 'ip_assignments', 'inventory field', lambda: self.pages("ip_assignments", "id ip_pool_id",
                         arguments=", $field: Int64Bit!", filters=", ipassignmentable_type: InventoryModelFieldData, ipassignmentable_id: $field",
-                        variables={"field": str(field["id"])}))
+                        variables={"field": fid}))
             for assignment in assignments:
-                if assignment["ip_pool_id"] is not None:
-                    pid = str(assignment["ip_pool_id"])
+                if not isinstance(assignment, dict) or 'ip_pool_id' not in assignment:
+                    raise GeofeedError(f'Sonar IP assignment {record_id(assignment)} has a missing ip_pool_id field')
+                if assignment['ip_pool_id'] is not None:
+                    pid = record_id({'id': assignment['ip_pool_id']})
+                    if pid == '(unknown ID)':
+                        raise GeofeedError(f'Sonar IP assignment {record_id(assignment)} has an invalid ip_pool_id reference')
                     result.setdefault(pid, set()).add(sid)
         return {pid: sorted(sids) for pid, sids in result.items()}

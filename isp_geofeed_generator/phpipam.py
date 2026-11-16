@@ -1,7 +1,7 @@
 """Initial phpIPAM read-only subnet/location adapter."""
 import ipaddress
 import re
-from .client import GeofeedError, JsonHTTP, https_url
+from .client import GeofeedError, JsonHTTP, https_url, record_id
 
 
 class PhpIPAM:
@@ -42,10 +42,14 @@ class PhpIPAM:
         if not isinstance(result, dict) or result.get('success') is not True or result.get('code') != 200 or not isinstance(result.get('data'), list):
             raise GeofeedError('phpIPAM did not return a successful complete collection')
         rows, ids = result['data'], set()
+        kind = {'/subnets/all/': 'subnet', '/tools/locations/': 'location'}.get(path, 'collection record')
         for row in rows:
-            if not isinstance(row, dict) or row.get('id') is None or str(row['id']) in ids:
-                raise GeofeedError('Invalid or duplicate phpIPAM collection record')
-            ids.add(str(row['id']))
+            key = record_id(row)
+            if key == '(unknown ID)':
+                raise GeofeedError(f'phpIPAM {kind} (unknown ID) has a missing or invalid ID')
+            if key in ids:
+                raise GeofeedError(f'phpIPAM {kind} {key} is duplicated')
+            ids.add(key)
         return rows
 
     def snapshot(self):
@@ -60,13 +64,16 @@ class PhpIPAM:
         requested = {str(i) for i in self.settings.get('subnet_ids', [])}
         pools = []
         for row in subnets:
-            value = str(row['subnet'])
-            if value.isdecimal():
-                ipv6 = str(row.get('ip_version', row.get('version', ''))) == '6' or int(row['mask']) > 32
-                address = ipaddress.IPv6Address(int(value)) if ipv6 else ipaddress.ip_address(int(value))
-            else:
-                address = ipaddress.ip_address(value)
-            network = ipaddress.ip_network(f"{address}/{row['mask']}", strict=True)
+            try:
+                value = str(row['subnet'])
+                if value.isdecimal():
+                    ipv6 = str(row.get('ip_version', row.get('version', ''))) == '6' or int(row['mask']) > 32
+                    address = ipaddress.IPv6Address(int(value)) if ipv6 else ipaddress.ip_address(int(value))
+                else:
+                    address = ipaddress.ip_address(value)
+                network = ipaddress.ip_network(f"{address}/{row['mask']}", strict=True)
+            except (KeyError, TypeError, ValueError, AttributeError):
+                raise GeofeedError(f'phpIPAM subnet {record_id(row)} has invalid or missing subnet/mask fields') from None
             native_location = row.get('location') if self.location_mode == 'native' else None
             if isinstance(native_location, dict):
                 sid = native_location.get('id')
@@ -75,7 +82,7 @@ class PhpIPAM:
             else:
                 sid = native_location
             if sid is not None and not re.fullmatch(r'[0-9]{1,20}', str(sid)):
-                raise GeofeedError('phpIPAM subnet location has an invalid ID; raw location details were not logged')
+                raise GeofeedError(f'phpIPAM subnet {record_id(row)} location has an invalid ID; raw location details were not logged')
             sid = str(sid) if sid is not None else None
             pools.append({'id': 'subnet:' + str(row['id']), 'name': row.get('description') or str(network),
                 'ip_range': str(network), 'subnet': {'subnet': str(network)}, 'site_id': sid,

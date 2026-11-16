@@ -1,5 +1,27 @@
 # Verification
 
+## Safe source record diagnostics
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 203 tests: 201 passed and two
+POSIX-only checks skipped. Fourteen new tests cover Sonar DHCP/inline management fields,
+site addresses, IP-assignment owners, nested controller relations and discovery inventory;
+Splynx IPv4/IPv6 fields and ranges; phpIPAM subnet/location fields; malformed/duplicate IDs;
+and full CLI failure workloads for all three sources.
+
+The initial twelve tests reproduced missing context, raw parse exceptions or accepted bad
+IDs against the prior implementation. A further nested-discovery control was run against
+the untouched previous worktree: all four site/item/field/assignment cases failed. The
+updated cases pass without printing injected private values. CLI failures identify the
+record in both stderr and unhealthy status, while existing feed and recovery bytes remain
+unchanged. A positive Splynx IPv6 range workload still builds exactly 13 addresses.
+Installed-wheel checks also exercise malformed records in all three adapters outside the
+checkout, alongside the external-input/output publication and unchanged-write workloads.
+
+These are synthetic fixture and CLI checks. No live Sonar, Splynx or phpIPAM state was
+changed or measured for this work. Initial adapter support labels remain unchanged.
+The [source troubleshooting guide](source-errors.md) separates instance/API-shape problems
+from platform capability and explains recovery without partial publication.
+
 ## CSV interoperability and large-feed transport
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 189 tests: 187 passed and two

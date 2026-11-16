@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Sonar, Splynx and phpIPAM diagnostics identify malformed records by safe native ID, including Sonar's nested inventory/controller paths, without logging field values or API responses.
+- Native collection IDs are bounded numeric values; malformed IDs are refused and reported as unknown. Splynx IPv6 ranges are checked before normalization.
 - Generated CSV uses RFC 8805 CRLF line endings; Python and WordPress accept uniform legacy LF feeds for exact-hash migration and recovery.
 - CLI generation preserves exact UTF-8 bytes on stdout across locale and Windows newline translation settings.
 - Large-feed guidance and safe HTTP 413/503 diagnostics, plus bounded 8 MB WordPress state reads for JSON-escaped current and previous Unicode feeds.

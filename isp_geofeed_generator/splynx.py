@@ -4,7 +4,7 @@ import hmac
 import ipaddress
 import time
 from urllib.parse import urlencode
-from .client import GeofeedError, JsonHTTP, https_url
+from .client import GeofeedError, JsonHTTP, https_url, record_id
 
 
 class Splynx:
@@ -25,23 +25,45 @@ class Splynx:
 
     def pages(self, path):
         result, seen, offset = [], set(), 0
+        kind = {'/admin/networking/network-sites': 'network site', '/admin/networking/ipv4': 'IPv4 network',
+                '/admin/networking/ipv6': 'IPv6 network'}.get(path, 'collection record')
         for _ in range(10000):
             params = urlencode({'limit': 100, 'offset': offset, 'order[id]': 'ASC'})
             rows = self.http.request(self.base + path + '?' + params, headers=self.headers(), method='GET')
             if not isinstance(rows, list):
-                raise GeofeedError('Splynx collection is not an array; no partial result accepted')
+                raise GeofeedError(f'Splynx {kind} collection at offset {offset} is not an array; no partial result accepted')
             if not rows:
                 return result
             for row in rows:
-                if not isinstance(row, dict) or row.get('id') is None:
-                    raise GeofeedError('Invalid Splynx collection record')
-                key = str(row['id'])
+                key = record_id(row)
+                if key == '(unknown ID)':
+                    raise GeofeedError(f'Splynx {kind} (unknown ID) has a missing or invalid ID at offset {offset}')
                 if key in seen:
-                    raise GeofeedError('Duplicate Splynx record; pagination may have been ignored')
+                    raise GeofeedError(f'Splynx {kind} {key} is duplicated; pagination may have been ignored')
                 seen.add(key); result.append(row)
             # Continue even after a short page: server-side limits may be lower.
             offset += len(rows)
         raise GeofeedError('Splynx pagination limit exceeded')
+
+    @staticmethod
+    def network_fields(row, version):
+        label = f'Splynx IPv{version} network {record_id(row)}'
+        try:
+            prefix = row['mask'] if version == 4 else row['prefix']
+            network = ipaddress.ip_network(f"{row['network']}/{prefix}", strict=True)
+            if network.version != version:
+                raise ValueError()
+            ip_range = str(network)
+            if version == 6 and any(row.get(key) not in (None, '') for key in ('range_from', 'range_to')):
+                if not isinstance(row.get('range_from'), str) or not isinstance(row.get('range_to'), str):
+                    raise ValueError()
+                first, last = ipaddress.IPv6Address(row['range_from']), ipaddress.IPv6Address(row['range_to'])
+                if first > last or first not in network or last not in network:
+                    raise ValueError()
+                ip_range = str(first) + '-' + str(last)
+            return network, ip_range
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise GeofeedError(f'{label} has invalid or missing network/mask/prefix or range fields') from None
 
     def snapshot(self):
         sites = self.pages('/admin/networking/network-sites')
@@ -53,16 +75,8 @@ class Splynx:
         location_sites = {str(k): str(v) for k, v in self.settings.get('location_sites', {}).items()}
         for version in (4, 6):
             for row in self.pages(f'/admin/networking/ipv{version}'):
-                prefix = row['mask'] if version == 4 else row['prefix']
-                network = ipaddress.ip_network(f"{row['network']}/{prefix}", strict=True)
-                if network.version != version:
-                    raise GeofeedError('Splynx network address family does not match endpoint')
+                network, ip_range = self.network_fields(row, version)
                 pid = f"ipv{version}:{row['id']}"
-                ip_range = str(network)
-                if version == 6 and (row.get('range_from') or row.get('range_to')):
-                    if not row.get('range_from') or not row.get('range_to'):
-                        raise GeofeedError('Splynx IPv6 range has only one boundary')
-                    ip_range = row['range_from'] + '-' + row['range_to']
                 pools.append({'id': pid, 'name': row.get('title') or pid, 'ip_range': ip_range,
                     'subnet': {'subnet': str(network)}, 'site_id': location_sites.get(str(row.get('location_id'))),
                     'administrative_location_id': str(row.get('location_id')),

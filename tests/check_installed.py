@@ -15,6 +15,30 @@ sources,targets=load_extensions({'sources':['local_json'],'targets':['local_file
 assert sources['local_json'].initial and targets['local_file'].initial
 assert SOURCES['powercode'].initial and SOURCES['gaiia'].initial
 print('PASS: installed core and separate input/output extension wheels')
+from isp_geofeed_generator.client import Sonar,GeofeedError
+from isp_geofeed_generator.splynx import Splynx
+from isp_geofeed_generator.phpipam import PhpIPAM
+class Replies:
+    def __init__(self,rows):self.rows=iter(rows)
+    def request(self,*args,**kwargs):return next(self.rows)
+class ControllerSource(Sonar):
+    def pages(self,root,*args,**kwargs):
+        if root=='dhcp_servers':
+            return [{'id':'3','enabled':True,'serves_all_pools':False,'ip_address':'private-record-value',
+                     'ip_pools':{'page_info':{'total_count':1},'entities':[{'id':'101'}]}}]
+        return []
+sonar=ControllerSource('https://example.net','synthetic-token')
+splynx=Splynx('https://example.net','key','secret',http=Replies([[],[{'id':'42','network':'private-record-value','mask':24}],[]]))
+ipam=PhpIPAM('https://example.net','app','synthetic-token',http=Replies([
+    {'success':True,'code':200,'data':[{'id':'12','subnet':'private-record-value','mask':24}]},
+    {'success':True,'code':200,'data':[]}]))
+for call,label in [(lambda:sonar.controller_candidates({'pools':[{'id':'101','subnet_id':'5'}],'sites':[]}), 'Sonar DHCP server 3'),
+                   (splynx.snapshot,'Splynx IPv4 network 42'),(ipam.snapshot,'phpIPAM subnet 12')]:
+    try:call()
+    except GeofeedError as exc:
+        assert label in str(exc) and 'private-record-value' not in str(exc)
+    else:raise AssertionError('Malformed installed source was accepted')
+print('PASS: installed Sonar/Splynx/phpIPAM errors name safe record IDs without field values')
 import json,time,yaml
 from isp_geofeed_generator.cli import main
 root=Path.cwd()
