@@ -2,8 +2,8 @@
 
 ## Location-change guard
 
-Observed on 2026-11-15 (America/Chicago). Windows ran 162 tests: 161 passed and one POSIX-only
-skip, before incorporating the final preflight-diagnostic test from the base branch.
+Observed on 2026-11-15 (America/Chicago). Windows ran 163 tests: 162 passed and one POSIX-only
+skip, including the final preflight-diagnostic test from the base branch.
 Fourteen new tests cover country/region/city changes, exact retained coverage by family,
 equivalent splits/merges, unsorted rows, row-count distortion, simultaneous withdrawal,
 rich coordinates/profile changes and stable Unicode/numeric representations.
