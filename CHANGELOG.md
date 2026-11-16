@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Private bounded longest-prefix interval analysis for future nested-prefix support, with exact IPv6 counts and independent-oracle controls. Publishing continues to reject overlaps.
+
 - Independent-review follow-up tests the plugin HTTPS guard after real core HTTP authentication, with a removed-guard negative control.
 
 - Real WordPress near-limit Unicode publication tests measure JSON/SQL growth and verify unchanged history, small-client refusal and oversized CSV rejection.

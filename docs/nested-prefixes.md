@@ -1,8 +1,37 @@
 # Coordinated nested-prefix support
 
-Status: proposed design for issue #16. Runtime support is not implemented. Current
+Status: proposed design for issue #16, with an internal calculation model. Publication
+support is not implemented. Current
 generation, parsing, merging, rich JSON and WordPress continue to reject overlaps.
 Do not remove an individual overlap check to enable this feature.
+
+## Calculation groundwork
+
+The private `_effective` module implements the interval calculation below. No CLI,
+source adapter, SDK target, guard or publisher calls it yet. There is no nesting setting
+to enable. It is not a public extension API or an alternate publication validator.
+
+The model validates canonical raw prefixes and complete locations for an explicit
+profile, refuses exact duplicates and uses the longest prefix's whole location. It
+keeps the winning raw record's ordinal as private provenance. Coarse fields are the
+default; a rich profile must be requested explicitly. Extra fields are refused rather
+than silently dropped. Locations use the existing validation and NFC normalization.
+
+A sorted boundary sweep takes O(N log N) work and O(N) memory. At most 50,000 raw
+records produce 100,000 boundary events and at most that many intervals. The model
+never enumerates addresses or turns intervals into serialized CIDRs. Endpoints and
+counts are exact integers, including the exclusive IPv6 endpoint 2^128. A count-export
+helper emits decimal strings for JSON consumers.
+
+This calculation does not establish ownership, allocation or public-address eligibility.
+Those checks remain mandatory on every raw prefix before any future publication path
+can use it. The active no-bogon and overlap protections remain unchanged. Generic IP
+boundary tests are analysis cases, not addresses permitted in a feed.
+
+Tests cover the six design vectors, a separate bounded address-by-address oracle,
+full IPv6 nesting depth, exact one-address threshold excess, mixed families, all 50,000
+records and the first excess record. A broadest-prefix mutation must break the design
+vectors. Actual publication parsing still refuses the nested examples.
 
 ## Operator policy
 
@@ -71,10 +100,10 @@ validated output locations. These are test examples, not real allocation claims.
 | One /24 A | Two /25s A | 0 | 256 | 0 |
 
 Machine-readable IPv4 acceptance vectors are in `tests/fixtures/nested-prefix-design.json`.
-Their expected metrics were checked with a bounded reference calculation. They are a
-design oracle, not a statement that the current parser accepts the rows. IPv6 acceptance
-must also include exact one-address threshold excesses, both /128 and broad parents,
-and mixed-family cases. Current strict tests must keep refusing overlaps.
+Their expected metrics are checked against the private model and a bounded reference
+calculation. They are a design oracle, not a statement that the current parser accepts
+the rows. IPv6 calculation tests include exact one-address threshold excesses, /128 and
+broad parents, and mixed-family cases. Current strict tests keep refusing overlaps.
 
 ## Technical appendix: implementation contract
 
@@ -137,8 +166,9 @@ Issue #16 stays open until the coordinated implementation and all gates below ar
 This design does not claim that feature is shipped.
 
 - Keep default overlap rejection and same-CIDR duplicate refusal in core and plugin.
-- Implement one effective-interval model and the acceptance vectors above, with exact
-  IPv6 boundaries and no double-counted coverage.
+- Integrate the private effective-interval model into all policy-aware paths, with
+  exact IPv6 boundaries and no double-counted coverage. Calculation tests alone do not
+  establish that publication, withdrawal or relocation uses it.
 - Add explicit target/SDK capabilities and old-client/old-plugin failure controls.
 - Carry policy through WordPress CAS/history, public/stored read-back and checked recovery.
 - Bind local policy state to file hashes, lock it and test interrupted state updates.

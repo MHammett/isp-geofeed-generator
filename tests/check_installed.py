@@ -22,6 +22,18 @@ assert tuple(map(len,code_tables()))==(249,5046)
 for name in ('LICENSE.txt','COPYRIGHT.txt','sources.json'):
     assert (Path(isp_geofeed_generator.__file__).parent/'iso_data'/name).is_file()
 print('PASS: installed ISO data, integrity checks and third-party notices')
+from isp_geofeed_generator._effective import compare_effective
+from isp_geofeed_generator.feed import parse_feed
+from isp_geofeed_generator.client import GeofeedError
+parent={'prefix':'11.22.33.0/24','location':{'country':'US','region':'US-IL','city':'A'}}
+child={'prefix':'11.22.33.0/25','location':{'country':'US','region':'US-IL','city':'B'}}
+change=compare_effective([parent],[child,parent])[4]
+assert (change.old,change.new,change.retained,change.removed,change.relocated)==(256,256,256,0,128)
+assert change.decimal_counts()['relocated']=='128'
+try:parse_feed(b'11.22.33.0/24,US,US-IL,A,\\r\\n11.22.33.0/25,US,US-IL,B,\\r\\n')
+except GeofeedError:pass
+else:raise AssertionError('Internal analysis enabled nested publication')
+print('PASS: installed effective interval analysis with strict publication refusal')
 from isp_geofeed_generator.client import Sonar,GeofeedError
 from isp_geofeed_generator.splynx import Splynx
 from isp_geofeed_generator.phpipam import PhpIPAM
