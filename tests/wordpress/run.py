@@ -222,18 +222,11 @@ class Workload:
             except OSError:
                 check(self.server.poll() is None and time.monotonic()<deadline,'PHP backend became ready')
                 time.sleep(.1)
-        deadline = time.monotonic()+30
-        while True:
-            try:
-                ready = self.request('GET',STATE,account='publisher')
-                check(ready[0] == 200, 'authenticated WordPress readiness')
-                headers={k.lower():v for k,v in ready[1].items()}
-                check(headers.get('x-geofeed-test-sapi')=='cli-server' and headers.get('x-geofeed-test-opcache')=='0',
-                      'HTTP PHP worker has opcode caching disabled for mutation controls')
-                break
-            except (OSError, AssertionError):
-                if self.server.poll() is not None or time.monotonic()>deadline: raise
-                time.sleep(.2)
+        ready = self.request('GET',STATE,account='publisher')
+        check(ready[0] == 200, 'authenticated WordPress readiness; no authentication retry')
+        headers={k.lower():v for k,v in ready[1].items()}
+        check(headers.get('x-geofeed-test-sapi')=='cli-server' and headers.get('x-geofeed-test-opcache')=='0',
+              'HTTP PHP worker has opcode caching disabled for mutation controls')
 
     def auth(self, account):
         return {'Authorization':'Basic '+base64.b64encode((account+':'+self.accounts[account]).encode()).decode()}
@@ -257,10 +250,10 @@ class Workload:
         snapshot=self.fixture('snapshot')
         return snapshot, json.loads(snapshot['raw']) if snapshot['raw'] is not None else {'csv':'','previous_csv':''}
 
-    def reset(self, csv=None):
+    def reset(self, csv=None, previous=b''):
         self.proxy.arm(None)
         (self.control/'mode').write_text('')
-        self.fixture('reset',None if csv is None else {'csv':csv.decode()})
+        self.fixture('reset',None if csv is None else {'csv':csv.decode(),'previous_csv':previous.decode()})
         (self.control/'writes.log').write_text('')
         for name in self.control.glob('arrived-*'): name.unlink()
 
@@ -288,7 +281,10 @@ class Workload:
             check(self.original.count(find)==1,'mutation targets one SQL guard')
             try:
                 self.plugin.write_text(self.original.replace(find,replace))
-                self.reset(None if mode=='first' else A)
+                # Keep the prior-history field identical for the case-only mutant.
+                # Otherwise a history change alone would reject the second write.
+                self.reset(None if mode=='first' else A,b'' if mode=='first' else A)
+                if mode=='update':check(self.snapshot()[0]['collation'].endswith('_ci'),'case-insensitive database precondition')
                 responses,doc=self.race(mode,candidates)
                 statuses=sorted(r[0] for r in responses)
                 verbs=[line.split()[0] for line in (self.control/'writes.log').read_text().splitlines()]
@@ -302,7 +298,7 @@ class Workload:
                 check(not self.race_valid(responses,doc,candidates,b'' if mode=='first' else A),'unsafe mutation must fail race check')
                 print('PASS: real WordPress '+mode+' race detects unsafe SQL mutation',flush=True)
             finally: self.plugin.write_text(self.original)
-            self.reset(None if mode=='first' else A)
+            self.reset(None if mode=='first' else A,b'' if mode=='first' else A)
             if mode=='update':check(self.snapshot()[0]['collation'].endswith('_ci'),'case-insensitive database precondition')
             responses,doc=self.race(mode,candidates)
             check(self.race_valid(responses,doc,candidates,b'' if mode=='first' else A),'guarded '+mode+' race preserves winner and prior bytes')

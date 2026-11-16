@@ -32,7 +32,8 @@ if ($geofeed_test_action === 'install') {
 } elseif ($geofeed_test_action === 'reset') {
     delete_option('isp_geofeed_generator_document');
     if (isset($geofeed_test_input['csv'])) {
-        add_option('isp_geofeed_generator_document', wp_json_encode(['csv' => $geofeed_test_input['csv'], 'previous_csv' => '']), '', false);
+        add_option('isp_geofeed_generator_document', wp_json_encode(['csv' => $geofeed_test_input['csv'],
+            'previous_csv' => $geofeed_test_input['previous_csv'] ?? '']), '', false);
     }
     echo '{}';
 } else { throw new RuntimeException('Unknown fixture action'); }

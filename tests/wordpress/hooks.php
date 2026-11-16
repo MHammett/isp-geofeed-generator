@@ -3,7 +3,7 @@
 add_filter('pre_wp_mail', function () { return true; });
 add_action('rest_api_init', function () {
     header('X-Geofeed-Test-SAPI: '.PHP_SAPI);
-    header('X-Geofeed-Test-OPcache: '.ini_get('opcache.enable'));
+    header('X-Geofeed-Test-OPcache: '.(ini_get('opcache.enable') ? '1' : '0'));
 });
 add_filter('query', function ($sql) {
     $dir = getenv('GEOFEED_WP_CONTROL');
