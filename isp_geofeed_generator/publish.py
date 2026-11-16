@@ -47,7 +47,7 @@ class WordPress:
         except GeofeedError as exc:
             match = re.match(r'HTTP (401|403)\b', str(exc))
             if match:
-                raise GeofeedError(f'WordPress state access refused (HTTP {match[1]}). Check application password, publisher permissions and Authorization header forwarding. Behind a trusted TLS proxy, WordPress must recognize the request as HTTPS; no write was attempted') from None
+                raise GeofeedError(f'WordPress state access refused (HTTP {match[1]}). Check application password, publisher permissions and Authorization header forwarding. Behind a trusted TLS proxy, WordPress must recognize the request as HTTPS') from None
             raise
         try:
             csv = result["csv"].encode("utf-8")
@@ -85,7 +85,10 @@ class WordPress:
 
 
 def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10):
-    old = publisher.state()
+    try:
+        old = publisher.state()
+    except GeofeedError as exc:
+        raise GeofeedError(f'WordPress preflight failed before any write: {exc}') from None
     change_guard(old, csv, max_removed_fraction)
     state_dir = Path(state_dir)
     atomic_write(state_dir / "before.csv", old)

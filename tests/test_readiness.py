@@ -54,6 +54,14 @@ class ReadinessTests(unittest.TestCase):
             self.assertEqual(store.get('SONAR_API_TOKEN'),'synthetic-token')
             self.assertEqual(reader.call_args.kwargs,{'systemd':True})
 
+    def test_state_diagnostic_can_also_be_used_during_recovery(self):
+        class Denied:
+            def request(self,*args,**kwargs):raise GeofeedError('HTTP 403; private body')
+        wp=WordPress('https://site.example.net','user','fake-password',http=Denied())
+        with self.assertRaisesRegex(GeofeedError,'HTTPS') as caught:wp.state()
+        self.assertNotIn('no write',str(caught.exception))
+        self.assertNotIn('private',str(caught.exception))
+
     def test_only_exact_readonly_service_acl_is_accepted(self):
         from isp_geofeed_generator.credentials import systemd_read_acl
         with patch('os.getxattr',return_value=acl(),create=True):self.assertTrue(systemd_read_acl(42,1001))
