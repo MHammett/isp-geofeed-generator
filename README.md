@@ -125,6 +125,9 @@ If recovery cannot be verified, the result says so and exits with failure.
 
 For a file target, set `publish.type: file` and `publish.path`.
 Local write/read-back does not prove public HTTPS access; check the web-server path separately.
+Unchanged runs verify the existing feed without replacing it or its recovery backup.
+WordPress checks both authenticated state and public delivery before deciding to skip a write.
+See [publication checks and recovery](docs/publication-verification.md), including local locking limits.
 [The optional systemd runbook](docs/systemd.md) uses a dedicated account and restricted state directory.
 Enable a schedule only after the actual workload succeeds.
 

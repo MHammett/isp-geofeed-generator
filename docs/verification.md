@@ -1,5 +1,27 @@
 # Verification
 
+## Unchanged publication and destination checks
+
+Observed on 2026-11-15 (America/Chicago). Windows ran 178 tests: 176 passed and two
+POSIX-only checks skipped. Fourteen new tests cover unchanged CSV/JSON/WordPress,
+recovery-history preservation, public/stored state disagreement, state changes during
+verification, local changes before and after replacement, bounded reads, symlink refusal
+and destination locking across both state directories and separate processes.
+
+Five new controls first failed against the prior implementation: unchanged publications
+overwrote recovery backups, changed WordPress publication did not compare public delivery
+with stored state first, and an unchanged run accepted a concurrent stored-state change.
+They pass after the changes. Injected concurrent file edits remain intact and cause a failed
+result; lock contention blocks the other process rather than reporting healthy publication.
+Installed core and external example wheels also passed a workload outside the checkout.
+The external output refused a location move, accepted its exact approved candidate, then
+verified an unchanged run with identical feed and backup modification times and backup bytes.
+
+These are synthetic workloads. Live WordPress/CDN delivery and a production file publisher
+remain unmeasured. Local locks coordinate cooperating publishers; they cannot stop arbitrary
+editors that ignore them. See [publication verification](publication-verification.md) for
+result fields, limits and recovery.
+
 ## Location-change guard
 
 Observed on 2026-11-15 (America/Chicago). Windows ran 164 tests: 163 passed and one POSIX-only

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Unchanged publications preserve feed files and recovery history; WordPress checks stored and public state before writing, and local outputs share a destination lock across state directories.
+- Bounded regular-file reads, pre-replacement conflict detection and checked post-write state avoid blind recovery over another writer's changes.
+
 - Separate location-change limits by retained IPv4/IPv6 address coverage, including rich fields, with exact candidate-hash approval for reviewed moves.
 - Exact integer threshold comparisons prevent a one-address IPv6 relocation or withdrawal from rounding below its limit.
 

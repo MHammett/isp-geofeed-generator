@@ -5,7 +5,6 @@ from pathlib import Path
 from .client import GeofeedError
 from .feed import public, coverage_guard
 from .locations import validate_location
-from .publish import atomic_write
 
 
 def parse_records(data):
@@ -43,21 +42,14 @@ def encode_records(records):
 
 def publish_records_file(path, records, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
     from .relocation import relocation_guard
+    from .local_output import publish_local
     value = encode_records(records)
-    _, after = parse_records(value)
-    target = Path(path)
-    old = target.read_bytes() if target.exists() else b''
-    if old:
-        old_records, before = parse_records(old)
-    else:
-        old_records, before = [], []
-    coverage_guard(before, after, max_removed_fraction)
-    relocation_guard(old_records, records, max_relocated_fraction)
-    atomic_write(Path(state_dir)/'before-records.json', old)
-    if old != value:
-        atomic_write(target, value, 0o644)
-    if target.read_bytes() != value:
-        atomic_write(target, old, 0o644)
-        raise GeofeedError('Record-file read-back failed; restored previous bytes')
+    def validate(old, candidate):
+        after_records, after = parse_records(candidate)
+        old_records, before = parse_records(old) if old else ([], [])
+        coverage_guard(before, after, max_removed_fraction)
+        relocation_guard(old_records, after_records, max_relocated_fraction)
+    changed = publish_local(path, value, state_dir, 'before-records.json', validate, 8_000_000)
     from .feed import digest
-    return {'changed': old != value, 'sha256': digest(value), 'path': str(target), 'format': 'location-records-v1'}
+    return {'changed': changed, 'sha256': digest(value), 'path': str(Path(path)), 'format': 'location-records-v1',
+            'verification': 'local-bytes', 'recovery_backup_changed': changed}

@@ -57,6 +57,10 @@ Test through your actual public domain, not just an origin or staging hostname.
 
 The runner reads authenticated state before a write. Each write includes the hash of the state it saw.
 Withdrawal and location-change limits are checked against that state before any write.
+The public feed must match that state before a changed publication starts. A mismatch
+stops before PUT, DELETE or replacement of the local recovery backup. Investigate cache,
+routing and other publishers. An unchanged candidate is checked through the public route
+and a second authenticated state read; it makes no PUT or DELETE and preserves recovery files.
 An intended large move needs [exact-candidate approval](location-changes.md); that approval
 does not disable the conditional write or public recovery checks.
 The plugin makes a conditional database update. A stale hash or concurrent write returns HTTP 409.
@@ -67,8 +71,10 @@ and review which feed won. The plugin does not retry writes automatically.
 The current and previous CSV are stored together in one non-autoloaded WordPress option.
 
 A public read-back failure triggers a conditional restore of the old CSV.
-The restore is checked through the public URL too. If recovery fails, exit code 1 and the status file say so.
+After publication and any restore, both the public feed and authenticated state are checked.
+If recovery fails, exit code 1 and the status file say so.
 Stop the schedule before manual recovery. Keep the local `before.csv` and the plugin's authenticated state.
+See [publication verification](publication-verification.md) for unchanged runs and recovery limits.
 
 ## Manual rollback
 

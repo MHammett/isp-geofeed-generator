@@ -49,6 +49,11 @@ SDK publishers, or enforce both against actual prior state before using a custom
 See [location changes](location-changes.md) for the normalized-record helper and approval rules.
 File read-back proves local bytes only. A web server or object-store adapter must also
 verify the actual public URL. An upload acknowledgement alone is insufficient.
+An unchanged candidate still needs verification of the current destination. Skip the write
+and preserve recovery history when that check succeeds. Return `changed: false`; built-in
+publishers also return `verification` and `recovery_backup_changed`. Do not claim public
+delivery from a local-file check. See [publication verification](publication-verification.md)
+for the built-in checks, cooperating-writer locks and recovery limits.
 
 ## Tests for an adapter
 

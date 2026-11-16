@@ -12,7 +12,7 @@ from .client import GeofeedError, JsonHTTP, https_url
 from .feed import change_guard, digest, parse_feed
 
 
-def atomic_write(path, data, mode=0o600):
+def atomic_write(path, data, mode=0o600, *, before_replace=None):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
@@ -22,6 +22,8 @@ def atomic_write(path, data, mode=0o600):
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
+        if before_replace is not None:
+            before_replace()
         os.replace(name, path)
     finally:
         if os.path.exists(name):
@@ -91,15 +93,20 @@ def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, m
         raise GeofeedError(f'WordPress preflight failed before any write: {exc}') from None
     change_guard(old, csv, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)
     state_dir = Path(state_dir)
-    atomic_write(state_dir / "before.csv", old)
+    if publisher.read_public() != old:
+        raise GeofeedError('WordPress stored state and public feed differ; no write attempted; investigate cache, routing or another publisher')
     if old == csv:
-        if publisher.read_public() != csv:
-            raise GeofeedError("Stored feed matches but public feed differs; investigate WordPress/cache")
-        return {"changed": False, "sha256": digest(csv), "url": publisher.public_url}
+        if publisher.state() != old:
+            raise GeofeedError('WordPress state changed during unchanged-content verification; no write attempted')
+        return {"changed": False, "sha256": digest(csv), "url": publisher.public_url,
+                'verification': 'authenticated-and-public', 'recovery_backup_changed': False}
+    atomic_write(state_dir / "before.csv", old)
     try:
         publisher.replace(csv, old)
         if publisher.read_public() != csv:
             raise GeofeedError("Public read-back differs from generated feed")
+        if publisher.state() != csv:
+            raise GeofeedError('WordPress authenticated state changed after public read-back')
     except GeofeedError as exc:
         # A lost PUT response may still have committed. Inspect, never blindly retry.
         try:
@@ -108,23 +115,24 @@ def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, m
                 publisher.replace(old, csv)
                 if publisher.read_public() != old:
                     raise GeofeedError("Rollback read-back failed")
+                if publisher.state() != old:
+                    raise GeofeedError('Rollback authenticated state differs')
             elif observed != old:
                 raise GeofeedError("Feed changed concurrently; refusing to overwrite it")
+            elif publisher.read_public() != old:
+                raise GeofeedError('Previous stored feed remains but its public delivery could not be verified')
         except GeofeedError as rollback_error:
             raise GeofeedError(f"Publish failed: {exc}. Recovery needs attention: {rollback_error}") from None
         raise GeofeedError(f"Publish failed: {exc}. Previous feed retained/restored") from None
     atomic_write(state_dir / "last-good.csv", csv)
-    return {"changed": True, "sha256": digest(csv), "url": publisher.public_url}
+    return {"changed": True, "sha256": digest(csv), "url": publisher.public_url,
+            'verification': 'authenticated-and-public', 'recovery_backup_changed': True}
 
 
 def publish_file(path, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
-    target = Path(path)
-    old = target.read_bytes() if target.exists() else b""
-    change_guard(old, csv, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)
-    atomic_write(Path(state_dir) / "before.csv", old)
-    if old != csv:
-        atomic_write(target, csv, 0o644)
-    if target.read_bytes() != csv:
-        atomic_write(target, old, 0o644)
-        raise GeofeedError("Local read-back failed; restored previous bytes")
-    return {"changed": old != csv, "sha256": digest(csv), "path": str(target)}
+    from .local_output import publish_local
+    def validate(old, new):
+        change_guard(old, new, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)
+    changed = publish_local(path, csv, state_dir, 'before.csv', validate, 1_000_000)
+    return {"changed": changed, "sha256": digest(csv), "path": str(Path(path)),
+            'verification': 'local-bytes', 'recovery_backup_changed': changed}

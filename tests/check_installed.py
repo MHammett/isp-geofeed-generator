@@ -51,6 +51,15 @@ assert main(['generate','--config',str(path),'--output',str(candidate)])==0
 assert main(['publish','--config',str(path),'--approve-location-changes',digest(candidate.read_bytes())])==0
 assert (root/'feed.csv').read_bytes()==candidate.read_bytes()
 print('PASS: installed external target enforces location guard and exact candidate approval')
+feed=root/'feed.csv';backup=root/'state/before.csv'
+stamp=feed.stat().st_mtime_ns;backup_stamp=backup.stat().st_mtime_ns;backup_bytes=backup.read_bytes()
+assert main(['publish','--config',str(path)])==0
+assert feed.stat().st_mtime_ns==stamp
+assert backup.stat().st_mtime_ns==backup_stamp and backup.read_bytes()==backup_bytes
+result=json.loads((root/'state/status.json').read_text())['data']
+assert result['changed'] is False and result['verification']=='local-bytes'
+assert result['recovery_backup_changed'] is False
+print('PASS: installed external target verifies unchanged output without rewriting feed or recovery backup')
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)
