@@ -211,7 +211,7 @@ class Workload:
         self.secrets.extend(self.accounts.values())
         print('VERSIONS: '+json.dumps(installed),flush=True)
         self.proxy.publisher_headers = self.auth('publisher')
-        self.server = subprocess.Popen(['php','-d','opcache.enable_cli=0','-S',f'127.0.0.1:{self.backend}',
+        self.server = subprocess.Popen(['php','-d','opcache.enable=0','-d','opcache.enable_cli=0','-S',f'127.0.0.1:{self.backend}',
             '-t',str(self.webroot),str(self.webroot/'test-router.php')],env=self.environment,
             stdout=self.log,stderr=self.log,start_new_session=True)
         self.thread = threading.Thread(target=self.proxy.serve_forever,daemon=True); self.thread.start()
@@ -225,7 +225,11 @@ class Workload:
         deadline = time.monotonic()+30
         while True:
             try:
-                check(self.request('GET',STATE,account='publisher')[0] == 200, 'authenticated WordPress readiness')
+                ready = self.request('GET',STATE,account='publisher')
+                check(ready[0] == 200, 'authenticated WordPress readiness')
+                headers={k.lower():v for k,v in ready[1].items()}
+                check(headers.get('x-geofeed-test-sapi')=='cli-server' and headers.get('x-geofeed-test-opcache')=='0',
+                      'HTTP PHP worker has opcode caching disabled for mutation controls')
                 break
             except (OSError, AssertionError):
                 if self.server.poll() is not None or time.monotonic()>deadline: raise
@@ -287,10 +291,13 @@ class Workload:
                 self.reset(None if mode=='first' else A)
                 responses,doc=self.race(mode,candidates)
                 statuses=sorted(r[0] for r in responses)
+                verbs=[line.split()[0] for line in (self.control/'writes.log').read_text().splitlines()]
                 print('RACE OBSERVATION: '+json.dumps({'mode':mode,'unsafe':True,'statuses':[r[0] for r in responses],
                     'candidate_hashes':[digest(c) for c in candidates],'stored_hash':digest(doc['csv'].encode()),
                     'previous_hash':digest(doc['previous_csv'].encode()),'sql_verbs':(self.control/'writes.log').read_text().splitlines(),
                     'barrier_workers':len(list(self.control.glob('arrived-*')))}),flush=True)
+                check(verbs==(['REPLACE','REPLACE'] if mode=='first' else ['UPDATE','UPDATE']),
+                      'workers executed the intended mutated SQL rather than cached code')
                 check(statuses==([200,409] if mode=='first' else [200,200]),'negative control reached real competing database writes')
                 check(not self.race_valid(responses,doc,candidates,b'' if mode=='first' else A),'unsafe mutation must fail race check')
                 print('PASS: real WordPress '+mode+' race detects unsafe SQL mutation',flush=True)

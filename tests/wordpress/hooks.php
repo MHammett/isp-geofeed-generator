@@ -1,6 +1,10 @@
 <?php
 // Test-only MU plugin: no route, role or authentication bypass is registered.
 add_filter('pre_wp_mail', function () { return true; });
+add_action('rest_api_init', function () {
+    header('X-Geofeed-Test-SAPI: '.PHP_SAPI);
+    header('X-Geofeed-Test-OPcache: '.ini_get('opcache.enable'));
+});
 add_filter('query', function ($sql) {
     $dir = getenv('GEOFEED_WP_CONTROL');
     if (!$dir || !str_contains($sql, 'isp_geofeed_generator_document') ||
