@@ -103,7 +103,10 @@ def effective_intervals(records, *, fields=COARSE_FIELDS):
 
 
 def compare_effective(before, after, *, fields=COARSE_FIELDS):
-    """Exact per-family union, withdrawal and retained-location change counts."""
+    """Exact per-family union, withdrawal and retained-location change counts.
+
+    Added coverage is ``new - retained``; it is not a relocation baseline.
+    """
     left, right = effective_intervals(before, fields=fields), effective_intervals(after, fields=fields)
     result = {}
     for version in (4, 6):
