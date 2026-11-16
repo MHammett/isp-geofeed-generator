@@ -186,12 +186,27 @@ def parse_feed(data):
         raise GeofeedError("Invalid or unsafe geofeed CSV") from None
 
 
-def change_guard(old, new, max_removed_fraction=0.10):
+def csv_records(data):
+    """Read validated CSV locations without losing their prefix associations."""
+    rows = []
+    for row in csv.reader(io.StringIO(data.decode('utf-8'))):
+        country, region, city, _ = location({'id': 'comparison', 'addresses': [
+            {'country': row[1], 'subdivision': row[2], 'city': row[3]}]})
+        rows.append({'prefix': row[0], 'location': {'country': country, 'region': region, 'city': city}})
+    return rows
+
+
+def change_guard(old, new, max_removed_fraction=0.10, *, max_relocated_fraction=0.10):
+    from .relocation import relocation_guard
     new_nets = parse_feed(new)
+    # Validate the location policy even for a first publication with no baseline.
+    new_records = csv_records(new)
     if not old:
+        relocation_guard([], new_records, max_relocated_fraction)
         return
     old_nets = parse_feed(old)
     coverage_guard(old_nets, new_nets, max_removed_fraction)
+    relocation_guard(csv_records(old), new_records, max_relocated_fraction)
 
 
 def coverage_guard(old_nets, new_nets, max_removed_fraction=0.10):

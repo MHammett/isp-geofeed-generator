@@ -1,5 +1,31 @@
 # Verification
 
+## Location-change guard
+
+Observed on 2026-11-15 (America/Chicago). Windows ran 162 tests: 161 passed and one POSIX-only
+skip, before incorporating the final preflight-diagnostic test from the base branch.
+Fourteen new tests cover country/region/city changes, exact retained coverage by family,
+equivalent splits/merges, unsorted rows, row-count distortion, simultaneous withdrawal,
+rich coordinates/profile changes and stable Unicode/numeric representations.
+
+The new file and WordPress move tests failed against the previous publishers because a
+large location change was accepted. They now refuse the move before writing or replacing
+recovery bytes. An IPv6 test proves that one address above a 50% threshold does not round
+away. A CLI workload checks a blocked move, wrong hash, reviewed exact-hash approval,
+status recording and refusal of bogons/large withdrawals despite that approval.
+
+Actual core and external example wheels built and installed in isolation. Outside the
+checkout, the installed external target refused a location move, preserved prior bytes,
+then accepted the exact reviewed candidate hash. Existing transport/rollback tests now
+explicitly permit their intentional test move so they continue exercising write/recovery
+behavior rather than stopping at this new earlier guard. No live publication was attempted.
+
+The normal threshold is 10% of retained address coverage per family. It compares all
+published location fields, not physical distance. New space and first publication lack a
+previous location baseline. Custom targets must enforce the output contract; enabled
+extensions remain trusted code. See [location changes](location-changes.md) for review,
+one-off candidate approval and recovery without disabling other guards.
+
 ## Credential and proxy deployment readiness
 
 Observed on 2026-11-15. Windows ran 148 tests: 147 passed and one POSIX-only skip.

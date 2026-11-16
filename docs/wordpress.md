@@ -56,6 +56,9 @@ Test through your actual public domain, not just an origin or staging hostname.
 ## Updates and failures
 
 The runner reads authenticated state before a write. Each write includes the hash of the state it saw.
+Withdrawal and location-change limits are checked against that state before any write.
+An intended large move needs [exact-candidate approval](location-changes.md); that approval
+does not disable the conditional write or public recovery checks.
 The plugin makes a conditional database update. A stale hash or concurrent write returns HTTP 409.
 The first publication uses an insert that cannot overwrite an existing option, even if a
 second writer creates it after the absent-state read. Database write failures return HTTP 503;

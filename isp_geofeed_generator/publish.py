@@ -84,9 +84,9 @@ class WordPress:
             raise GeofeedError("Cannot read the unauthenticated public feed") from None
 
 
-def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10):
+def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
     old = publisher.state()
-    change_guard(old, csv, max_removed_fraction)
+    change_guard(old, csv, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)
     state_dir = Path(state_dir)
     atomic_write(state_dir / "before.csv", old)
     if old == csv:
@@ -114,10 +114,10 @@ def publish_wordpress(publisher, csv, state_dir, *, max_removed_fraction=0.10):
     return {"changed": True, "sha256": digest(csv), "url": publisher.public_url}
 
 
-def publish_file(path, csv, state_dir, *, max_removed_fraction=0.10):
+def publish_file(path, csv, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
     target = Path(path)
     old = target.read_bytes() if target.exists() else b""
-    change_guard(old, csv, max_removed_fraction)
+    change_guard(old, csv, max_removed_fraction, max_relocated_fraction=max_relocated_fraction)
     atomic_write(Path(state_dir) / "before.csv", old)
     if old != csv:
         atomic_write(target, csv, 0o644)

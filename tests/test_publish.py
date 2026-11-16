@@ -35,38 +35,38 @@ class PublishTests(unittest.TestCase):
     def tearDown(self): self.tmp.cleanup()
     def test_publish_and_noop_both_verify_public_read(self):
         wp = FakeWP()
-        self.assertTrue(publish_wordpress(wp, NEW, self.path)['changed'])
-        self.assertFalse(publish_wordpress(wp, NEW, self.path)['changed'])
+        self.assertTrue(publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)['changed'])
+        self.assertFalse(publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)['changed'])
         self.assertEqual(len(wp.writes), 1)
         self.assertEqual((self.path / 'last-good.csv').read_bytes(), NEW)
 
     def test_failed_public_readback_rolls_back(self):
         wp = FakeWP(fail=True)
-        with self.assertRaisesRegex(GeofeedError, 'restored'): publish_wordpress(wp, NEW, self.path)
+        with self.assertRaisesRegex(GeofeedError, 'restored'): publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)
         self.assertEqual(wp.csv, OLD)
         self.assertEqual(len(wp.writes), 2)
         self.assertFalse((self.path / 'last-good.csv').exists())
 
     def test_first_publication_can_be_rolled_back_to_absent(self):
         wp = FakeWP(csv=b'', fail=True)
-        with self.assertRaisesRegex(GeofeedError, 'restored'): publish_wordpress(wp, NEW, self.path)
+        with self.assertRaisesRegex(GeofeedError, 'restored'): publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)
         self.assertEqual(wp.csv, b'')
 
     def test_lost_put_response_is_inspected_then_rolled_back(self):
         wp = FakeWP(lost_response=True)
-        with self.assertRaisesRegex(GeofeedError, 'restored'): publish_wordpress(wp, NEW, self.path)
+        with self.assertRaisesRegex(GeofeedError, 'restored'): publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)
         self.assertEqual(wp.csv, OLD)
         self.assertEqual(wp.writes, [(NEW, OLD), (OLD, NEW)])
 
     def test_concurrent_writer_is_not_overwritten(self):
         wp = FakeWP(concurrent=True)
-        with self.assertRaisesRegex(GeofeedError, 'concurrently'): publish_wordpress(wp, NEW, self.path)
+        with self.assertRaisesRegex(GeofeedError, 'concurrently'): publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)
         self.assertEqual(len(wp.writes), 1)
         self.assertIn(b'Concurrent', wp.csv)
 
     def test_failed_rollback_is_not_reported_healthy(self):
         wp = FakeWP(fail=True, rollback_fail=True)
-        with self.assertRaisesRegex(GeofeedError, 'Recovery needs attention'): publish_wordpress(wp, NEW, self.path)
+        with self.assertRaisesRegex(GeofeedError, 'Recovery needs attention'): publish_wordpress(wp, NEW, self.path, max_relocated_fraction=1.0)
 
     def test_large_removal_stops_before_write(self):
         wp = FakeWP()
@@ -77,7 +77,7 @@ class PublishTests(unittest.TestCase):
     def test_local_publish_keeps_backup_and_enforces_guard(self):
         target = self.path / 'public' / 'geofeed.csv'
         publish_file(target, OLD, self.path)
-        publish_file(target, NEW, self.path)
+        publish_file(target, NEW, self.path, max_relocated_fraction=1.0)
         self.assertEqual(target.read_bytes(), NEW)
         self.assertEqual((self.path / 'before.csv').read_bytes(), OLD)
         with self.assertRaises(GeofeedError): publish_file(target, b'', self.path)

@@ -67,7 +67,8 @@ provide the fields requested by the output, including coordinate pairs where req
 Withdrawal limits are checked on the final feed by address family. Removing a configured
 input is a deliberate config change and can trigger that guard. A small withdrawal within
 the configured limit is still allowed; this is not a separate per-input withdrawal limit.
-Location-change limits remain tracked in issue #15.
+Location-change limits compare the final combined feed's retained coverage separately by
+family. See [location changes](location-changes.md) for thresholds and exact-candidate approval.
 
 ## Check and recover
 

@@ -36,6 +36,7 @@ Read-only inputs -> selected exact public prefixes and site links -> validation 
 - Refuses bogons using current reserved and unallocated space lists; see [bogon policy](docs/bogons.md).
 - Publishes country, region and city in CSV, or selected [rich location fields](docs/output-formats.md) in JSON.
 - Stops on missing data or large withdrawals and keeps the last good feed.
+- Guards large location changes separately for IPv4 and IPv6, with [exact-candidate approval](docs/location-changes.md) for reviewed moves.
 - Uses conditional WordPress writes, public read-back and guarded rollback.
 
 ## Quick start
@@ -128,6 +129,8 @@ Local write/read-back does not prove public HTTPS access; check the web-server p
 Enable a schedule only after the actual workload succeeds.
 
 The default withdrawal limit is 10% of previous address coverage, checked separately for IPv4 and IPv6.
+The default location-change limit is 10% of retained address coverage per family. A stopped
+move needs investigation or approval of the exact reviewed candidate; see [location changes](docs/location-changes.md).
 The private state directory holds status and recovery CSVs. Stop the schedule before manual recovery.
 Exit code 1 includes failed measurements; it is never a health result.
 

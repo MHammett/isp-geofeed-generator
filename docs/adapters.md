@@ -44,6 +44,9 @@ are independent targets. Other transports can supply their own serializers.
 
 Every new target must enforce the shared change guard, protect against competing writes,
 keep the prior feed for recovery and distinguish an unverified recovery from success.
+The guards include withdrawal limits and `max_relocated_fraction`. Forward `**guards` to
+SDK publishers, or enforce both against actual prior state before using a custom transport.
+See [location changes](location-changes.md) for the normalized-record helper and approval rules.
 File read-back proves local bytes only. A web server or object-store adapter must also
 verify the actual public URL. An upload acknowledgement alone is insufficient.
 

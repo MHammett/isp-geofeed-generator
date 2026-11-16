@@ -2,6 +2,7 @@ import argparse
 import json
 import importlib
 import os
+import re
 import sys
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
@@ -61,12 +62,15 @@ def load_config(path):
         raise GeofeedError("Cannot read YAML configuration") from None
     if not isinstance(config, dict):
         raise GeofeedError("Configuration must be a YAML mapping")
-    allowed = {"source", "inputs", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "extensions", "bogons"}
+    allowed = {"source", "inputs", "credentials", "allowed_prefixes", "pool_sites", "exclude_pools", "site_locations", "publish", "state_dir", "max_removed_fraction", "max_relocated_fraction", "extensions", "bogons"}
     if set(config) - allowed:
         raise GeofeedError("Unknown configuration keys: " + ", ".join(sorted(set(config) - allowed)))
     limit = config.get("max_removed_fraction", 0.10)
     if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not 0 <= limit <= 1:
         raise GeofeedError("max_removed_fraction must be between 0 and 1")
+    limit = config.get('max_relocated_fraction', 0.10)
+    if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not 0 <= limit <= 1:
+        raise GeofeedError('max_relocated_fraction must be between 0 and 1')
     for name in ("pool_sites", "exclude_pools", "site_locations", "publish"):
         if not isinstance(config.get(name, {}), dict):
             raise GeofeedError(f"{name} must be a YAML mapping")
@@ -165,11 +169,14 @@ def main(argv=None):
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
+    parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
     credentials = CredentialStore()
     try:
+        if args.approve_location_changes is not None and (args.command != 'publish' or not re.fullmatch(r'[a-f0-9]{64}', args.approve_location_changes)):
+            raise GeofeedError('--approve-location-changes requires publish and a lowercase SHA-256 candidate hash')
         config = load_config(args.config)
         credentials = CredentialStore(config.get("credentials"))
         directory = Path(config.get("state_dir", "state"))
@@ -240,7 +247,10 @@ def main(argv=None):
                     sys.stdout.write(candidate.decode())
                 print(f"Validated {len(records)} prefixes; sha256={digest(candidate)}", file=sys.stderr)
                 return 0
-            kwargs = {"max_removed_fraction": config.get("max_removed_fraction", 0.10)}
+            if args.approve_location_changes and args.approve_location_changes != digest(candidate):
+                raise GeofeedError('Location-change approval does not match this generated candidate; no write attempted')
+            kwargs = {"max_removed_fraction": config.get("max_removed_fraction", 0.10),
+                      'max_relocated_fraction': 1.0 if args.approve_location_changes else config.get('max_relocated_fraction', 0.10)}
             target_kind = settings.get("type")
             if target_kind not in config.targets:
                 raise GeofeedError("Choose publish.type from: " + ", ".join(sorted(config.targets)))
@@ -250,7 +260,8 @@ def main(argv=None):
             stage = f"publishing to {target_kind}"
             result = target(settings, credentials).publish(payload, directory, **kwargs)
             input_status = {'inputs': {name: {k: v for k, v in item.items() if k != 'snapshot'} for name, item in inputs.items()}} if inputs is not None else {}
-            status(directory, {"healthy": True, **result, "pools": report, **input_status})
+            approval_status = {'location_change_approval_sha256': args.approve_location_changes} if args.approve_location_changes else {}
+            status(directory, {"healthy": True, **result, "pools": report, **input_status, **approval_status})
             print(json.dumps(result))
         return 0
     except Exception as exc:

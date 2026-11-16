@@ -1,6 +1,8 @@
 # Fictional IDs, endpoints and documentation prefixes. Replace with reviewed data.
 # Keep this file outside the upstream checkout. Never put secret values here.
 state_dir: /var/lib/isp-geofeed-generator
+max_removed_fraction: 0.10
+max_relocated_fraction: 0.10
 allowed_prefixes:
   - 192.0.2.0/24
   - 2001:db8::/32

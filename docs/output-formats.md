@@ -46,7 +46,8 @@ The JSON target validates canonical records, keeps prior bytes, checks address w
 limits and reads back the written file. It proves local bytes only. It is not a GeoIP
 provider API or a standard geofeed discovery format. Provider integrations and registration
 workflows are tracked in [issue #24](https://github.com/MHammett/isp-geofeed-generator/issues/24).
-Location-change limits remain separate work in issue #15.
+[Location-change limits](location-changes.md) compare the actual published fields, including
+coordinates and profile changes, before writing either output format.
 
 Extension authors set `TargetAdapter(payload_format='records', location_fields=...,
 required_fields=...)` with frozensets of supported field names. Required rich fields must

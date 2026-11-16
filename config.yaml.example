@@ -25,6 +25,7 @@ site_locations: {}
 #     country: US
 #     region: US-IL
 max_removed_fraction: 0.10
+max_relocated_fraction: 0.10 # Changed location coverage among retained addresses, per family.
 publish:
   type: wordpress
 # Or host the output with any web server:

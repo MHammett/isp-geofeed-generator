@@ -41,14 +41,18 @@ def encode_records(records):
     return value
 
 
-def publish_records_file(path, records, state_dir, *, max_removed_fraction=0.10):
+def publish_records_file(path, records, state_dir, *, max_removed_fraction=0.10, max_relocated_fraction=0.10):
+    from .relocation import relocation_guard
     value = encode_records(records)
     _, after = parse_records(value)
     target = Path(path)
     old = target.read_bytes() if target.exists() else b''
     if old:
-        _, before = parse_records(old)
+        old_records, before = parse_records(old)
         coverage_guard(before, after, max_removed_fraction)
+    else:
+        old_records = []
+    relocation_guard(old_records, records, max_relocated_fraction)
     atomic_write(Path(state_dir)/'before-records.json', old)
     if old != value:
         atomic_write(target, value, 0o644)
