@@ -2,8 +2,8 @@
 
 ## Latest review coverage
 
-Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including the later
-later reviews through `52ac290`. Coverage is limited to the work listed
+Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including
+reviews through `52ac290`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
