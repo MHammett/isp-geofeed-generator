@@ -117,6 +117,16 @@ else: raise AssertionError('Concurrent writer was not blocked')
                 self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout.strip(),'blocked')
             self.assertEqual(target.read_bytes(),OLD)
 
+    def test_destination_lock_uses_the_same_key_for_parent_path_aliases(self):
+        from isp_geofeed_generator.local_output import output_lock
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);target=root/'feed.csv';target.write_bytes(OLD)
+            (root/'alias').mkdir()
+            with output_lock(root/'alias'/'..'/'feed.csv'):
+                with self.assertRaisesRegex(GeofeedError,'destination output lock'):
+                    publish_file(target,NEW,root/'other-state',max_relocated_fraction=1)
+            self.assertEqual(target.read_bytes(),OLD)
+
     def test_postwrite_state_change_cannot_be_reported_healthy_or_overwritten(self):
         external=b'11.22.33.0/24,US,US-IL,External,\n'
         class ChangedAfterPublicRead(FakeWP):

@@ -2,8 +2,8 @@
 
 ## Unchanged publication and destination checks
 
-Observed on 2026-11-15 (America/Chicago). Windows ran 178 tests: 176 passed and two
-POSIX-only checks skipped. Fourteen new tests cover unchanged CSV/JSON/WordPress,
+Observed on 2026-11-15 (America/Chicago). Windows ran 179 tests: 177 passed and two
+POSIX-only checks skipped. Fifteen new tests cover unchanged CSV/JSON/WordPress,
 recovery-history preservation, public/stored state disagreement, state changes during
 verification, local changes before and after replacement, bounded reads, symlink refusal
 and destination locking across both state directories and separate processes.
@@ -16,6 +16,9 @@ result; lock contention blocks the other process rather than reporting healthy p
 Installed core and external example wheels also passed a workload outside the checkout.
 The external output refused a location move, accepted its exact approved candidate, then
 verified an unchanged run with identical feed and backup modification times and backup bytes.
+The first hosted Windows run exposed different lock keys for short and resolved parent
+paths. A portable parent-alias control reproduced the failure locally. Resolving the parent
+inside the lock helper fixes both that control and the short-path case.
 
 These are synthetic workloads. Live WordPress/CDN delivery and a production file publisher
 remain unmeasured. Local locks coordinate cooperating publishers; they cannot stop arbitrary

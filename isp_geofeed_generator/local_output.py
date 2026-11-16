@@ -48,6 +48,7 @@ def read_output(path, max_bytes):
 def output_lock(path):
     """Stable sidecar inode: lock follows the destination, not a state directory."""
     path = Path(path)
+    path = path.parent.resolve()/path.name
     path.parent.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256(os.path.normcase(str(path.absolute())).encode()).hexdigest()
     lock_path = path.parent/('.isp-geofeed-' + key + '.lock')
