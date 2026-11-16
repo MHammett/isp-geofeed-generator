@@ -2,9 +2,10 @@
 
 ## Latest review coverage
 
-Observed from Claude Code's GitHub reviews submitted on 2026-11-16. These reviews cover
-the stack through `3f3337b`. They are not approval to merge. Newer NetBox model changes
-at `7dfc8f0` have author checks and still need independent review.
+Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including the later
+14:44 UTC reviews at stack tip `95164eb`. Coverage is limited to the work listed below;
+the later BillMax adapter at `ebfa5ff` has author checks and still needs independent review.
+These reviews are not approval to merge.
 
 | Review | Supporting evidence reported | Limits still recorded |
 | --- | --- | --- |
@@ -14,6 +15,17 @@ at `7dfc8f0` have author checks and still need independent review.
 | [#46 wire format/limits](https://github.com/MHammett/isp-geofeed-generator/pull/46#pullrequestreview-5921159358) | CRLF/LF/mixed/bare-CR probes and guide review | Real host capacity not measured |
 | [#47 source errors](https://github.com/MHammett/isp-geofeed-generator/pull/47#pullrequestreview-5921159765) | New controls fail on old code and pass after the fix | Live billing/IPAM records not measured |
 | [#49 ISO/conformance](https://github.com/MHammett/isp-geofeed-generator/pull/49#pullrequestreview-5921160117) | Direct current/replaced/invalid ISO-code probes, suite and CI | Full license text and external-tool setup not reviewed in depth |
+| [#50 NetBox models](https://github.com/MHammett/isp-geofeed-generator/pull/50#pullrequestreview-5921885873) | Source review, pinned GeoBox field/schema inspection and 228-test suite at `95164eb` | Neither new mode was tested on a live NetBox; continent-above-country setup note added below |
+| [#52 operator notes](https://github.com/MHammett/isp-geofeed-generator/pull/52#pullrequestreview-5921886500) | Reran threshold/display probes, checked Kosovo references and review-scope table | No new live deployment evidence; author and independent checks remain separate |
+| [#53 nested-prefix design](https://github.com/MHammett/isp-geofeed-generator/pull/53#pullrequestreview-5921887222) | Compared policy with RFC 8805 and checked unchanged runtime overlap refusal | Reviewer did not hand-check the design fixture vectors; runtime support remains unimplemented |
+| [#54 provider plan](https://github.com/MHammett/isp-geofeed-generator/pull/54#pullrequestreview-5921887951) | Checked RDAP standard, IP2Location requirements, ipapi.is receipt semantics and Kosovo references | Other provider rows were not independently checked; no live submission or adapter verified |
+
+The NetBox review found no defects and requested one setup example. A hierarchy with a
+continent above country has four levels and is refused by the three-level mode. The
+[model guide](netbox-location-models.md) now names that case and recommends prefix fields
+or site/location mode rather than changing a shared hierarchy. GeoBox users also need
+to review unset/false flags and intentionally excluded blank rows before migration;
+these remain stopped selected records, not silent omissions.
 
 No defects were reported in those reviewed areas. That result does not fill the listed
 gaps. Author evidence, independent probes and live workloads remain separate claims.

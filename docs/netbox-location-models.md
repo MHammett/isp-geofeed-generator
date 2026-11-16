@@ -77,6 +77,9 @@ It needs NetBox 4.2 or later for generic Region scope. It does not guess that a 
 “United States” means `US`, use a slug as a code, or geocode a name/address. More/fewer levels,
 missing parents, cycles, invalid names and conflicting scope IDs stop selected records.
 An instance with other Region conventions can use prefix-field or site mode instead.
+For example, `North America > US > US-IL > Example City` has four levels and is refused.
+Do not remove a shared continent just to satisfy this adapter. Use prefix custom fields
+or the default site/location mode when the existing hierarchy serves other purposes.
 
 The synthetic location ID is `region:<city-region-id>`. A private location override can
 use that ID after the hierarchy resolves. An override does not bypass a malformed chain.
