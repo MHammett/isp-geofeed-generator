@@ -101,6 +101,8 @@ a broader site's location. Scope it correctly or supply an explicit override.
 Selecting both a parent prefix and a child range causes an overlap error; tag/select the intended publication units only.
 
 These are setup requirements the platform can meet. They are not claims that NetBox lacks the capability.
+These steps describe the default `site` mode. Existing prefix-field or Region-hierarchy
+instances can instead use the [explicit alternate models](netbox-location-models.md).
 
 ## Splynx: initial support
 

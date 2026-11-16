@@ -36,6 +36,8 @@ def validate_settings(kind, settings):
         if key in settings and not isinstance(settings[key], list):
             raise GeofeedError(f'source.{key} must be a list')
     if kind == 'netbox':
+        from .netbox_locations import location_settings
+        location_settings(settings)
         if settings.get('tag') and (settings.get('prefix_ids') or settings.get('range_ids')):
             raise GeofeedError('Choose a NetBox tag or explicit IDs, not both')
         if 'allow_http' in settings and not isinstance(settings['allow_http'], bool):
@@ -89,7 +91,7 @@ SOURCES = {
     "sonar": SourceAdapter(lambda s, c: Sonar(source_url(c, "SONAR_URL"), c.get("SONAR_API_TOKEN"), settings=s), initial=False,
                            settings=frozenset({"site_resolution", "pool_ids", "subnet_ids"}), validate=lambda s: validate_settings('sonar', s)),
     "netbox": SourceAdapter(lambda s, c: NetBox(source_url(c, "NETBOX_URL"), c.get("NETBOX_API_TOKEN"), s), initial=False,
-                            settings=frozenset({"allow_http", "auth_scheme", "tag", "prefix_ids", "range_ids", "statuses", "vrf_ids", "location_fields"}), validate=lambda s: validate_settings('netbox', s)),
+                            settings=frozenset({"allow_http", "auth_scheme", "tag", "prefix_ids", "range_ids", "statuses", "vrf_ids", "location_fields", "location_mode", "location_enabled_field"}), validate=lambda s: validate_settings('netbox', s)),
     "splynx": SourceAdapter(lambda s, c: Splynx(source_url(c, "SPLYNX_URL"), c.get("SPLYNX_API_KEY"), c.get("SPLYNX_API_SECRET"), s), initial=True,
                             settings=frozenset({"network_ids", "location_sites"}), validate=lambda s: validate_settings('splynx', s)),
     "phpipam": SourceAdapter(phpipam_source, initial=True,

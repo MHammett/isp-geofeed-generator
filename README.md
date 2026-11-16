@@ -25,6 +25,7 @@ data is LGPL-2.1 with [upstream notices](THIRD_PARTY_NOTICES.md).
 
 [The platform matrix](docs/platforms.md) separates platform capability, instance setup and adapter verification.
 For a failed source read, see [record-level troubleshooting](docs/source-errors.md).
+NetBox users can choose [site/location, prefix custom fields or an explicit Region hierarchy](docs/netbox-location-models.md).
 A missing assignment does not mean the platform cannot do the job. An untested adapter is not called production-ready.
 Initial adapters require an explicit opt-in before publishing.
 VISP, Azotel and other platforms can be added when their needed API operations are verified.

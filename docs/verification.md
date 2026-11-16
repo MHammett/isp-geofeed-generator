@@ -1,5 +1,24 @@
 # Verification
 
+## Alternate NetBox geography models
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 227 tests: 225 passed and two
+POSIX-only skips. Fifteen new tests cover prefix custom fields, GeoBox choice/enable
+fields, complete Region hierarchies, missing/cyclic/deep/conflicting scopes, private
+error context, same-VRF range parents and no fallback to broader prefix geography.
+Both modes also emit an exact five-address IPv6 range without expanding to its parent.
+
+The first twelve controls failed against the old site-only implementation, which requested
+the Sites endpoint or rejected the new CLI settings. Current CLI workloads publish both
+models, then lose required data and prove unhealthy status with unchanged feed and backup
+bytes. Existing site/location and multi-input tests remain in the full suite. Installed
+wheels also build both modes outside the checkout.
+
+Vendor Prefix/Region docs and pinned prior-art setup/field schemas establish the models.
+No unlicensed implementation was copied. No live alternate-model NetBox read or publication
+was run. See [the model guide](netbox-location-models.md) for selection, permissions,
+authority, strict completeness and migration/recovery behavior.
+
 ## ISO membership and independent conformance
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 212 tests: 210 passed and two

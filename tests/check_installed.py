@@ -44,6 +44,20 @@ for call,label in [(lambda:sonar.controller_candidates({'pools':[{'id':'101','su
         assert label in str(exc) and 'private-record-value' not in str(exc)
     else:raise AssertionError('Malformed installed source was accepted')
 print('PASS: installed Sonar/Splynx/phpIPAM errors name safe record IDs without field values')
+from isp_geofeed_generator.netbox import NetBox
+from isp_geofeed_generator.feed import build
+prefix={'id':1,'prefix':'11.22.33.0/24','status':{'value':'active'},'vrf':None,
+        'scope_type':'dcim.region','scope_id':3,
+        'custom_fields':{'geofeed_country':'US','geofeed_region':'US-IL','geofeed_city':'Example City'}}
+def page(rows):return {'count':len(rows),'next':None,'results':rows}
+for mode in ('prefix_fields','region_hierarchy'):
+    responses=[page([prefix]),page([])]
+    if mode=='region_hierarchy':responses.append(page([{'id':1,'name':'US','parent':None},
+        {'id':2,'name':'US-IL','parent':{'id':1}},{'id':3,'name':'Example City','parent':{'id':2}}]))
+    source=NetBox('https://example.net','synthetic-token',{'location_mode':mode,'prefix_ids':['1']},Replies(responses))
+    value,_=build(source.for_publication(source.snapshot()),{'allowed_prefixes':['11.22.33.0/24']})
+    assert b',US,US-IL,Example City,' in value
+print('PASS: installed NetBox prefix-field and Region-hierarchy workloads')
 import json,time,yaml
 from isp_geofeed_generator.cli import main
 root=Path.cwd()

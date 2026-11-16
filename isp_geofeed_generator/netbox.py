@@ -3,6 +3,7 @@ import ipaddress
 import re
 from urllib.parse import urlencode, urlsplit
 from .client import GeofeedError, JsonHTTP, https_url
+from .netbox_locations import alternate_locations, location_settings
 
 
 def enum_value(value):
@@ -23,6 +24,7 @@ def record_id(row):
 class NetBox:
     def __init__(self, url, token, settings=None, http=None):
         self.settings = settings or {}
+        self.location_mode, self.location_fields, self.location_enabled_field = location_settings(self.settings)
         parts = urlsplit(url)
         if self.settings.get("allow_http") is True and parts.scheme == "http":
             if not parts.hostname or parts.username or parts.password or parts.query or parts.fragment:
@@ -111,11 +113,10 @@ class NetBox:
         ranges = self.pages("/ipam/ip-ranges/")
         if not prefixes and not ranges:
             raise GeofeedError("NetBox returned zero prefixes and ranges; verify token, auth_scheme and object permissions; not measured")
-        sites = self.pages("/dcim/sites/")
+        sites = self.pages("/dcim/sites/") if self.location_mode == 'site' else []
         locations = ({str(r["id"]): r for r in self.pages("/dcim/locations/")}
-                     if any(p.get("scope_type") == "dcim.location" for p in prefixes) else {})
-        fields = {"country": "geofeed_country", "region": "geofeed_region", "city": "geofeed_city",
-                  **self.settings.get("location_fields", {})}
+                     if self.location_mode == 'site' and any(p.get("scope_type") == "dcim.location" for p in prefixes) else {})
+        fields = self.location_fields
         normalized_sites = []
         for site in sites:
             custom = site.get("custom_fields") or {}
@@ -128,6 +129,9 @@ class NetBox:
                        "subdivision": enum_value(custom.get(fields["region"])),
                        "city": enum_value(custom.get(fields["city"]))}
             normalized_sites.append({"id": str(site["id"]), "name": site["name"], "addresses": [address]})
+        resolved = {}
+        if self.location_mode != 'site':
+            normalized_sites, resolved = alternate_locations(prefixes, self.pages, self.location_mode, fields, self.location_enabled_field)
         normalized, index = [], []
         for prefix in prefixes:
             try:
@@ -135,10 +139,11 @@ class NetBox:
             except (KeyError, ValueError, TypeError):
                 raise GeofeedError(f"NetBox prefix {record_id(prefix)} has a missing, invalid or noncanonical prefix") from None
             index.append((prefix, network))
-            sid, error = self._scope_site(prefix, locations)
+            sid, error = self._scope_site(prefix, locations) if self.location_mode == 'site' else resolved[str(prefix['id'])]
             normalized.append({"id": "prefix:" + str(prefix["id"]), "name": prefix.get("description") or prefix["prefix"],
                 "ip_range": str(network), "subnet": {"subnet": str(network)},
                 "site_id": sid, "scope_error": error, "selected": self._selected("prefix", prefix),
+                'location_error': error if self.location_mode != 'site' else None,
                 "source_status": enum_value(prefix.get("status")), "vrf_id": ref_id(prefix.get("vrf"))})
         for row in ranges:
             try:
@@ -156,7 +161,7 @@ class NetBox:
                 closest = [(p, n) for p, n in parents if n.prefixlen == length]
                 if len(closest) == 1:
                     parent, network = closest[0]
-                    sid, error = self._scope_site(parent, locations)
+                    sid, error = self._scope_site(parent, locations) if self.location_mode == 'site' else resolved[str(parent['id'])]
                     parent = str(network)
                 else:
                     error = "Range has ambiguous equally specific parent prefixes"
@@ -164,8 +169,9 @@ class NetBox:
             normalized.append({"id": "range:" + str(row["id"]), "name": row.get("description") or f"Range {row['id']}",
                 "ip_range": f"{start}-{end}", "subnet": {"subnet": parent} if parent else None,
                 "site_id": sid, "scope_error": error, "selected": self._selected("range", row),
+                'location_error': error if self.location_mode != 'site' else None,
                 "source_status": enum_value(row.get("status")), "vrf_id": ref_id(row.get("vrf"))})
-        return {"source": "netbox", "pools": normalized, "sites": normalized_sites}
+        return {"source": "netbox", 'location_mode': self.location_mode, "pools": normalized, "sites": normalized_sites}
 
     def for_publication(self, snapshot):
         settings = self.settings
@@ -179,4 +185,7 @@ class NetBox:
         selected = [p for p in snapshot["pools"] if p["selected"]]
         if not selected:
             raise GeofeedError("No NetBox records match publication selection, status and VRF")
+        for row in selected:
+            if row.get('location_error'):
+                raise GeofeedError(f"NetBox {row['id']}: {row['location_error']}")
         return {**snapshot, "pools": selected}
