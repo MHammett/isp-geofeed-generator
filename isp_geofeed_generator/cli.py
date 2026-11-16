@@ -244,7 +244,15 @@ def main(argv=None):
                 if args.output:
                     atomic_write(args.output, candidate)
                 else:
-                    sys.stdout.write(candidate.decode())
+                    # Text-mode stdout can translate CRLF twice or use a non-UTF-8
+                    # locale. Preserve the candidate bytes and their reviewed hash.
+                    stream = getattr(sys.stdout, 'buffer', None)
+                    if stream is None:  # In-process text capture, e.g. StringIO.
+                        sys.stdout.write(candidate.decode('utf-8'))
+                    else:
+                        sys.stdout.flush()
+                        stream.write(candidate)
+                        stream.flush()
                 print(f"Validated {len(records)} prefixes; sha256={digest(candidate)}", file=sys.stderr)
                 return 0
             if args.approve_location_changes and args.approve_location_changes != digest(candidate):

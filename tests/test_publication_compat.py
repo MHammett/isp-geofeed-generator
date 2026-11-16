@@ -1,5 +1,6 @@
 """Wire-format migration and bounded large-feed transport workloads."""
 import io
+import contextlib
 import ipaddress
 import json
 import tempfile
@@ -7,12 +8,14 @@ import unittest
 from email.message import Message
 from pathlib import Path
 from urllib.error import HTTPError
+from unittest.mock import patch
 
 from isp_geofeed_generator.client import GeofeedError, JsonHTTP
 from isp_geofeed_generator.feed import build, change_guard, digest, parse_feed
 from isp_geofeed_generator.publish import WordPress, publish_file, publish_wordpress
 from test_feed import config, snapshot
 from test_publish import FakeWP, OLD
+from bogon_fixture import policy
 
 
 class Response(io.BytesIO):
@@ -29,6 +32,27 @@ def large_unicode_feed():
 
 
 class CompatibilityTests(unittest.TestCase):
+    def test_generate_stdout_preserves_utf8_and_crlf_under_windows_text_translation(self):
+        from isp_geofeed_generator.cli import main
+        fixture=snapshot();fixture['sites'][0]['addresses'][0]['city']='Example é'
+        expected=build(fixture,config())[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);cfg=root/'config.yaml'
+            cfg.write_text(f'source: {{type: sonar}}\nstate_dir: {root.as_posix()}/state\nallowed_prefixes: [11.22.33.0/24]\npool_sites: {{"101": "11"}}\n')
+            raw=io.BytesIO();stream=io.TextIOWrapper(raw,encoding='ascii',newline='\r\n')
+            errors=io.StringIO()
+            with patch.dict('os.environ',{'SONAR_API_TOKEN':'synthetic-token'}), \
+                 patch('isp_geofeed_generator.adapters.Sonar') as sonar, \
+                 patch('isp_geofeed_generator.cli.load_policy',side_effect=lambda c:policy()), \
+                 contextlib.redirect_stdout(stream),contextlib.redirect_stderr(errors):
+                sonar.return_value.snapshot.return_value=fixture
+                sonar.return_value.for_publication.side_effect=lambda value:value
+                self.assertEqual(main(['generate','--config',str(cfg)]),0,errors.getvalue())
+            stream.flush()
+            self.assertEqual(raw.getvalue(),expected)
+            self.assertIn(digest(raw.getvalue()),errors.getvalue())
+            stream.close()
+
     def test_generated_csv_uses_only_crlf_row_endings(self):
         data,_=build(snapshot(),config())
         self.assertIn(b'\r\n',data)

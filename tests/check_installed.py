@@ -6,6 +6,7 @@ import tempfile
 
 code = '''from pathlib import Path
 import sys
+import subprocess
 import isp_geofeed_generator
 from isp_geofeed_generator.extensions import load_extensions
 from isp_geofeed_generator.adapters import SOURCES,TARGETS
@@ -38,6 +39,9 @@ assert len((root/'feed.csv').read_text().splitlines())==2
 wire=(root/'feed.csv').read_bytes()
 assert b'\\r\\n' in wire and b'\\n' not in wire.replace(b'\\r\\n',b'')
 print('PASS: installed external target publishes CRLF bytes')
+generated=subprocess.run([sys.executable,'-m','isp_geofeed_generator','generate','--config',str(path)],capture_output=True,check=True)
+assert generated.stdout==wire
+print('PASS: installed generate stdout preserves exact candidate bytes')
 data=json.loads((root/'state/status.json').read_text())['data']
 assert {row['input'] for row in data['pools']}=={'customers','infrastructure'}
 print('PASS: installed multi-input CLI with two instances of an external source and external target')

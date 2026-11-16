@@ -66,6 +66,8 @@ The first generated CRLF feed differs in bytes and SHA-256 from its LF version. 
 one guarded publication even when locations are unchanged. The exact old LF bytes remain
 available for recovery. Later identical runs skip writes. Keep generated candidates as
 binary files so an editor does not change line endings after hash review.
+The CLI writes exact UTF-8 bytes to stdout. For saved candidates, prefer `generate --output`
+to avoid any shell or downstream text filter changing those bytes.
 
 The plugin retains `no-store, no-cache, must-revalidate, max-age=0`. Its priority is fresh
 read-back after a write and after recovery. It does not advertise a positive refresh
