@@ -23,6 +23,10 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+DISPOSABLE = (sys.platform == 'linux' and os.environ.get('GITHUB_ACTIONS') == 'true'
+              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted')
+if __name__ == '__main__' and not DISPOSABLE:
+    raise SystemExit('requires disposable GitHub-hosted Linux runner; not measured elsewhere')
 sys.path.insert(0, str(ROOT / 'tests'))
 from bogon_fixture import files as bogon_files
 from isp_geofeed_generator.cli import main
@@ -378,8 +382,7 @@ class Workload:
 
 
 def run():
-    check(sys.platform=='linux' and os.environ.get('GITHUB_ACTIONS')=='true'
-          and os.environ.get('RUNNER_ENVIRONMENT')=='github-hosted','requires disposable GitHub-hosted Linux runner; not measured elsewhere')
+    check(DISPOSABLE,'requires disposable GitHub-hosted Linux runner; not measured elsewhere')
     for program in ('php','mariadb','openssl','sudo'):check(shutil.which(program),'missing prerequisite: '+program)
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
