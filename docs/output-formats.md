@@ -16,8 +16,8 @@ CSV keeps the existing policy: country and city are required, and region can be 
 Rich fields are `country`, `region`, `city`, `latitude`, `longitude`, `postal_code` and
 `accuracy_km`. Coordinates must be finite numbers in range; booleans are refused.
 Accuracy is a nonnegative radius in kilometers, supplied by the operator or input.
-Strings reject control characters. Country and region code shapes are checked, but
-complete ISO code membership is still tracked in issue #18.
+Strings reject control characters. Country and region membership is checked against
+the bundled ISO snapshot. See [conformance policy](conformance.md) for its scope and limits.
 
 For a coordinate-only JSON file, use this publication section in a complete private config:
 
@@ -46,6 +46,8 @@ The JSON target validates canonical records, keeps prior bytes, checks address w
 limits and reads back the written file. It proves local bytes only. It is not a GeoIP
 provider API or a standard geofeed discovery format. Provider integrations and registration
 workflows are tracked in [issue #24](https://github.com/MHammett/isp-geofeed-generator/issues/24).
+The [provider research and interface plan](geoip-providers.md) separates verified
+publication from URL registration, correction receipts and registry discovery.
 [Location-change limits](location-changes.md) compare the actual published fields, including
 coordinates and profile changes, before writing either output format.
 

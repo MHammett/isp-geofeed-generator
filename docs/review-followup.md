@@ -60,9 +60,12 @@ covers Python and GitHub Actions. Repository settings must be checked live, sepa
   controller evidence or map/exclude the pool. Keeping the old feed is the current safe behavior.
 - Sonar IPv6: exact IPv6 generation is tested, but live Sonar pool coverage has not been
   established. Record discovery counts by address family before claiming complete IPv6 support.
-- Independent validators: see [prior art](prior-art.md). Format-only success does not establish
-  valid country codes or real geography. Our location validation checks shape and country/region
-  consistency; authoritative ISO country/subdivision membership remains a separate gap.
+- Independent validators: #49 adds shared negative controls, pinned external tools and
+  assigned ISO country/subdivision membership. See [conformance](conformance.md).
+  Format-only success does not establish valid country codes or real geography.
+- GeoIP providers: [the research and interface plan](geoip-providers.md) separates hosting,
+  registration, correction receipts and discovery. No provider adapter or registration
+  was enabled; issue #24 remains open for implementation and provider lifecycle contracts.
 
 No merge, production installation, timer activation or public feed update is part of this follow-up.
 To roll back this source change, use the prior reviewed revision; no live state has changed.

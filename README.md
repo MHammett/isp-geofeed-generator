@@ -3,6 +3,8 @@
 Generate and safely publish public IP geolocation feeds from ISP billing and IPAM platforms.
 CSV output follows [RFC 8805](https://www.rfc-editor.org/rfc/rfc8805.html).
 Publish to WordPress or write a file. Rich JSON supports separately selected location fields.
+See [provider workflows](docs/geoip-providers.md) for URL registration, corrections and
+registry discovery. Provider submission adapters remain planned work.
 
 This is an independent community project. Contributions are welcome.
 Built-in source adapters are read-only.
