@@ -49,9 +49,9 @@ def publish_records_file(path, records, state_dir, *, max_removed_fraction=0.10,
     old = target.read_bytes() if target.exists() else b''
     if old:
         old_records, before = parse_records(old)
-        coverage_guard(before, after, max_removed_fraction)
     else:
-        old_records = []
+        old_records, before = [], []
+    coverage_guard(before, after, max_removed_fraction)
     relocation_guard(old_records, records, max_relocated_fraction)
     atomic_write(Path(state_dir)/'before-records.json', old)
     if old != value:

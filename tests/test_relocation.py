@@ -75,6 +75,11 @@ class RelocationTests(unittest.TestCase):
         with self.assertRaisesRegex(GeofeedError,'removal'):change_guard(old,new)
         with self.assertRaisesRegex(GeofeedError,'location changes'):change_guard(old,new,1.0)
 
+    def test_ipv6_withdrawal_boundary_cannot_round_away_one_address(self):
+        net=ipaddress.ip_network('2001:4860::/32');_,high=list(net.subnets())
+        remaining=b''.join(csv(n) for n in ipaddress.summarize_address_range(high.network_address+1,high.broadcast_address))
+        with self.assertRaisesRegex(GeofeedError,'IPv6 feed removal'):change_guard(csv(net),remaining,0.5)
+
     def test_new_space_and_first_publication_have_no_relocation_baseline(self):
         change_guard(b'',csv('11.0.0.0/24','Other'))
         change_guard(csv('11.0.0.0/24'),csv('11.0.0.0/24')+csv('11.0.1.0/24','Other'))

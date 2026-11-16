@@ -2,16 +2,18 @@
 
 ## Location-change guard
 
-Observed on 2026-11-15 (America/Chicago). Windows ran 163 tests: 162 passed and one POSIX-only
+Observed on 2026-11-15 (America/Chicago). Windows ran 164 tests: 163 passed and one POSIX-only
 skip, including the final preflight-diagnostic test from the base branch.
-Fourteen new tests cover country/region/city changes, exact retained coverage by family,
+Fifteen new tests cover country/region/city changes, exact retained coverage by family,
 equivalent splits/merges, unsorted rows, row-count distortion, simultaneous withdrawal,
 rich coordinates/profile changes and stable Unicode/numeric representations.
 
 The new file and WordPress move tests failed against the previous publishers because a
 large location change was accepted. They now refuse the move before writing or replacing
 recovery bytes. An IPv6 test proves that one address above a 50% threshold does not round
-away. A CLI workload checks a blocked move, wrong hash, reviewed exact-hash approval,
+away. A matching withdrawal-boundary control also exposed rounding in the old removal
+comparison; both guards now compare exact integer coverage against decimal thresholds.
+A CLI workload checks a blocked move, wrong hash, reviewed exact-hash approval,
 status recording and refusal of bogons/large withdrawals despite that approval.
 
 Actual core and external example wheels built and installed in isolation. Outside the

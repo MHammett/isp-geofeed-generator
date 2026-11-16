@@ -199,17 +199,14 @@ def csv_records(data):
 def change_guard(old, new, max_removed_fraction=0.10, *, max_relocated_fraction=0.10):
     from .relocation import relocation_guard
     new_nets = parse_feed(new)
-    # Validate the location policy even for a first publication with no baseline.
-    new_records = csv_records(new)
-    if not old:
-        relocation_guard([], new_records, max_relocated_fraction)
-        return
-    old_nets = parse_feed(old)
+    old_nets = parse_feed(old) if old else []
     coverage_guard(old_nets, new_nets, max_removed_fraction)
-    relocation_guard(csv_records(old), new_records, max_relocated_fraction)
+    relocation_guard(csv_records(old) if old else [], csv_records(new), max_relocated_fraction)
 
 
 def coverage_guard(old_nets, new_nets, max_removed_fraction=0.10):
+    from .relocation import fraction_limit
+    limit = fraction_limit(max_removed_fraction, 'max_removed_fraction')
     # Measure lost address coverage by family, not row count: CIDR row counts vary.
     for version in (4, 6):
         before = [n for n in old_nets if n.version == version]
@@ -225,5 +222,5 @@ def coverage_guard(old_nets, new_nets, max_removed_fraction=0.10):
                 i += 1
             else:
                 j += 1
-        if total and (total - retained) / total > max_removed_fraction:
+        if total and (total - retained) * limit.denominator > total * limit.numerator:
             raise GeofeedError(f"IPv{version} feed removal exceeds configured change limit")

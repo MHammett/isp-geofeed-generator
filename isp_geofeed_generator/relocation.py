@@ -23,11 +23,15 @@ def location_intervals(records):
         raise GeofeedError('Invalid location comparison records') from None
 
 
+def fraction_limit(limit, name):
+    if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not 0 <= limit <= 1:
+        raise GeofeedError(f'{name} must be between 0 and 1')
+    return Fraction(str(limit))
+
+
 def relocation_guard(old, new, max_relocated_fraction=0.10):
     limit = max_relocated_fraction
-    if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not 0 <= limit <= 1:
-        raise GeofeedError('max_relocated_fraction must be between 0 and 1')
-    threshold = Fraction(str(limit))
+    threshold = fraction_limit(limit, 'max_relocated_fraction')
     before, after = location_intervals(old), location_intervals(new)
     for version in (4, 6):
         left = [(net, loc) for net, loc in before if net.version == version]

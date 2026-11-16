@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Separate location-change limits by retained IPv4/IPv6 address coverage, including rich fields, with exact candidate-hash approval for reviewed moves.
+- Exact integer threshold comparisons prevent a one-address IPv6 relocation or withdrawal from rounding below its limit.
 
 - Narrow systemd service-user ACL support, with real plain/encrypted credential workloads on disposable CI and unchanged ordinary file rules.
 - WordPress HTTPS-proxy setup/preflight diagnostics and NetBox pagination that tolerates rewritten next links without following them.
