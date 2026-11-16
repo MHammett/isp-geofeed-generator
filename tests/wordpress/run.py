@@ -5,6 +5,7 @@ import hashlib
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
+import ipaddress
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -18,7 +19,7 @@ import sys
 import tempfile
 import threading
 import time
-from urllib.request import urlopen
+from urllib.request import HTTPSHandler, build_opener, urlopen
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +32,8 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from bogon_fixture import files as bogon_files
 from isp_geofeed_generator.cli import main
 from isp_geofeed_generator.feed import digest
+from isp_geofeed_generator.client import GeofeedError, JsonHTTP, NoRedirects
+from isp_geofeed_generator.publish import WordPress
 import contextlib
 import yaml
 
@@ -78,6 +81,7 @@ class Proxy(ThreadingHTTPServer):
         self.backend, self.nonce = backend, nonce
         self.mode, self.lock, self.faults = None, threading.Lock(), []
         self.pending = False
+        self.request_sizes = []
         self.publisher_headers = {}
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert, key)
@@ -85,7 +89,7 @@ class Proxy(ThreadingHTTPServer):
 
     def arm(self, mode):
         with self.lock:
-            self.mode, self.pending, self.faults = mode, False, []
+            self.mode, self.pending, self.faults, self.request_sizes = mode, False, [], []
 
     def forward(self, method, path, body=b'', headers=None):
         headers = dict(headers or {})
@@ -121,6 +125,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(413); return
         body = self.rfile.read(length)
         with proxy.lock:
+            proxy.request_sizes.append({'method':self.command,'path':self.path,'bytes':length})
             mode = proxy.mode
             if mode == 'failed-recovery' and proxy.pending and self.command in ('PUT', 'DELETE'):
                 proxy.mode = None; proxy.faults.append('recovery-refused')
@@ -255,6 +260,7 @@ class Workload:
         (self.control/'mode').write_text('')
         self.fixture('reset',None if csv is None else {'csv':csv.decode(),'previous_csv':previous.decode()})
         (self.control/'writes.log').write_text('')
+        (self.control/'write-sizes.log').write_text('')
         for name in self.control.glob('arrived-*'): name.unlink()
 
     def race(self, mode, candidates):
@@ -309,10 +315,15 @@ class Workload:
     def cli(self, csv, state):
         inventory=self.directory/'inventory.json'
         pools=[]
+        locations=set()
         for i,line in enumerate(csv.decode().splitlines()):
-            prefix=line.split(',')[0]
+            prefix,country,region,city,_=line.split(',')
+            locations.add((country,region,city))
             pools.append({'id':str(i+1),'ip_range':prefix,'subnet':{'subnet':prefix},'site_id':'1'})
-        inventory.write_text(json.dumps({'pools':pools,'sites':[{'id':'1','addresses':[{'id':'1','country':'US','subdivision':'US_IL','city':'Example City'}]}]}))
+        check(len(locations)==1,'synthetic CLI fixture has one explicit coarse location')
+        country,region,city=locations.pop()
+        inventory.write_text(json.dumps({'pools':pools,'sites':[{'id':'1','addresses':[{'id':'1',
+            'country':country,'subdivision':region.replace('-','_'),'city':city}]}]}))
         config={'source':{'type':'local_json','input_path':str(inventory),'allow_initial':True},
             'extensions':{'sources':['local_json']},'credentials':{'WP_APP_PASSWORD':'env:WP_APP_PASSWORD'},
             'allowed_prefixes':['11.22.0.0/16','2001:4860:1234::/48'],'bogons':bogon_files(self.directory),
@@ -383,6 +394,57 @@ class Workload:
             check(self.proxy.faults==expected_faults[mode],'all intended fault injections actually ran: '+mode)
             print('PASS: real WordPress '+mode+' stored/public/recovery workload',flush=True)
 
+    def capacity_tests(self):
+        self.reset()
+        city='測'*60
+        start=ipaddress.ip_address('11.22.0.0')
+        def row(index):return f'{start+index}/32,US,US-IL,{city},\r\n'.encode()
+        rows=[];size=0
+        while size<980000:
+            value=row(len(rows));rows.append(value);size+=len(value)
+        old=b''.join(rows);new=old+row(len(rows))
+        check(980000<=len(old)<len(new)<1000000,'near-limit synthetic feeds stay below CSV limit')
+        state=self.directory/'large-unicode'
+        check(self.cli(old,state)[0]==0,'near-limit Unicode first CLI publication')
+        check(self.cli(new,state)[0]==0,'near-limit Unicode changed CLI publication')
+        snapshot,doc=self.snapshot()
+        check(doc['csv'].encode()==new and doc['previous_csv'].encode()==old,'large real database holds current and previous exact feeds')
+        response=self.request('GET',STATE,account='publisher')
+        check(response[0]==200 and len(response[2])>2000000,'large real state response exercises former 2 MB budget')
+        headers={k.lower():v for k,v in response[1].items()}
+        uploads=[value['bytes'] for value in self.proxy.request_sizes if value['method']=='PUT' and value['path']==FEED]
+        statement_sizes=[int(line.split()[1]) for line in (self.control/'write-sizes.log').read_text().splitlines()]
+        print('CAPACITY: '+json.dumps({'records':len(rows)+1,'csv_bytes':len(new),'upload_json_bytes':max(uploads),
+            'state_json_bytes':len(response[2]),'largest_sql_bytes':max(statement_sizes),
+            'database_max_allowed_packet':snapshot['max_allowed_packet'],
+            'http_post_max_size':headers.get('x-geofeed-test-post-max'),
+            'http_memory_limit':headers.get('x-geofeed-test-memory-limit')}),flush=True)
+        check(max(uploads)>1000000 and max(statement_sizes)>len(new),'measured wrapping/SQL growth')
+        prior= snapshot['raw'];writes=(self.control/'writes.log').read_bytes()
+        backups={name:((state/name).read_bytes(),(state/name).stat().st_mtime_ns) for name in ('before.csv','last-good.csv')}
+        result,status=self.cli(new,state)
+        check(result==0 and status['changed'] is False and self.snapshot()[0]['raw']==prior,'large no-op keeps real database document')
+        check((self.control/'writes.log').read_bytes()==writes,'large no-op makes zero geofeed SQL write attempts')
+        for name,expected in backups.items():check(((state/name).read_bytes(),(state/name).stat().st_mtime_ns)==expected,'large no-op keeps recovery history')
+        print('PASS: real WordPress near-limit Unicode first/change/no-op workload',flush=True)
+        transport=JsonHTTP(max_bytes=2000000)
+        transport.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+        limited=WordPress(self.url,'publisher',self.accounts['publisher'],http=transport)
+        try:limited.state()
+        except GeofeedError as exc:check('Response exceeds size limit' in str(exc),'old response budget fails at expected guard')
+        else:raise AssertionError('2 MB state budget accepted larger real state response')
+        check(self.snapshot()[0]['raw']==prior and (self.control/'writes.log').read_bytes()==writes,'small client budget cannot change stored feed')
+        print('PASS: real WordPress old 2 MB state budget refuses large response without writes',flush=True)
+        oversized=list(rows)+[row(len(rows))];total=len(new)
+        while total<=1000000:
+            value=row(len(oversized));oversized.append(value);total+=len(value)
+        too_large=b''.join(oversized)
+        check(len(too_large)>1000000 and len({line.split(b',')[0] for line in too_large.splitlines()})==len(oversized),'oversize control has unique canonical records')
+        check(self.request('PUT',FEED,too_large,new,'publisher')[0]==400,'real REST refuses oversized otherwise-valid CSV')
+        check(self.snapshot()[0]['raw']==prior and self.request('GET',FEED)[2]==new,'oversize upload preserves stored and public feeds')
+        check((self.control/'writes.log').read_bytes()==writes,'oversize upload makes zero geofeed SQL write attempts')
+        print('PASS: real WordPress oversize CSV refusal preserves large stored/public feed',flush=True)
+
     def close(self):
         if self.server:
             try:os.killpg(self.server.pid,signal.SIGTERM)
@@ -401,7 +463,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.capacity_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 

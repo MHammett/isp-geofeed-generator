@@ -28,7 +28,8 @@ if ($geofeed_test_action === 'install') {
     global $wpdb;
     $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'isp_geofeed_generator_document'));
     $collation = $wpdb->get_var($wpdb->prepare("SELECT COLLATION(option_value) FROM {$wpdb->options} WHERE option_name = %s", 'isp_geofeed_generator_document'));
-    echo json_encode(['raw' => $raw, 'collation' => $collation]);
+    echo json_encode(['raw' => $raw, 'collation' => $collation,
+        'max_allowed_packet' => (int)$wpdb->get_var('SELECT @@max_allowed_packet')]);
 } elseif ($geofeed_test_action === 'reset') {
     delete_option('isp_geofeed_generator_document');
     if (isset($geofeed_test_input['csv'])) {
