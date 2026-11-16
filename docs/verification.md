@@ -2,10 +2,13 @@
 
 ## ISO membership and independent conformance
 
-Observed on 2026-11-16 (America/Chicago). Windows ran 211 tests: 209 passed and two
+Observed on 2026-11-16 (America/Chicago). Windows ran 212 tests: 210 passed and two
 POSIX-only skips. New controls first reproduced accepted unassigned countries and
 nonexistent subdivisions. The same controls now fail before publication. Rich JSON also
 checks selected country/region fields, while coordinate-only output remains independent.
+Direct CSV, WordPress and rich-JSON output controls retain prior feed and backup bytes
+for invalid codes, even with relocation approval permitted. This control failed against
+the previous publisher before the membership change.
 Missing/changed ISO data is refused, and Python/plugin data and notice files match exactly.
 
 Installed core and external adapter wheels passed outside the checkout, including data

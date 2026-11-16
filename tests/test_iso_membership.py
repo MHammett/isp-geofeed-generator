@@ -11,6 +11,27 @@ from isp_geofeed_generator.records import encode_records
 
 
 class IsoMembership(unittest.TestCase):
+    def test_invalid_iso_candidates_preserve_all_built_in_targets_and_backups(self):
+        from isp_geofeed_generator.publish import publish_file,publish_wordpress
+        from isp_geofeed_generator.records import publish_records_file
+        from test_publish import FakeWP,OLD
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);target=root/'feed.csv';target.write_bytes(OLD)
+            backup=root/'before.csv';backup.write_bytes(b'recovery sentinel')
+            bad=b'11.22.33.0/24,XX,,Example,\r\n'
+            wp=FakeWP()
+            for call in (lambda:publish_file(target,bad,root,max_relocated_fraction=1),
+                         lambda:publish_wordpress(wp,bad,root,max_relocated_fraction=1)):
+                with self.assertRaises(GeofeedError):call()
+                self.assertEqual(target.read_bytes(),OLD);self.assertEqual(wp.csv,OLD)
+                self.assertEqual(wp.writes,[]);self.assertEqual(backup.read_bytes(),b'recovery sentinel')
+            records=root/'records.json'
+            publish_records_file(records,[{'prefix':'11.22.33.0/24','location':{'country':'US'}}],root)
+            before=records.read_bytes();json_backup=root/'before-records.json';json_backup.write_bytes(b'JSON recovery sentinel')
+            with self.assertRaises(GeofeedError):
+                publish_records_file(records,[{'prefix':'11.22.33.0/24','location':{'country':'XX'}}],root,max_relocated_fraction=1)
+            self.assertEqual(records.read_bytes(),before);self.assertEqual(json_backup.read_bytes(),b'JSON recovery sentinel')
+
     def test_shared_conformance_controls(self):
         cases=json.loads((Path(__file__).parent/'fixtures/conformance.json').read_text(encoding='utf-8'))
         for case in cases:
