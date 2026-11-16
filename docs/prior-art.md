@@ -39,7 +39,7 @@ MIT examples for CRM plugins. CRM integration is separate from UISP Network IPAM
 | Project | License checked | Intended use |
 | --- | --- | --- |
 | [MaxMind mm-geofeed-verifier](https://github.com/maxmind/mm-geofeed-verifier/tree/v5.0.0) | MIT or Apache-2.0 | External format check; optional database comparison. |
-| [Massimo Candela geofeed-validator](https://github.com/massimocandela/geofeed-validator/tree/ede8916ee1045fa806554bb76112d0fecc63b40d) | BSD-3-Clause | Candidate independent prefix and ISO subdivision checks. Not executed in this review. |
+| [Massimo Candela geofeed-validator](https://github.com/massimocandela/geofeed-validator/tree/ede8916ee1045fa806554bb76112d0fecc63b40d) | BSD-3-Clause | Executed on 2026-11-16: detects invalid prefixes and ISO codes in the shared controls. Does not check whole-feed duplicate/overlap policy in this experiment. |
 | [Anexia geofeed-validator](https://github.com/anexia-it/geofeed-validator/tree/c376a09d1ae20a783ee5cd923f209b5ded606fc0) | AGPL-3.0 | Candidate standalone check. Review license obligations before incorporating it. Not executed. |
 | [Fastah IP geofeed skills](https://github.com/fastah/ip-geofeed-skills) | Apache-2.0, as reported by its repository | Operator review workflow. No platform inventory adapter or publication claimed here. Not executed. |
 
@@ -51,6 +51,8 @@ The combined experiment therefore failed its expected negative controls. Do not 
 that pass as country-code or geographic verification. No MMDB comparison was run.
 Read-only diagnosis of the pinned source found that its format-only branch checks the IP
 prefix and a region formatting rule, then returns before database-backed comparison.
+The later [conformance comparison](conformance.md) reran both pinned tools on 13 controls,
+including CRLF, Unicode, IPv6, code membership and whole-feed/publisher policies.
 
 Before adopting a validator, pin a revision, run good and deliberately bad fixtures,
 and document which faults it detects. A format check cannot prove allocation ownership,

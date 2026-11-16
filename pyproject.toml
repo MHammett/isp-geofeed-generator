@@ -8,10 +8,14 @@ version = "0.2.0"
 description = "Generate and safely publish ISP geofeeds from billing and IPAM platforms"
 requires-python = ">=3.11"
 dependencies = ["PyYAML==6.0.3"]
-license = "MIT"
+license = "MIT AND LGPL-2.1-only"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 [project.scripts]
 isp-geofeed-generator = "isp_geofeed_generator.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["isp_geofeed_generator*"]
+
+[tool.setuptools.package-data]
+isp_geofeed_generator = ["iso_data/*.json", "iso_data/*.txt"]

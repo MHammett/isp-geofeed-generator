@@ -3,7 +3,7 @@
  * Plugin Name: ISP Geofeed Generator
  * Description: Publish a validated CSV geofeed through a dedicated REST endpoint.
  * Version: 0.2.0
- * License: MIT
+ * License: MIT AND LGPL-2.1-only
  * Requires PHP: 8.0
  */
 if (!defined('ABSPATH')) { exit; }
@@ -66,12 +66,35 @@ function isp_geofeed_generator_read() {
     return ['raw' => $raw, 'csv' => $doc['csv'], 'previous_csv' => $doc['previous_csv']];
 }
 
+function isp_geofeed_generator_iso_codes() {
+    static $tables = null;
+    if ($tables !== null) { return $tables; }
+    $hashes = [
+        'iso3166-1.json' => 'f01b812b57fba9f31ff621bf33e7c7570a01964dbeb5be2167e94decf538c89f',
+        'iso3166-2.json' => '78c90ef7fc25b5c2631aac5f089bc9ff6ec22c025c05b6ddbc087a1f1be2e46a',
+    ];
+    $documents = [];
+    foreach ($hashes as $name => $expected) {
+        $raw = @file_get_contents(__DIR__.'/iso_data/'.$name, false, null, 0, 2000001);
+        if ($raw === false || strlen($raw) > 2000000 || !hash_equals($expected, hash('sha256', $raw))) { return false; }
+        $documents[$name] = json_decode($raw, true);
+        if (!is_array($documents[$name])) { return false; }
+    }
+    $countries = array_fill_keys(array_column($documents['iso3166-1.json']['3166-1'], 'alpha_2'), true);
+    $regions = array_fill_keys(array_column($documents['iso3166-2.json']['3166-2'], 'code'), true);
+    if (count($countries) !== 249 || count($regions) !== 5046) { return false; }
+    $tables = [$countries, $regions];
+    return $tables;
+}
+
 function isp_geofeed_generator_valid_csv($csv) {
     if (!is_string($csv) || $csv === '' || strlen($csv) > 1000000 ||
         substr($csv, -1) !== "\n" || preg_match('//u', $csv) !== 1) { return false; }
     // Keep exact bytes for CAS/recovery. Accept uniform CRLF or legacy uniform LF.
     $ending = strpos($csv, "\r\n") !== false ? "\r\n" : "\n";
     if (substr($csv, -strlen($ending)) !== $ending) { return false; }
+    $iso = isp_geofeed_generator_iso_codes();
+    if ($iso === false) { return false; }
     $seen = [];
     foreach (explode($ending, substr($csv, 0, -strlen($ending))) as $line) {
         // RFC 8805 has five unquoted fields. Postal code is deliberately empty.
@@ -79,8 +102,8 @@ function isp_geofeed_generator_valid_csv($csv) {
         if (count($row) !== 5 || $row[4] !== '' || strpos($line, '"') !== false ||
             preg_match('/[\x00-\x1f\x7f#]/', $line)) { return false; }
         [$cidr, $country, $region, $city] = $row;
-        if (!preg_match('/^[A-Z]{2}$/D', $country) || trim($city) === '' || trim($city) !== $city ||
-            ($region !== '' && !preg_match('/^'.preg_quote($country, '/').'\-[A-Z0-9]{1,3}$/D', $region))) { return false; }
+        if (!isset($iso[0][$country]) || trim($city) === '' || trim($city) !== $city ||
+            ($region !== '' && (!isset($iso[1][$region]) || substr($region, 0, 3) !== $country.'-'))) { return false; }
         $parts = explode('/', $cidr);
         if (count($parts) !== 2 || !ctype_digit($parts[1]) || (string)(int)$parts[1] !== $parts[1]) { return false; }
         $packed = @inet_pton($parts[0]);

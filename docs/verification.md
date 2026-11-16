@@ -1,5 +1,25 @@
 # Verification
 
+## ISO membership and independent conformance
+
+Observed on 2026-11-16 (America/Chicago). Windows ran 211 tests: 209 passed and two
+POSIX-only skips. New controls first reproduced accepted unassigned countries and
+nonexistent subdivisions. The same controls now fail before publication. Rich JSON also
+checks selected country/region fields, while coordinate-only output remains independent.
+Missing/changed ISO data is refused, and Python/plugin data and notice files match exactly.
+
+Installed core and external adapter wheels passed outside the checkout, including data
+hash checks, all notices and the existing guarded/unchanged publication workload. The
+deployment plan includes all ISO files. PHP uses the same conformance fixtures, and its
+separate process workload checks absent, changed and intact data installations.
+
+Pinned Candela and MaxMind tools ran on 13 local synthetic controls. Both reported invalid
+prefixes; only Candela reported the invalid ISO-country/subdivision controls in this mode.
+Neither reported duplicate/nested prefixes in the experiment. Their lack of an error is
+not a broader health or geography claim. Full results and the licensing/recovery policy
+are described in [conformance](conformance.md). Hosted logs are recorded on the PR after
+upload. Live source inventory, WordPress publication and real geography remain unmeasured.
+
 ## Safe source record diagnostics
 
 Observed on 2026-11-16 (America/Chicago). Windows ran 203 tests: 201 passed and two

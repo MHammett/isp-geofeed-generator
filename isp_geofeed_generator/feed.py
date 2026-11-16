@@ -6,6 +6,7 @@ import ipaddress
 import re
 from .client import GeofeedError
 from .locations import COARSE_FIELDS, project_site
+from .iso_codes import valid_country, valid_region
 
 
 def digest(data):
@@ -52,9 +53,9 @@ def location(site, override=None):
     country = str(override.get("country", address.get("country")) or "").strip()
     region = str(override.get("region", address.get("subdivision")) or "").strip().replace("_", "-")
     city = str(override.get("city", address.get("city")) or "").strip()
-    if not re.fullmatch(r"[A-Z]{2}", country):
+    if not re.fullmatch(r"[A-Z]{2}", country) or not valid_country(country):
         raise GeofeedError(f"Site {site['id']} has invalid/missing country")
-    if region and (not re.fullmatch(r"[A-Z]{2}-[A-Z0-9]{1,3}", region) or not region.startswith(country + "-")):
+    if region and (not re.fullmatch(r"[A-Z]{2}-[A-Z0-9]{1,3}", region) or not region.startswith(country + "-") or not valid_region(region)):
         raise GeofeedError(f"Site {site['id']} has invalid subdivision")
     # RFC 8805 does not support quoted CSV fields; commas must be rejected.
     if not city or any(c in city for c in ',"#\r\n') or any(ord(c) < 32 or ord(c) == 127 for c in city):

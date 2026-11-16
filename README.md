@@ -8,6 +8,9 @@ This is an independent community project. Contributions are welcome.
 Built-in source adapters are read-only.
 Combine Sonar customer space and NetBox infrastructure space with [named inputs](docs/multiple-inputs.md).
 No customer records or street addresses are published. Coordinates require explicit output selection.
+Country/subdivision codes must belong to the bundled ISO snapshot. See
+[conformance policy and recovery](docs/conformance.md). Project code is MIT; bundled ISO
+data is LGPL-2.1 with [upstream notices](THIRD_PARTY_NOTICES.md).
 
 ## Sources and verification
 
@@ -162,4 +165,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). We welcome adapters, tests, docs and ope
 We also invite [platform creators](docs/platform-creators.md) to make IP pool-to-geolocation links easier to read through their APIs.
 
 Source code is under `isp_geofeed_generator/`; the plugin is under `wordpress/`.
-Guides are under `docs/`. Licensed under [MIT](LICENSE).
+Guides are under `docs/`. Code is [MIT](LICENSE); bundled ISO data has
+[separate LGPL-2.1 notices](THIRD_PARTY_NOTICES.md).

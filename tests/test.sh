@@ -24,6 +24,7 @@ fi
 if command -v php >/dev/null; then
     php -l wordpress/isp-geofeed-generator/isp-geofeed-generator.php
     php tests/test_wordpress.php
+    "${PYTHON:-python3}" tests/check_iso_plugin.py
 else
     echo 'PHP checks NOT MEASURED: install PHP CLI and run tests/test_wordpress.php before release.'
     [[ ${REQUIRE_PHP:-0} == 0 ]] || exit 1

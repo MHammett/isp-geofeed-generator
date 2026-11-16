@@ -5,6 +5,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 plan = subprocess.check_output(['bash', str(root / 'deploy-update.sh'), '--dry-run'], text=True)
 actual = {line.split(' -> ')[0].split(' ', 3)[3] for line in plan.splitlines() if line.startswith('INSTALL ')}
 expected = {str(p) for p in (root / 'isp_geofeed_generator').rglob('*.py')}
+expected |= {str(p) for p in (root / 'isp_geofeed_generator/iso_data').iterdir() if p.is_file()}
 expected |= {str(p) for p in (root / 'tools').rglob('*.py')}
 expected |= {str(root / 'requirements.txt')}
 expected |= {str(p) for p in (root / 'systemd').iterdir() if p.suffix in ('.service', '.timer', '.slice')}

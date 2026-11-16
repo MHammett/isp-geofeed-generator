@@ -52,6 +52,10 @@ function check($condition, $label) {
 $old = "11.22.33.0/24,US,US-IL,Old City,\n";
 $new = "11.22.33.0/24,US,US-IL,New City,\n";
 check(isp_geofeed_generator_valid_csv($old), 'valid UTF-8 five-field CSV');
+$controls = json_decode(file_get_contents(__DIR__.'/fixtures/conformance.json'), true);
+foreach ($controls as $case) {
+    check(isp_geofeed_generator_valid_csv($case['csv']) === !$case['core_refuses'], 'shared conformance '.$case['name']);
+}
 $crlf = str_replace("\n", "\r\n", $old);
 check(isp_geofeed_generator_valid_csv($crlf), 'RFC CRLF CSV');
 foreach ([$crlf."11.22.34.0/24,US,US-IL,City,\n", str_replace("\n", "\r", $old),

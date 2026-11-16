@@ -15,6 +15,11 @@ sources,targets=load_extensions({'sources':['local_json'],'targets':['local_file
 assert sources['local_json'].initial and targets['local_file'].initial
 assert SOURCES['powercode'].initial and SOURCES['gaiia'].initial
 print('PASS: installed core and separate input/output extension wheels')
+from isp_geofeed_generator.iso_codes import code_tables
+assert tuple(map(len,code_tables()))==(249,5046)
+for name in ('LICENSE.txt','COPYRIGHT.txt','sources.json'):
+    assert (Path(isp_geofeed_generator.__file__).parent/'iso_data'/name).is_file()
+print('PASS: installed ISO data, integrity checks and third-party notices')
 from isp_geofeed_generator.client import Sonar,GeofeedError
 from isp_geofeed_generator.splynx import Splynx
 from isp_geofeed_generator.phpipam import PhpIPAM

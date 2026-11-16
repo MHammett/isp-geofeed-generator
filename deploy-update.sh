@@ -21,6 +21,9 @@ put() {
 while IFS= read -r file; do
     put "$file" "$DEST/${file#"$REPO/"}"
 done < <(find "$REPO/isp_geofeed_generator" -type f -name '*.py' | sort)
+for name in iso3166-1.json iso3166-2.json sources.json LICENSE.txt COPYRIGHT.txt; do
+    put "$REPO/isp_geofeed_generator/iso_data/$name" "$DEST/isp_geofeed_generator/iso_data/$name"
+done
 while IFS= read -r file; do
     put "$file" "$DEST/${file#"$REPO/"}"
 done < <(find "$REPO/tools" -type f -name '*.py' | sort)

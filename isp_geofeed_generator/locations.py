@@ -2,6 +2,7 @@
 import math
 import re
 from .client import GeofeedError
+from .iso_codes import valid_country, valid_region
 
 COARSE_FIELDS = frozenset({'country', 'region', 'city'})
 LOCATION_FIELDS = COARSE_FIELDS | {'latitude', 'longitude', 'postal_code', 'accuracy_km'}
@@ -31,9 +32,9 @@ def validate_location(value, fields):
             data = data.strip()
             if field != 'region' and not data:
                 raise GeofeedError(f'Location needs a nonempty {field}')
-            if field == 'country' and not re.fullmatch(r'[A-Z]{2}', data):
+            if field == 'country' and (not re.fullmatch(r'[A-Z]{2}', data) or not valid_country(data)):
                 raise GeofeedError('Location country code is invalid or missing')
-            if field == 'region' and data and not re.fullmatch(r'[A-Z]{2}-[A-Z0-9]{1,3}', data):
+            if field == 'region' and data and (not re.fullmatch(r'[A-Z]{2}-[A-Z0-9]{1,3}', data) or not valid_region(data)):
                 raise GeofeedError('Location subdivision/region code is invalid')
         result[field] = data
     if result.get('country') and result.get('region') and not result['region'].startswith(result['country'] + '-'):

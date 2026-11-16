@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- ISO country/subdivision membership checks in Python, rich records and WordPress, using identical pinned data with complete upstream licenses and integrity checks.
+- Shared positive/negative conformance fixtures and a separate CI comparison of pinned external validators, with their measured limits documented.
 - Sonar, Splynx and phpIPAM diagnostics identify malformed records by safe native ID, including Sonar's nested inventory/controller paths, without logging field values or API responses.
 - Native collection IDs are bounded numeric values; malformed IDs are refused and reported as unknown. Splynx IPv6 ranges are checked before normalization.
 - Generated CSV uses RFC 8805 CRLF line endings; Python and WordPress accept uniform legacy LF feeds for exact-hash migration and recovery.
