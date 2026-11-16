@@ -215,6 +215,13 @@ class Workload:
             '-t',str(self.webroot),str(self.webroot/'test-router.php')],env=self.environment,
             stdout=self.log,stderr=self.log,start_new_session=True)
         self.thread = threading.Thread(target=self.proxy.serve_forever,daemon=True); self.thread.start()
+        deadline = time.monotonic()+10
+        while True:
+            try:
+                with socket.create_connection(('127.0.0.1',self.backend),timeout=1):break
+            except OSError:
+                check(self.server.poll() is None and time.monotonic()<deadline,'PHP backend became ready')
+                time.sleep(.1)
         deadline = time.monotonic()+30
         while True:
             try:
@@ -280,6 +287,10 @@ class Workload:
                 self.reset(None if mode=='first' else A)
                 responses,doc=self.race(mode,candidates)
                 statuses=sorted(r[0] for r in responses)
+                print('RACE OBSERVATION: '+json.dumps({'mode':mode,'unsafe':True,'statuses':[r[0] for r in responses],
+                    'candidate_hashes':[digest(c) for c in candidates],'stored_hash':digest(doc['csv'].encode()),
+                    'previous_hash':digest(doc['previous_csv'].encode()),'sql_verbs':(self.control/'writes.log').read_text().splitlines(),
+                    'barrier_workers':len(list(self.control.glob('arrived-*')))}),flush=True)
                 check(statuses==([200,409] if mode=='first' else [200,200]),'negative control reached real competing database writes')
                 check(not self.race_valid(responses,doc,candidates,b'' if mode=='first' else A),'unsafe mutation must fail race check')
                 print('PASS: real WordPress '+mode+' race detects unsafe SQL mutation',flush=True)
