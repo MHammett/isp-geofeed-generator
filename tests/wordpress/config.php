@@ -29,7 +29,9 @@ if ($geofeed_test_control && $geofeed_test_put) {
             str_contains($last['message'], 'Allowed memory size of ');
         file_put_contents($geofeed_test_control.'/memory-observations.log', json_encode([
             'api_version' => $geofeed_test_api, 'memory_limit' => ini_get('memory_limit'),
-            'peak_allocated_bytes' => memory_get_peak_usage(true), 'oom' => $oom])."\n", FILE_APPEND | LOCK_EX);
+            'peak_allocated_bytes' => memory_get_peak_usage(true), 'oom' => $oom,
+            'hard_limit_percent' => ini_get('memory_hard_limit_percent') === false ? null : ini_get('memory_hard_limit_percent')
+        ])."\n", FILE_APPEND | LOCK_EX);
     });
 }
 define('DB_NAME', $fixture['database']);
