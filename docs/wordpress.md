@@ -113,6 +113,15 @@ publication and three changes, an unchanged run and conditional recovery. These 
 measurements of synthetic feeds, not universal bounds. Test at least three changed
 publications with populated history and leave packet headroom.
 
+The growth comes from three layers: stored JSON escapes Unicode, SQL escaping doubles
+those backslashes, and the conditional update carries both old and new documents,
+each with current and previous feeds. Character mix changes the ratio. The stored
+JSON currently stays ASCII, so even a legacy three-byte `utf8` table can retain
+four-byte city characters. Smaller storage needs separate charset and concurrency
+checks; no storage or database setting changes automatically.
+[Issue #80](https://github.com/MHammett/isp-geofeed-generator/issues/80) tracks the
+separate charset and digest-comparison decisions raised in the capacity review.
+
 - The runner sends JSON. Escaping non-ASCII characters can roughly triple the CSV's
   wire size. A proxy limit of 1 MB is not enough for every valid feed. For example,
   [nginx defaults to `client_max_body_size 1m`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)
