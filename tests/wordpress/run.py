@@ -93,6 +93,8 @@ class Proxy(ThreadingHTTPServer):
         self.last_policy_commit = None
         self.nested_winner = None
         self.policy_admin_headers = {}
+        self.control = None
+        self.cached_feed = None
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert, key)
         self.socket = context.wrap_socket(self.socket, server_side=True)
@@ -145,7 +147,14 @@ class Handler(BaseHTTPRequestHandler):
         with proxy.lock:
             mode = proxy.mode
             probe_path=self.path.startswith(FEED+'?isp_geofeed_probe=')
-            if self.command=='GET' and (self.path==FEED or probe_path) and mode in (
+            if self.command=='GET' and self.path==FEED and mode=='purge-cache':
+                marker=proxy.control/'purged.sha256'
+                purged=marker.read_text() if marker.exists() else None
+                actual=b'' if status==404 else data
+                if purged!=digest(actual):
+                    status=200;data=proxy.cached_feed;proxy.faults.append('purge-cache-stale')
+                else:proxy.faults.append('purge-cache-refreshed')
+            elif self.command=='GET' and (self.path==FEED or probe_path) and mode in (
                     'cache-canonical-stale','cache-both-stale','cache-canonical-unavailable'):
                 if self.path==FEED:
                     data=C
@@ -210,6 +219,7 @@ class Workload:
         subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-keyout',str(key),'-out',str(cert),
             '-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost,IP:127.0.0.1'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         self.proxy = Proxy(self.backend, nonce, str(cert), str(key))
+        self.proxy.control = self.control
         self.url = f'https://127.0.0.1:{self.proxy.server_port}'
         self.context = ssl.create_default_context(cafile=cert)
         self.environment = {**os.environ,'GEOFEED_WP_CONTROL':str(self.control),
@@ -718,6 +728,80 @@ class Workload:
         finally:
             self.proxy.nested_winner=None;self.proxy.arm(None)
 
+    def delivery_hook_tests(self):
+        flag=self.control/'delivery-mode';log=self.control/'delivery.log';marker=self.control/'purged.sha256'
+        client=WordPress(self.url,'publisher',self.accounts['publisher'])
+        client.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+        admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+        admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+        rows=csv_records(A)
+        nested_first=render_csv(rows,overlap_policy=LONGEST_PREFIX)
+        nested_second=render_csv([rows[0],{'prefix':'11.22.33.0/25','location':{'country':'US','region':'US-IL','city':'Override City'}},*rows[1:]],overlap_policy=LONGEST_PREFIX)
+        def events():return [json.loads(line) for line in log.read_text().splitlines()]
+        for version,policy,first,second,needle in (
+            (1,REJECT,A,B,"$result = isp_geofeed_generator_delivery_hook($before, $csv, 'reject', 'publish', $request->get_method(), 1);"),
+            (2,LONGEST_PREFIX,nested_first,nested_second,"$result = isp_geofeed_generator_delivery_hook($before, $csv, $policy, $input['operation'], $request->get_method(), 2);"),
+        ):
+            def prepare(label,mode='success'):
+                flag.write_text('');self.plugin.write_text(self.original);self.reset()
+                if version==2:admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
+                state=self.directory/('delivery-'+str(version)+'-'+label)
+                check(self.cli(first,state,overlap_policy=policy)[0]==0,'delivery hook baseline is a verified normal publication')
+                log.write_text('');marker.write_text(digest(first));flag.write_text(mode)
+                self.proxy.cached_feed=first;self.proxy.arm('purge-cache')
+                return state
+            try:
+                state=prepare('missing-notification')
+                check(self.original.count(needle)==1,'notification mutation targets exactly one API callback')
+                self.plugin.write_text(self.original.replace(needle,'$result = true;'))
+                result,status=self.cli(second,state,overlap_policy=policy,approve=True)
+                check(result==1 and not status['healthy'] and not events() and 'purge-cache-stale' in self.proxy.faults and
+                      client.policy_state().csv==first and client.read_public(overlap_policy=policy)==first,'removed notification leaves real cached bytes stale, fails publication and restores baseline')
+                print('DELIVERY HOOK OBSERVATION: '+json.dumps({'api_version':version,'scenario':'missing-notification',
+                    'healthy':status['healthy'],'hook_events':len(events()),'stale_control_fired':True}),flush=True)
+                self.plugin.write_text(self.original)
+                state=prepare('success')
+                result,status=self.cli(second,state,overlap_policy=policy,approve=True)
+                observed=events()
+                check(result==0 and status['healthy'] and len(observed)==1 and marker.read_text()==digest(second) and
+                      client.read_public(overlap_policy=policy)==second,'real installed callback purges held canonical bytes before verified public read-back')
+                event=observed[0]
+                check(event=={'schema_version':1,'api_version':version,'url':self.url+FEED,'sha256':digest(second),
+                    'previous_sha256':digest(first),'overlap_policy':policy,'operation':'publish','method':'PUT'},'real hook event has only fixed public metadata')
+                raw=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+                private=[p for p in (state/'before.csv',state/'before-policy.json',state/'last-good.csv') if p.exists()]
+                prior={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in private}
+                check(self.cli(second,state,overlap_policy=policy)[0]==0 and len(events())==1 and self.snapshot()[0]['raw']==raw and
+                      (self.control/'writes.log').read_bytes()==writes and {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in private}==prior,'unchanged publication does not retry purge or rewrite history')
+                if version==1:client.replace(first,second)
+                else:client.replace_policy(first,policy,client.policy_state(),secrets.token_hex(16),'restore')
+                check(len(events())==2 and events()[-1]['operation']==('restore' if version==2 else 'publish') and
+                      client.read_public(overlap_policy=policy)==first,'conditional restore purges its own committed baseline')
+                if version==1:client.replace(b'',first)
+                else:client.replace_policy(b'',policy,client.policy_state(),secrets.token_hex(16))
+                check(len(events())==3 and events()[-1]['method']=='DELETE' and events()[-1]['sha256']==digest(b'') and
+                      client.read_public(overlap_policy=policy)==b'','changed deletion purges the canonical empty-feed response')
+                print('DELIVERY HOOK OBSERVATION: '+json.dumps({'api_version':version,'scenario':'success-noop-restore-delete',
+                    'changed_healthy':status['healthy'],'hook_events':len(events()),'public_empty':True}),flush=True)
+                for mode in ('fail','no-effect'):
+                    state=prepare(mode,mode)
+                    prior=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
+                    result,status=self.cli(second,state,overlap_policy=policy,approve=True)
+                    observed=events()
+                    check(result==1 and not status['healthy'] and len(observed)==2 and
+                          [event['sha256'] for event in observed]==[digest(second),digest(first)] and
+                          client.policy_state().csv==first and client.read_public(overlap_policy=policy)==first,'failed or ineffective purge cannot report healthy and uses only conditional recovery')
+                    check((state/'before.csv').read_bytes()==first and
+                          ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==prior and
+                          'PRIVATE' not in status['error'],'failure preserves private baseline and last-good history without leaking callback details')
+                    if mode=='fail':check('503' in status['error'],'post-commit callback exception returned HTTP 503')
+                    else:check('purge-cache-stale' in self.proxy.faults,'ineffective successful callback really left public bytes stale')
+                    print('DELIVERY HOOK OBSERVATION: '+json.dumps({'api_version':version,'scenario':mode,
+                        'healthy':status['healthy'],'hook_events':len(observed),'stored_and_public_restored':True}),flush=True)
+            finally:
+                self.plugin.write_text(self.original);flag.write_text('');self.proxy.cached_feed=None;self.proxy.arm(None)
+        print('PASS: real WordPress delivery hooks preserve CAS, public verification, no-op history and conditional recovery',flush=True)
+
     def cache_inspection_tests(self):
         self.reset(A)
         state=self.directory/'cache-inspection';state.mkdir()
@@ -823,7 +907,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.nested_policy_tests();workload.cache_inspection_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 

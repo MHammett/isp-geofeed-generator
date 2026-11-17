@@ -76,7 +76,7 @@ class WordPress:
             if re.match(r'HTTP 413\b', str(exc)):
                 raise GeofeedError('WordPress upload refused (HTTP 413). Check request-body limits at the CDN, proxy, web server and PHP; JSON can be larger than the CSV. No retry was made') from None
             if re.match(r'HTTP 503\b', str(exc)):
-                raise GeofeedError('WordPress write unavailable (HTTP 503). Check server and database logs, including max_allowed_packet for large feeds; HTTP status alone does not identify the cause. No retry was made') from None
+                raise GeofeedError('WordPress write unavailable (HTTP 503). State may already have committed. Check configured delivery hooks, server/database logs and max_allowed_packet; HTTP status alone does not identify the cause. No retry was made') from None
             raise
         if not isinstance(result, dict) or result.get("sha256") != digest(csv):
             raise GeofeedError("WordPress did not confirm the expected feed hash")

@@ -143,6 +143,11 @@ changes them automatically.
 
 ## Updates and failures
 
+An optional [post-commit delivery action](wordpress-delivery-hooks.md) lets a separate
+local plugin request a narrow cache purge. It runs only after changed feed writes and
+does not replace public verification. A callback failure can return HTTP 503 after the
+database commit, so inspect state before retrying.
+
 For read-only comparisons of normal and fresh-query public URLs, use the
 [cache diagnostic command](wordpress-cache-diagnostics.md). It distinguishes observed
 differences and unavailable reads while preserving failed status and recovery files.

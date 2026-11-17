@@ -94,6 +94,13 @@ They may be visible to administrators or diagnostics. Do not put their values in
 
 ## Network and output controls
 
+The optional [WordPress delivery hook](wordpress-delivery-hooks.md) runs trusted PHP from
+an installed local plugin. Installing it requires site administration; a publishing
+request cannot select a callback, remote URL or shell command. Its event has only public
+URL/hash metadata. Keep provider credentials in the host's protected store. Callback
+exception details are hidden; failure returns a post-commit HTTP 503. Do not treat
+that response as proof the feed was never written.
+
 WordPress policy setup uses a separate administrator application password,
 `WP_POLICY_ADMIN_APP_PASSWORD`, only for `configure-wordpress-policy`. The unattended
 publisher and read-only inspection use `WP_APP_PASSWORD` from the limited publisher

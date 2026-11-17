@@ -16,6 +16,21 @@ add_action('application_password_did_authenticate', function ($user) {
     }
 });
 add_filter('pre_wp_mail', function () { return true; });
+add_action('isp_geofeed_generator_feed_committed', function ($event) {
+    $dir=getenv('GEOFEED_WP_CONTROL');
+    $mode=$dir?trim(@file_get_contents($dir.'/delivery-mode')?:''):'';
+    if ($mode==='') { return; }
+    $doc=isp_geofeed_generator_read();
+    if (is_wp_error($doc) || hash('sha256',$doc['csv'])!==$event['sha256']) {
+        throw new RuntimeException('Fixture delivery action ran before its commit');
+    }
+    file_put_contents($dir.'/delivery.log',json_encode($event)."\n",FILE_APPEND|LOCK_EX);
+    if ($mode==='fail') { throw new RuntimeException('PRIVATE simulated purge credential'); }
+    if ($mode==='success' && file_put_contents($dir.'/purged.sha256',$event['sha256'],LOCK_EX)===false) {
+        throw new RuntimeException('Fixture purge marker write failed');
+    }
+    // Mode no-effect deliberately accepts the action without changing the cached route.
+},10,1);
 add_action('rest_api_init', function () {
     header('X-Geofeed-Test-SAPI: '.PHP_SAPI);
     header('X-Geofeed-Test-OPcache: '.(ini_get('opcache.enable') ? '1' : '0'));

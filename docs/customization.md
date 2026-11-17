@@ -102,6 +102,11 @@ See [multiple inputs](multiple-inputs.md) for credential aliases and ID scope.
 
 ## Update and recover
 
+WordPress cache integrations can use the [post-commit delivery action](wordpress-delivery-hooks.md)
+from a separately installed local plugin. Keep that plugin and its protected settings
+outside the upstream plugin folder. No YAML callback, shell command or arbitrary URL
+is accepted. A failed hook leaves publication unhealthy and requires state inspection.
+
 Stop the timer, update the upstream checkout to the approved version, run tests and install it
 into the existing environment. Keep your private configuration and extension repository untouched.
 Run discovery and candidate generation with the real service account before a publication trial.

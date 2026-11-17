@@ -175,6 +175,13 @@ the [rollout and recovery guide](wordpress-nested-output.md) before host staging
 
 ## Read-only cache inspection workload
 
+The separate delivery-action workload holds canonical cached bytes until a real installed
+WordPress callback records a purge. It tests both write APIs, unchanged runs, recovery
+and deletion. Removing each API's notification must leave stale public bytes and fail
+publication. A throwing callback and an accepted but ineffective callback must also fail
+without losing the saved baseline. This is a synthetic cache, not a managed-host purge
+measurement or a live WP Rocket test.
+
 The disposable proxy injects stale canonical bytes, stale bytes on both public URLs
 and an unavailable canonical route. A control forwards both URLs unchanged. The real
 CLI must distinguish the four outcomes using exactly two authenticated state GETs and

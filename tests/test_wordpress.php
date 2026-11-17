@@ -2,8 +2,19 @@
 // Offline validation and CAS contract test. This does not replace a real WP test.
 define('ABSPATH', __DIR__);
 function register_activation_hook(...$args) {}
-function add_action(...$args) {}
+function add_action($hook, ...$args) {
+    if ($hook==='isp_geofeed_generator_feed_committed') { $GLOBALS['geofeed_test_delivery_actions'][]=$args[0]; }
+}
 function add_filter(...$args) {}
+function do_action($hook, ...$args) {
+    if ($hook === 'isp_geofeed_generator_feed_committed' && isset($GLOBALS['geofeed_test_delivery'])) {
+        ($GLOBALS['geofeed_test_delivery'])(...$args);
+    }
+    if ($hook==='isp_geofeed_generator_feed_committed') {
+        foreach ($GLOBALS['geofeed_test_delivery_actions']??[] as $callback) { $callback(...$args); }
+    }
+}
+function rest_url($path) { return 'https://example.net/wp-json/'.ltrim($path, '/'); }
 function add_role(...$args) {}
 function is_ssl() { return $GLOBALS['ssl'] ?? true; }
 function current_user_can($cap) { return in_array($cap, $GLOBALS['caps'] ?? [], true); }

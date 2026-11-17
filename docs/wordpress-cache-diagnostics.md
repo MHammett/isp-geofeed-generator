@@ -66,5 +66,7 @@ an unchanged one and a recovery trial. A successful query URL alone is insuffici
 The plugin's `no-store` header can still be overridden outside the application.
 
 [Issue #66](https://github.com/MHammett/isp-geofeed-generator/issues/66) stays open for
-managed-host measurement, any supported purge integration and decisions about recovery
-when delivery differs. No automatic purge or change to rollback is part of this command.
+managed-host measurement and decisions about recovery when delivery differs. A separate
+[optional delivery hook](wordpress-delivery-hooks.md) can request a supported purge after
+a changed commit. Inspection never invokes it. No purge or change to rollback is part of
+this diagnostic command.

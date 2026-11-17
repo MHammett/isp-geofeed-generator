@@ -203,7 +203,29 @@ function isp_geofeed_generator_write(WP_REST_Request $request) {
     }
     $result = isp_geofeed_generator_commit($before, $next);
     if (is_wp_error($result)) { return $result; }
+    $result = isp_geofeed_generator_delivery_hook($before, $csv, 'reject', 'publish', $request->get_method(), 1);
+    if (is_wp_error($result)) { return $result; }
     return ['sha256' => hash('sha256', $csv)];
+}
+
+function isp_geofeed_generator_delivery_hook($before, $csv, $policy, $operation, $method, $api_version) {
+    if ($before['csv'] === $csv) { return true; }
+    try {
+        // Installed local code may invalidate the public URL after a successful
+        // commit. No callback name, command, URL or secret comes from the request.
+        do_action('isp_geofeed_generator_feed_committed', [
+            'schema_version' => 1, 'api_version' => $api_version,
+            'url' => rest_url('isp-geofeed-generator/v1/feed'),
+            'sha256' => hash('sha256', $csv), 'previous_sha256' => hash('sha256', $before['csv']),
+            'overlap_policy' => $policy, 'operation' => $operation, 'method' => $method,
+        ]);
+    } catch (Throwable $error) {
+        // The CAS already committed. Preserve that fact and hide local exception
+        // details. The runner must inspect state, never blindly repeat the write.
+        return new WP_Error('geofeed_delivery_hook', 'Feed state committed but the configured delivery hook failed; inspect state before retrying',
+            ['status' => 503, 'feed_committed' => true]);
+    }
+    return true;
 }
 
 function isp_geofeed_generator_commit($before, $next) {
@@ -281,6 +303,8 @@ function isp_geofeed_generator_write_v2(WP_REST_Request $request) {
         'overlap_policy' => $policy, 'previous_overlap_policy' => $before['overlap_policy'],
         'required_overlap_policy' => $required, 'publication_id' => $input['publication_id']]);
     $result = isp_geofeed_generator_commit($before, $next);
+    if (is_wp_error($result)) { return $result; }
+    $result = isp_geofeed_generator_delivery_hook($before, $csv, $policy, $input['operation'], $request->get_method(), 2);
     if (is_wp_error($result)) { return $result; }
     return ['protocol_version' => 2, 'sha256' => hash('sha256', $csv), 'overlap_policy' => $policy,
             'publication_id' => $input['publication_id']];

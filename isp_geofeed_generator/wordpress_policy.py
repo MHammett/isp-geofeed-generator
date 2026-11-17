@@ -64,7 +64,7 @@ def replace(client,csv,policy,expected,publication_id,operation='publish'):
         if re.match(r'HTTP 413\b',str(exc)):
             raise GeofeedError('WordPress upload refused (HTTP 413). Check request-body limits; no retry was made') from None
         if re.match(r'HTTP 503\b',str(exc)):
-            raise GeofeedError('WordPress write unavailable (HTTP 503). Check server/database logs and max_allowed_packet; no retry was made') from None
+            raise GeofeedError('WordPress write unavailable (HTTP 503). State may already have committed. Check configured delivery hooks, server/database logs and max_allowed_packet; no retry was made') from None
         raise
     if (not isinstance(value,dict) or type(value.get('protocol_version')) is not int or value['protocol_version']!=2
             or value.get('sha256')!=digest(csv) or value.get('overlap_policy')!=policy

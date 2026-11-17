@@ -25,6 +25,7 @@ if command -v php >/dev/null; then
     php -l wordpress/isp-geofeed-generator/isp-geofeed-generator.php
     php tests/test_wordpress.php
     php tests/test_wordpress_v2.php
+    php tests/test_wordpress_delivery.php
     "${PYTHON:-python3}" tests/check_wordpress_restore_controls.py --require-php
     "${PYTHON:-python3}" tests/check_iso_plugin.py
 else

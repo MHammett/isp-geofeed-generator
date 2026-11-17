@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Optional WordPress post-commit delivery action for separately maintained narrow cache-purge integrations, with checked failure/recovery and an initial WP Rocket example. No purge integration is enabled automatically and public verification remains required.
+
 - Read-only WordPress cache inspection with an optional anonymous fresh-query probe, dated hashes, explicit unmeasured outcomes and preserved failure/recovery state. Publication and rollback guards remain unchanged.
 
 - Restore-history regression controls detect removed byte/policy checks in private Python/PHP copies. Document the retained-baseline recovery permission after a WordPress policy downgrade.
