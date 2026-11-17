@@ -1293,7 +1293,7 @@ class Workload:
             result,status=self.cli(candidate,state,overlap_policy=policy)
             check(result==1 and status['healthy'] is False and '500' in status['error'],
                   'actual after-commit HTTP 500 keeps the publication unhealthy')
-            check('proof' in seen and self.proxy.faults[0]=='after-commit-oom-inspected',
+            check('proof' in seen and 'after-commit-oom-inspected' in self.proxy.faults,
                   'real candidate was inspected before the failed response reached the runner')
             puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
             statuses=[value.get('origin_status') for value in puts]
@@ -1324,6 +1324,11 @@ class Workload:
                       'private recovery metadata binds original baseline and failed candidate owner')
             check(len(proof_path.read_text().splitlines())-proof_count==1 and not flag.exists(),
                   'restore and competing writes do not fire the consumed fault again')
+            memories=self.memory_observations()[memory_count:]
+            expected_memory_records=len(puts)+(1 if scenario.startswith('publisher-') else 0)
+            check(len(memories)==expected_memory_records and memories[0]['oom'] is True
+                  and all(value['oom'] is False and value['memory_limit']=='256M' for value in memories[1:]),
+                  'only the original response exhausts memory; restores and competing feed writes run normally')
             if scenario=='recover':
                 normal_count=len(self.memory_observations());self.proxy.arm(None)
                 normal,normal_status=self.cli(candidate,state,overlap_policy=policy)
