@@ -36,6 +36,10 @@ add_action('rest_api_init', function () {
     header('X-Geofeed-Test-OPcache: '.(ini_get('opcache.enable') ? '1' : '0'));
     header('X-Geofeed-Test-Post-Max: '.ini_get('post_max_size'));
     header('X-Geofeed-Test-Memory-Limit: '.ini_get('memory_limit'));
+    $dir=getenv('GEOFEED_WP_CONTROL');
+    if ($dir && is_file($dir.'/packet-probe')) {
+        header('X-Geofeed-Test-Max-Packet: '.(int)$GLOBALS['wpdb']->get_var('SELECT @@SESSION.max_allowed_packet'));
+    }
 });
 add_filter('query', function ($sql) {
     $dir = getenv('GEOFEED_WP_CONTROL');

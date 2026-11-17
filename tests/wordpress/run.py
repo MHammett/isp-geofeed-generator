@@ -137,14 +137,26 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(413); return
         body = self.rfile.read(length)
         with proxy.lock:
-            proxy.request_sizes.append({'method':self.command,'path':self.path,'bytes':length,
-                                        'authenticated':bool(self.headers.get('Authorization'))})
+            observation={'method':self.command,'path':self.path,'bytes':length,
+                         'authenticated':bool(self.headers.get('Authorization'))}
+            proxy.request_sizes.append(observation)
             mode = proxy.mode
             if mode == 'failed-recovery' and proxy.pending and self.command in ('PUT', 'DELETE'):
                 proxy.mode = None; proxy.faults.append('recovery-refused')
                 self.send_error(503); return
         status, headers, data = proxy.forward(self.command, self.path, body, dict(self.headers))
         with proxy.lock:
+            observation['origin_status']=status
+            for name,value in headers.items():
+                if name.lower()=='x-geofeed-test-max-packet' and len(value)<=10 and value.isdigit():
+                    observation['session_packet_budget']=int(value)
+            if self.command=='PUT' and self.path in (FEED,FEED_V2) and status==503:
+                try:
+                    error=json.loads(data)
+                except (ValueError,UnicodeError):
+                    error=None
+                if isinstance(error,dict) and error.get('code')=='geofeed_db':
+                    observation['origin_error']='geofeed_db'  # Fixed code only, no raw server message.
             mode = proxy.mode
             probe_path=self.path.startswith(FEED+'?isp_geofeed_probe=')
             if self.command=='GET' and self.path==FEED and mode=='purge-cache':
@@ -241,6 +253,24 @@ class Workload:
     def sql(self, statement):
         result = subprocess.run(['sudo','mariadb','--batch'],input=statement.encode(),capture_output=True,timeout=30)
         check(result.returncode == 0, 'disposable local database command')
+
+    def packet_budget(self, desired=None):
+        check(DISPOSABLE,'packet changes require the disposable GitHub-hosted Linux runner')
+        statement='SELECT @@GLOBAL.max_allowed_packet;'
+        if desired is not None:
+            check(type(desired) is int and 1024<=desired<=1073741824,'bounded numeric fixture packet setting')
+            statement=f'SET GLOBAL max_allowed_packet = {desired}; '+statement
+        result=subprocess.run(['sudo','mariadb','--no-defaults','--protocol=socket','--batch','--skip-column-names'],
+            input=statement.encode(),capture_output=True,timeout=30)
+        if result.returncode:
+            message=result.stderr.decode(errors='replace')[-4000:]
+            for secret in self.secrets:message=message.replace(secret,'[REDACTED]')
+            raise AssertionError('disposable packet command failed: '+message)
+        value=result.stdout.strip()
+        check(len(value)<=10 and value.isdigit(),'packet setting was actually measured')
+        measured=int(value)
+        if desired is not None:check(measured==desired,'global packet setting matches requested fixture budget')
+        return measured
 
     def fixture(self, action, value=None):
         result = subprocess.run(['php',str(HERE/'fixture.php'),action],env=self.environment,
@@ -962,8 +992,88 @@ class Workload:
                     'recovery_public_verified':True,'recovery_healthy':status['healthy']}),flush=True)
                 print('PASS: real WordPress populated-history Unicode capacity and conditional recovery',flush=True)
                 self.proxy.arm(None)
+                self.packet_limit_test(feeds[4],feeds[3],state,policy,version,width)
+
+    def packet_limit_test(self, candidate, baseline, state, policy, version, width):
+        check(DISPOSABLE,'packet failure workload is disposable-only')
+        original=self.packet_budget();limit=8*1024*1024
+        before,doc=self.snapshot()
+        check(original>limit and len(before['raw'].encode())<limit,'baseline fits below smaller fixture budget')
+        check(doc['csv'].encode()==baseline and self.request('GET',FEED)[2]==baseline,'exact baseline before packet control')
+        path=FEED_V2 if version==2 else FEED
+        state_path=STATE_V2 if version==2 else STATE
+        flag=self.control/'packet-probe';flag.write_text('enabled')
+        try:
+            self.packet_budget(limit)
+            response=self.request('GET',state_path,account='publisher')
+            headers={key.lower():value for key,value in response[1].items()}
+            check(response[0]==200 and int(headers.get('x-geofeed-test-max-packet','0'))==limit,
+                  'real HTTP database session uses the lowered packet budget and reads the baseline')
+            self.proxy.arm(None)
+            count=len((self.control/'write-sizes.log').read_text().splitlines())
+            result,status=self.cli(candidate,state,overlap_policy=policy)
+            puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
+            sizes=(self.control/'write-sizes.log').read_text().splitlines()[count:]
+            print('PACKET ATTEMPT: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+                'budget':limit,'exit_code':result,'healthy':status['healthy'],
+                'origin_statuses':[value.get('origin_status') for value in puts],
+                'origin_errors':[value.get('origin_error') for value in puts],
+                'query_filter_calls':len(sizes)}),flush=True)
+            check(result==1 and status['healthy'] is False and 'max_allowed_packet' in status['error'],
+                  'real packet rejection stays unhealthy and gives safe database-size guidance')
+            check(len(puts)==1 and puts[0]['path']==path and puts[0].get('origin_status')==503
+                  and puts[0].get('session_packet_budget')==limit
+                  and puts[0].get('origin_error')=='geofeed_db','one runner PUT receives real plugin database failure without HTTP retry')
+            check(len(sizes)==1 and sizes[0].startswith('UPDATE '),'one failed call through the geofeed query filter')
+            failed_size=int(sizes[0].split()[1])
+            check(limit<failed_size<original,'actual prepared statement exceeds lowered budget and fits original budget')
+            # Read-only diagnosis at the failing budget, before restoring the setting.
+            check(self.packet_budget()==limit and self.snapshot()[0]['raw']==before['raw']
+                  and self.request('GET',FEED)[2]==baseline,'packet failure preserves exact database/public baseline and history')
+            check((state/'before.csv').read_bytes()==baseline and (state/'last-good.csv').read_bytes()==baseline,
+                  'packet failure keeps the exact private recovery baseline')
+            if version==2:
+                metadata=json.loads((state/'before-policy.json').read_text())
+                check(metadata['before_policy']==metadata['before_required_policy']==policy and
+                      metadata['before_publication_id']==doc['publication_id'] and metadata['before_sha256']==digest(baseline),
+                      'packet failure keeps private policy and owner recovery metadata')
+            check(all(secret not in json.dumps(status) for secret in self.secrets),'packet status does not expose credentials')
+        finally:
+            # Restore even if a check fails; the whole runner is also disposable.
+            self.packet_budget(original)
+        check(self.packet_budget()==original and self.snapshot()[0]['raw']==before['raw']
+              and self.request('GET',FEED)[2]==baseline,'restored budget is measured before an explicit new publication')
+        self.proxy.arm(None)
+        count=len((self.control/'write-sizes.log').read_text().splitlines())
+        result,status=self.cli(candidate,state,overlap_policy=policy)
+        after=self.snapshot()[1]
+        puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
+        sizes=(self.control/'write-sizes.log').read_text().splitlines()[count:]
+        check(result==0 and status['healthy'] is True and status['changed'] is True,
+              'same candidate succeeds after diagnosed packet budget is restored')
+        check(len(puts)==len(sizes)==1 and puts[0]['path']==path and puts[0]['origin_status']==200
+              and puts[0].get('session_packet_budget')==original,
+              'explicit corrected-budget publication has one successful PUT and query-filter call')
+        check(int(sizes[0].split()[1])==failed_size,'positive control executes the same-sized prepared statement')
+        check(after['csv'].encode()==candidate and after['previous_csv'].encode()==baseline
+              and self.request('GET',FEED)[2]==candidate,'corrected budget verifies exact current, history and public bytes')
+        check((state/'before.csv').read_bytes()==baseline and (state/'last-good.csv').read_bytes()==candidate,
+              'corrected budget records verified private recovery history')
+        if version==2:
+            check(after['overlap_policy']==after['previous_overlap_policy']==after['required_overlap_policy']==policy,
+                  'corrected budget preserves all policy fields')
+        print('PACKET LIMIT OBSERVATION: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+            'low_budget_bytes':limit,'restored_budget_bytes':original,'prepared_sql_bytes':failed_size,
+            'failed_http_status':503,'failed_plugin_code':'geofeed_db','failure_healthy':False,
+            'failed_http_session_budget':limit,'corrected_http_session_budget':puts[0]['session_packet_budget'],
+            'failure_runner_puts':1,'failure_query_filter_calls':1,'raw_driver_attempts':'not_measured',
+            'baseline_preserved':True,'same_candidate_after_correction_healthy':status['healthy'],
+            'corrected_runner_puts':len(puts),'corrected_query_filter_calls':len(sizes)}),flush=True)
+        print('PASS: real WordPress packet-limit refusal preserves baseline and same-candidate correction succeeds',flush=True)
+        flag.unlink(missing_ok=True)
 
     def close(self):
+        (self.control/'packet-probe').unlink(missing_ok=True)
         if self.server:
             try:os.killpg(self.server.pid,signal.SIGTERM)
             except ProcessLookupError:pass
