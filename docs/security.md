@@ -101,6 +101,16 @@ account. Keep the admin reference in a separate private configuration; do not lo
 into the normal service. Both use the same secure credential backends. Passwords never
 belong in YAML values or command arguments. See [policy setup](wordpress-nested-output.md).
 
+The publisher's recovery permission includes restoring the one exact prior feed and
+its stored policy after an administrator downgrade to `reject`. We retain this so a
+failed downgrade can recover without the admin password. The server cannot tell a
+failed publication from another authenticated restore request. A holder of the publisher
+password can revive that prior nested feed until a later changed publication replaces
+it in history. Unchanged runs preserve history and do not end this permission. Different
+bytes or a different prior policy are refused. If withdrawing publisher access, stop the
+runner and revoke its application password. Verify both current and prior policies are
+strict before treating nested history as cleared. See the [migration guide](wordpress-nested-output.md#strict-migration-and-downgrade).
+
 - TLS certificate verification stays enabled. Authenticated redirects are refused.
 - Tokens are sent in headers, never query strings. Splynx uses a signed request header.
 - NetBox permits a deliberate `source.allow_http: true` exception for a private deployment that has no TLS.

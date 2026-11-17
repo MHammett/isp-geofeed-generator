@@ -13,7 +13,7 @@ from isp_geofeed_generator.client import GeofeedError
 from isp_geofeed_generator.feed import digest,render_csv
 from isp_geofeed_generator.overlap import REJECT,LONGEST_PREFIX
 from isp_geofeed_generator.publish import WordPress,publish_wordpress
-from isp_geofeed_generator.wordpress_policy import Snapshot,recover,configure,PolicyMismatch
+from isp_geofeed_generator.wordpress_policy import Snapshot,recover,restore,configure,PolicyMismatch
 from test_nested_core import PARENT,CHILD,row
 from isp_geofeed_generator.cli import main
 from isp_geofeed_generator.adapters import SOURCES
@@ -129,6 +129,26 @@ class WordPressPolicyTests(unittest.TestCase):
         self.wp.deny_restore=False
         result=recover(self.wp,self.root,digest(B))
         self.assertTrue(result['recovered']);self.assertEqual(self.wp.current.csv,A)
+    def test_restore_checks_history_even_when_current_bytes_policy_and_id_match(self):
+        from dataclasses import replace
+        before=Snapshot(A,LONGEST_PREFIX,REJECT,b'',REJECT,'a'*32)
+        current=Snapshot(B,LONGEST_PREFIX,REJECT,A,LONGEST_PREFIX,'b'*32)
+        for corrupt in (None,{'previous':C},{'previous_policy':REJECT}):
+            with self.subTest(corrupt=corrupt):
+                client=PolicyWP();client.current=current
+                original=client.replace_policy
+                def restored(*args,**kwargs):
+                    original(*args,**kwargs)
+                    if corrupt:client.current=replace(client.current,**corrupt)
+                client.replace_policy=restored
+                if corrupt:
+                    with self.assertRaisesRegex(GeofeedError,'Restored WordPress policy state differs'):
+                        restore(client,before,current)
+                else:restore(client,before,current)
+                self.assertEqual(client.current.csv,before.csv)
+                self.assertEqual(client.current.policy,before.policy)
+                self.assertEqual(client.current.publication_id,client.writes[0][3])
+                self.assertEqual(len(client.writes),1)
     def test_manual_recovery_refuses_wrong_destination_hash_baseline_and_owner(self):
         self.publish(A);self.publish(B,max_relocated_fraction=1)
         state=self.wp.current;writes=list(self.wp.writes)

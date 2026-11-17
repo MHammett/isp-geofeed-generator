@@ -100,6 +100,21 @@ version-2 path compares the old nested map with the new strict map using the sam
 A failed migration can conditionally restore the prior nested feed and policy. Do not
 drop children just to make a feed fit a limit.
 
+We keep this recovery exception so a failed downgrade can be recovered with the
+publisher account. The server accepts the exact retained prior CSV and its prior
+policy, even when the administrator has selected `reject`. It cannot distinguish a
+failed run from an intentional authenticated restore. Anyone holding the publisher
+password can therefore bring back that one prior nested feed while it remains in
+history. Different bytes or a different prior policy are refused.
+
+An unchanged run preserves that history, so the exception has no time limit. A later
+changed publication replaces the one prior feed. Verify both current and prior policies
+are strict when you need the nested baseline to stop being restorable. If publisher
+access is being withdrawn, stop the runner and revoke that account's application
+password as part of the access change. A policy switch alone preserves its recovery
+permission. The runner's `recover-wordpress` also requires its private candidate and
+ownership metadata; the server exception does not bypass those local checks.
+
 Only consider an older package after public/stored bytes and current policy are strict.
 Keep compatible packages and backups for recovery: an old plugin cannot restore a nested
 baseline. Never edit state fields or strip the marker to bypass migration checks.

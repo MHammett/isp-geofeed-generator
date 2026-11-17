@@ -56,6 +56,8 @@ check(!is_wp_error($result) && $result['protocol_version']===2 && $result['overl
 $doc = isp_geofeed_generator_read();
 check($doc['csv']===$a && $doc['previous_csv']==='' && $doc['previous_overlap_policy']==='reject', 'data and policy history inserted together');
 $raw = $wpdb->value;
+$bad=isp_geofeed_generator_write_v2(policy_request('',['operation'=>'restore']));
+check(is_wp_error($bad) && $bad->data['status']===409 && $wpdb->value===$raw, 'restore refuses matching empty bytes with wrong prior policy');
 foreach ([['expected_required_overlap_policy'=>'reject'],['expected_overlap_policy'=>'reject'],
           ['expected_publication_id'=>str_repeat('f',32)],['expected_sha256'=>str_repeat('0',64)]] as $bad) {
     $result=isp_geofeed_generator_write_v2(policy_request($b,$bad));
@@ -68,6 +70,8 @@ check(!is_wp_error($result) && $wpdb->value===$raw && $result['publication_id']=
 $result = isp_geofeed_generator_write_v2(policy_request($b));
 check(!is_wp_error($result) && isp_geofeed_generator_read()['previous_csv']===$a, 'changed v2 retains prior marked data');
 $raw=$wpdb->value;
+$bad=isp_geofeed_generator_write_v2(policy_request(marked(str_replace(',A,',',Other,',$legacy)),['operation'=>'restore']));
+check(is_wp_error($bad) && $bad->data['status']===409 && $wpdb->value===$raw, 'restore refuses different bytes with matching prior policy');
 $bad=isp_geofeed_generator_write_v2(policy_request($legacy,['operation'=>'restore','overlap_policy'=>'reject']));
 check(is_wp_error($bad) && $bad->data['status']===409 && $wpdb->value===$raw, 'restore cannot invent a baseline');
 $result=isp_geofeed_generator_write_v2(policy_request($a,['operation'=>'restore']));
@@ -94,4 +98,27 @@ $result=isp_geofeed_generator_configure_policy(configure_request('reject',['expe
 check(is_wp_error($result) && $result->data['status']===409 && $wpdb->value===$raw, 'policy switch refuses stale owner');
 $wpdb->conflict=true;$result=isp_geofeed_generator_configure_policy(configure_request('reject'));
 check(is_wp_error($result) && $result->data['status']===409 && $wpdb->value===$raw, 'policy switch uses shared database CAS');
+
+// The publisher's recovery exception is limited to one exact retained baseline.
+$wpdb=new FakeDB();isp_geofeed_generator_configure_policy(configure_request('longest_prefix'));
+isp_geofeed_generator_write_v2(policy_request($b));
+isp_geofeed_generator_configure_policy(configure_request('reject'));
+$result=isp_geofeed_generator_write_v2(policy_request($legacy,['overlap_policy'=>'reject','expected_required_overlap_policy'=>'reject']));
+check(!is_wp_error($result) && isp_geofeed_generator_read()['previous_csv']===$b, 'strict migration retains nested baseline');
+$raw=$wpdb->value;
+$bad=isp_geofeed_generator_write_v2(policy_request($a,['operation'=>'restore','expected_required_overlap_policy'=>'reject']));
+check(is_wp_error($bad) && $bad->data['status']===409 && $wpdb->value===$raw, 'strict setting refuses invented nested recovery bytes');
+$result=isp_geofeed_generator_write_v2(policy_request($legacy,['overlap_policy'=>'reject','expected_required_overlap_policy'=>'reject']));
+check(!is_wp_error($result) && $wpdb->value===$raw, 'unchanged strict publication keeps retained nested history');
+$GLOBALS['caps']=['publish_geofeed'];
+check(isp_geofeed_generator_permission() && !isp_geofeed_generator_policy_permission(), 'recovery caller has publisher permission only');
+$result=isp_geofeed_generator_write_v2(policy_request($b,['operation'=>'restore','expected_required_overlap_policy'=>'reject']));
+$doc=isp_geofeed_generator_read();
+check(!is_wp_error($result) && $doc['csv']===$b && $doc['overlap_policy']==='longest_prefix' && $doc['required_overlap_policy']==='reject' && $doc['previous_csv']===$legacy, 'publisher may restore exact prior nested feed after downgrade');
+isp_geofeed_generator_write_v2(policy_request($legacy,['overlap_policy'=>'reject','expected_required_overlap_policy'=>'reject']));
+$result=isp_geofeed_generator_write_v2(policy_request(str_replace(',A,',',Later,',$legacy),['overlap_policy'=>'reject','expected_required_overlap_policy'=>'reject']));
+check(!is_wp_error($result) && isp_geofeed_generator_read()['previous_overlap_policy']==='reject', 'later changed strict feed replaces nested recovery history');
+$raw=$wpdb->value;
+$bad=isp_geofeed_generator_write_v2(policy_request($b,['operation'=>'restore','expected_required_overlap_policy'=>'reject']));
+check(is_wp_error($bad) && $bad->data['status']===409 && $wpdb->value===$raw, 'nested baseline is not restorable after it leaves history');
 echo "PASS: $count offline WordPress policy-v2 checks\n";

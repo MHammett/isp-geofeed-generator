@@ -2,8 +2,8 @@
 
 ## Latest review coverage
 
-Observed from Claude Code's GitHub reviews submitted on 2026-11-16, including
-reviews through `19d3fc1`. Coverage is limited to the work listed
+Observed from Claude Code's GitHub reviews submitted through 2026-11-17, including
+reviews through `3881830`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -31,6 +31,16 @@ tenant/grid test. These reviews are not approval to merge.
 | [#67 nested core](https://github.com/MHammett/isp-geofeed-generator/pull/67#pullrequestreview-5926438570) | Reran 278 tests; independent 3,000-case guard oracle had zero mismatches; multi-input early refusal, shadowed-parent probes and two mutations | Shipped outputs refused nesting at that revision; later publication work is outside this review |
 | [#68 review guidance](https://github.com/MHammett/isp-geofeed-generator/pull/68#pullrequestreview-5926360393) | Checked capacity estimates, canonical/cache-busting guidance and review links | Issue #66 remains open; no managed-host plugin measurement or cache code fix |
 | [#69 nested local output](https://github.com/MHammett/isp-geofeed-generator/pull/69#pullrequestreview-5926408601) | Reran 291 tests; 57 independent crash points restored the exact old pair; same-byte other-owner refusal and removed-hash mutation | Windows ACL privacy is not established by mode 0600; WordPress protocol is later work |
+| [#71 WordPress policy](https://github.com/MHammett/isp-geofeed-generator/pull/71#pullrequestreview-5937959650) | Four 306-test Windows runs, 89 legacy/37 v2 local PHP checks, direct policy-switch probe and six mutations; four mutations were caught | Offline PHP/Python probes only; reviewer relied on hosted real-WordPress evidence. Two missing regression controls and the recovery exception needed follow-up. Managed-host caching remains unmeasured |
+
+The #71 follow-up adds isolated wrong-byte and wrong-policy restore refusals in PHP,
+plus Python read-back checks for both prior bytes and prior policy. A CI control removes
+each guard in a private copy and requires the relevant assertion to fail. The checkout's
+runtime code stays unchanged. The disposable WordPress workload also checks those
+refusals, exact retained recovery after downgrade and refusal after that baseline leaves
+history. Author results remain separate from Claude's earlier-head review. We keep the
+publisher recovery exception and document its scope and lifetime in the security and
+migration guides. Issues #16, #61 and #66 remain open.
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The
