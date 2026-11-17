@@ -52,8 +52,9 @@ def php_controls(php):
         stage = Path(directory)
         shutil.copytree(ROOT / 'wordpress/isp-geofeed-generator', stage / 'wordpress/isp-geofeed-generator')
         (stage / 'tests/fixtures').mkdir(parents=True)
-        for name in ('test_wordpress.php', 'test_wordpress_v2.php'):
+        for name in ('test_wordpress.php', 'test_wordpress_v2.php', 'test_wordpress_delivery.php'):
             shutil.copyfile(ROOT / 'tests' / name, stage / 'tests' / name)
+        shutil.copytree(ROOT / 'examples/wordpress-delivery-hook', stage / 'examples/wordpress-delivery-hook')
         for name in ('conformance.json', 'special-prefixes.json'):
             shutil.copyfile(ROOT / 'tests/fixtures' / name, stage / 'tests/fixtures' / name)
 
@@ -75,6 +76,21 @@ def php_controls(php):
                 'language': 'php', 'guard': guard.decode(), 'exit_code': result.returncode, 'failed_check': label}))
         (stage / relative).write_bytes(original)
         result = run()
+        assert result.returncode == 0, result.stdout + result.stderr
+        def delivery():
+            return subprocess.run([php, 'tests/test_wordpress_delivery.php'], cwd=stage,
+                                  capture_output=True, text=True, timeout=30)
+        result = delivery()
+        assert result.returncode == 0, result.stdout + result.stderr
+        unchanged = b"if ($before['csv'] === $csv) { return true; }"
+        assert original.count(unchanged) == 1, 'Delivery guard changed; inspect mutation target'
+        (stage / relative).write_bytes(original.replace(unchanged, b'if (false) { return true; }'))
+        result = delivery()
+        assert result.returncode == 1 and result.stderr.strip() == 'FAIL: empty-feed policy flip commits without delivery notification', result.stdout + result.stderr
+        print('DELIVERY SKIP MUTATION OBSERVATION: ' + json.dumps({'exit_code': result.returncode,
+              'failed_check': 'empty-feed policy flip commits without delivery notification'}))
+        (stage / relative).write_bytes(original)
+        result = delivery()
         assert result.returncode == 0, result.stdout + result.stderr
     assert (ROOT / relative).read_bytes() == original, 'Checkout plugin unexpectedly changed'
     print('PASS: PHP restore baseline controls detect both removed guards without changing checkout')

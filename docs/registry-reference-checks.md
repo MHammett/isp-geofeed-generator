@@ -1,0 +1,100 @@
+# Offline registry-reference coverage checks
+
+`check-registry` compares a local CSV candidate with an operator-supplied registry
+snapshot and an exact public feed URL. It reads no tool configuration, input platform
+or credential. It does not fetch a URL, query a registry, change a registration, publish
+a feed, or write status/recovery files. JSON results go to stdout only.
+
+Generate and verify the candidate through the normal source, ownership and current
+fullbogon checks first. This separate diagnostic does not repeat live allocation checks.
+Use the stable public CSV URL, not a temporary probe or a URL containing credentials.
+
+In Bash on Linux:
+
+```bash
+isp-geofeed-generator check-registry --registry-records /etc/isp-geofeed-generator/registry.json --feed /var/lib/isp-geofeed-generator/candidate.csv --feed-url 'https://example.net/geofeed.csv'
+```
+
+In PowerShell on Windows:
+
+```powershell
+isp-geofeed-generator check-registry --registry-records 'C:\ProgramData\ISP Geofeed Generator\registry.json' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv'
+```
+
+The default CSV policy rejects overlaps. For an explicitly generated nested candidate,
+add `--reference-policy longest_prefix`. It applies only to this diagnostic. It does
+not configure a publisher. Other command flags and `--output` are refused; capture the
+JSON through your shell into a separate private report if needed. `--config` is not read.
+
+## Snapshot contract, initial support
+
+Supply normalized JSON with exactly `schema_version`, `observed_at` and `objects`.
+`schema_version` is integer `1`. `observed_at` is the export's actual UTC observation
+time, in `YYYY-MM-DDTHH:MM:SSZ` or `+00:00` form. Future dates are refused. The report
+keeps the supplied date and age; it does not assume an old export reflects current state.
+
+Each object has:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Unique stable export ID, 1–128 ASCII letters, digits, dots, underscores, colons or hyphens |
+| `prefix` | Exact canonical IPv4/IPv6 CIDR scope of the registry object |
+| `geofeed` | Optional native attribute value, consisting of one HTTPS URL. Omit when absent. |
+| `remarks` | Optional array of at most 20 single-line strings, containing attribute values without the `remarks:` label |
+
+For example, an object can contain `geofeed: https://example.net/geofeed.csv`, or its
+remarks array can contain `Geofeed https://example.net/geofeed.csv`. These describe
+the two distinct [RFC 9632 reference forms](https://www.rfc-editor.org/rfc/rfc9632.html#section-3).
+The JSON keys represent the attributes; do not put the attribute labels in the values.
+Do not include credentials, customer locations or administrative geography fields.
+
+This initial format supports unsigned feeds and CIDR scopes. It is not a WHOIS/RDAP
+parser. Non-CIDR ranges, signatures, same-scope tie resolution and multiple remarks
+references need further support. Do not widen a real object, invent IDs or split it
+arbitrarily just to make it fit. This is a diagnostic-format limit, not evidence that
+the source platform cannot model the data.
+
+## What is compared
+
+A native reference takes precedence over remarks on that object. A child without a
+reference does not shadow a referring parent. The most-specific referring scope applies
+to each address. That choice is separate from location overrides within the CSV.
+The checker clips unsigned feed coverage to the supplied referring scopes, counts
+overlapping feed rows once, and keeps IPv4/IPv6 counts exact as decimal strings.
+
+It reports coverage in five categories: `this_feed`, `other_feed`, `unreferenced`,
+`invalid_reference` and `ambiguous_reference`. A different URL is an exact-string
+difference, not proof of different ownership; aliases require operator review.
+Queries and fragments are retained for comparison. URLs are validated but never followed.
+
+Malformed would-be references are conservatively marked invalid instead of guessing a
+consumer's fallback. Same-scope objects and multiple remarks references are reported as
+unsupported ambiguity, even if a richer registry export could resolve them. Invalid or
+unsupported selected objects make the comparison inconsistent. Structural errors stop
+the command without echoing their values.
+
+Input is bounded to 8 MB and 50,000 objects; CSV remains capped at 1 MB and 50,000 rows.
+Duplicate JSON keys, nonfinite constants, unsafe IDs and control characters are refused.
+The project's CSV parser still checks static special/bogon space and ISO location codes.
+It accepts the project's generated format and uniform legacy LF, not arbitrary comments
+or RPKI-signed feeds. No metadata changes the feed's locations.
+
+Detailed findings and uncovered intervals are capped at 1,000 each. Truncation is explicit,
+and full counts still decide the result. Reports contain IDs, ranges, hashes and dates,
+but no CSV, location values or raw URLs. Keep inventory and reports private.
+
+## Meaning of a result
+
+Exit 0 and `comparison_consistent: true` mean only that the supplied snapshot supports
+the exact URL for all candidate address coverage, without unresolved findings. They are
+not a publication-health or ownership claim. Missing coverage, invalid references or
+unsupported ambiguity exit 1. An empty snapshot never passes a nonempty candidate.
+
+Live registry reads, ownership, signatures, current allocation, public retrieval and
+provider ingestion remain `not_measured`. Validate them separately before deployment.
+A stale or incomplete export can miss a newer, more-specific reference.
+
+[Issue #70](https://github.com/MHammett/isp-geofeed-generator/issues/70) stays open for
+additional snapshot forms, verified registry reads and safe Geoflaw findings import.
+No beta dashboard becomes a publication gate, and no bulk lookup or automatic registry
+write is performed. Contributions with public contracts and sanitized fixtures are welcome.

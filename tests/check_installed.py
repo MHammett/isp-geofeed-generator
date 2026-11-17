@@ -177,6 +177,28 @@ else:raise AssertionError('Version-1 target overwrote a policy-bound destination
 assert recover_bound(nested,nested_state,'csv',digest(nested.read_bytes()))['recovered'] is True
 assert not nested.exists() and not policy_path(nested).exists()
 print('PASS: installed nested multi-input local publication, unchanged policy history and conditional recovery')
+import contextlib,io
+from isp_geofeed_generator.feed import parse_feed
+registry=root/'registry.json'
+url='https://example.net/feed.csv'
+objects=[{'id':str(index),'prefix':str(network),'geofeed':url,'remarks':['Geofeed https://other.example/feed.csv']}
+         for index,network in enumerate(parse_feed(feed.read_bytes()))]
+registry.write_text(json.dumps({'schema_version':1,'observed_at':'2020-01-01T00:00:00Z','objects':objects}))
+prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}
+output=io.StringIO()
+with contextlib.redirect_stdout(output):
+    assert main(['check-registry','--config',str(root/'missing.yaml'),'--registry-records',str(registry),
+                 '--feed',str(feed),'--feed-url',url])==0
+assert json.loads(output.getvalue())['comparison_consistent'] is True
+objects[0]['geofeed']='https://other.example/feed.csv'
+registry.write_text(json.dumps({'schema_version':1,'observed_at':'2020-01-01T00:00:00Z','objects':objects}))
+output=io.StringIO()
+with contextlib.redirect_stdout(output):
+    assert main(['check-registry','--registry-records',str(registry),'--feed',str(feed),'--feed-url',url])==1
+result=json.loads(output.getvalue())
+assert result['comparison_consistent'] is False and result['live_registry_read']=='not_measured' and 'healthy' not in result
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
+print('PASS: installed offline registry precedence and unsigned coverage checks without configuration or publication writes')
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

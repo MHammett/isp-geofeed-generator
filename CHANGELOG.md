@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Initial offline registry-reference checks from bounded operator-supplied unsigned CIDR snapshots, with native/remarks precedence, exact IPv4/IPv6 coverage, explicit unknowns and no source/credential/network/publication access.
+- Delivery-review follow-up checks that an empty-feed policy change skips the hook and clarifies WP Rocket REST defaults and canonical URL alignment.
+
 - Bounded Windows-only local rename retries for access/sharing denials, rechecking destination guards before every attempt. Persistent failures retain existing stop/recovery behavior; remote writes are not retried.
 
 - Optional WordPress post-commit delivery action for separately maintained narrow cache-purge integrations, with checked failure/recovery and an initial WP Rocket example. No purge integration is enabled automatically and public verification remains required.

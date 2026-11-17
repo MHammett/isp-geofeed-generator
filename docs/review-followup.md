@@ -3,7 +3,7 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted through 2026-11-17, including
-reviews through `e128cc2`. Coverage is limited to the work listed
+reviews through `d79b710`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -34,6 +34,8 @@ tenant/grid test. These reviews are not approval to merge.
 | [#71 WordPress policy](https://github.com/MHammett/isp-geofeed-generator/pull/71#pullrequestreview-5937959650) | Four 306-test Windows runs, 89 legacy/37 v2 local PHP checks, direct policy-switch probe and six mutations; four mutations were caught | Offline PHP/Python probes only; reviewer relied on hosted real-WordPress evidence. Two missing regression controls and the recovery exception needed follow-up. Managed-host caching remains unmeasured |
 | [#72 restore follow-up](https://github.com/MHammett/isp-geofeed-generator/pull/72#pullrequestreview-5940807247) | Reran 307 tests, local PHP checks and the control script; independently repeated all four guard removals, each caught | Offline controls and hosted evidence inspection; no managed-host purge measurement |
 | [#73 cache diagnostics](https://github.com/MHammett/isp-geofeed-generator/pull/73#pullrequestreview-5940807650) | Reran 318 tests; four independent mutations caught; anonymous core-route CDN observations showed fresh/reused query keys and ignored request no-cache | One host's core REST route only; plugin not installed. Later delivery-hook code is outside this review |
+| [#75 delivery hook](https://github.com/MHammett/isp-geofeed-generator/pull/75#pullrequestreview-5941819838) | Reran 318 tests, 175 PHP checks and traced post-commit recovery; three of four mutations caught | Empty-feed policy-flip skip lacked a control. WP Rocket defaults and event/runner URL alignment needed clearer guidance. No live provider purge verified |
+| [#76 Windows writes](https://github.com/MHammett/isp-geofeed-generator/pull/76#pullrequestreview-5941820308) | Reran 327 tests plus eight clean repeats; 6,000 writes handled 12 native denials with exact byte checks; error-code and wait mutations caught | One workstation and controlled/hosted evidence; blocking process and other-host rates not established. #74 closes after integration |
 
 The #71 follow-up adds isolated wrong-byte and wrong-policy restore refusals in PHP,
 plus Python read-back checks for both prior bytes and prior policy. A CI control removes
@@ -49,6 +51,11 @@ core-route CDN example now in the [diagnostic guide](wordpress-cache-diagnostics
 It does not verify plugin-route caching or a host purge. Issue #74 records Windows
 rename denials reproduced in a bare file-writing loop outside this project; the specific
 blocking process is not established by that loop. It is separate from the delivery hook.
+
+The #75 notes now have an empty-feed policy-flip control and provider-default/URL-key
+guidance. The callback contract and skip behavior remain unchanged. The #76 review
+independently confirmed bounded rename handling on the affected workstation. These
+reviews do not cover the later registry comparison work.
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The

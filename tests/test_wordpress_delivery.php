@@ -61,6 +61,11 @@ foreach ([1,2] as $version) {
         isp_geofeed_generator_configure_policy(configure_request('reject'));
         isp_geofeed_generator_state_v2();
         check(count($events)===4,'policy-only change and inspection do not purge');
+        $raw=$wpdb->value;
+        $result=isp_geofeed_generator_write_v2(policy_request('',['overlap_policy'=>'reject','expected_required_overlap_policy'=>'reject']));
+        $doc=isp_geofeed_generator_read();
+        check(!is_wp_error($result) && $doc['csv']==='' && $doc['overlap_policy']==='reject' &&
+            $wpdb->value!==$raw && count($events)===4,'empty-feed policy flip commits without delivery notification');
     }
 }
 unset($GLOBALS['geofeed_test_delivery']);

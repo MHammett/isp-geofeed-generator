@@ -166,7 +166,7 @@ def publication_run(directory, credentials, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
-    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy", "inspect-wordpress"))
+    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy", "inspect-wordpress", "check-registry"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
@@ -174,11 +174,27 @@ def main(argv=None):
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
     parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Policy configuration/recovery only: exact current feed or failed candidate hash')
     parser.add_argument('--probe-cache',action='store_true',help='inspect-wordpress only: compare a fresh anonymous query URL with the canonical feed; no writes')
+    parser.add_argument('--registry-records',help='check-registry only: private normalized registry snapshot JSON')
+    parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
+    parser.add_argument('--feed-url',help='check-registry only: exact public HTTPS feed URL; never fetched')
+    parser.add_argument('--reference-policy',choices=('reject','longest_prefix'),help='check-registry only: explicit CSV overlap policy; default reject')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
     credentials = CredentialStore()
     try:
+        if args.command=='check-registry':
+            if (not all((args.registry_records,args.feed,args.feed_url)) or args.assignment_candidates or args.controller_candidates
+                    or args.probe_cache or any(value is not None for value in
+                        (args.output,args.approve_location_changes,args.expected_current_sha256))):
+                raise GeofeedError('check-registry requires --registry-records, --feed and --feed-url; no other operation flags or output writes are supported')
+            from .registry_check import check_files
+            stage='checking supplied registry references'
+            result=check_files(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT)
+            print(json.dumps(result))
+            return 0 if result['comparison_consistent'] else 1
+        if any(value is not None for value in (args.registry_records,args.feed,args.feed_url,args.reference_policy)):
+            raise GeofeedError('Registry reference flags require check-registry; no write attempted')
         if args.probe_cache and args.command!='inspect-wordpress':
             raise GeofeedError('--probe-cache requires inspect-wordpress; no write attempted')
         if args.approve_location_changes is not None and (args.command != 'publish' or not re.fullmatch(r'[a-f0-9]{64}', args.approve_location_changes)):
