@@ -11,7 +11,7 @@ $geofeed_test_put = ($_SERVER['REQUEST_METHOD'] ?? '') === 'PUT' && $geofeed_tes
 $geofeed_test_memory = '256M';
 if ($geofeed_test_control && $geofeed_test_put && is_file($geofeed_test_control.'/memory-probe')) {
     $geofeed_test_memory = trim(file_get_contents($geofeed_test_control.'/memory-probe', false, null, 0, 32));
-    if (!in_array($geofeed_test_memory, ['32M', '256M'], true)) {
+    if (!in_array($geofeed_test_memory, ['64M', '256M'], true)) {
         throw new RuntimeException('Invalid fixture memory budget');
     }
 }

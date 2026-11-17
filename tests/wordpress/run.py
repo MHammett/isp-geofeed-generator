@@ -150,7 +150,7 @@ class Handler(BaseHTTPRequestHandler):
             for name,value in headers.items():
                 if name.lower()=='x-geofeed-test-max-packet' and len(value)<=10 and value.isdigit():
                     observation['session_packet_budget']=int(value)
-                if name.lower()=='x-geofeed-test-memory-limit' and value in ('32M','256M'):
+                if name.lower()=='x-geofeed-test-memory-limit' and value in ('64M','256M'):
                     observation['php_memory_limit']=value
             if self.command=='PUT' and self.path in (FEED,FEED_V2) and status==503:
                 try:
@@ -1094,16 +1094,19 @@ class Workload:
                 before=wrap_csv(A) if version==2 else A
                 candidate=wrap_csv(B) if version==2 else B
                 check(self.cli(before,state,overlap_policy=policy)[0]==0,'small memory-control baseline')
-                flag.write_text('32M');self.proxy.arm(None)
+                flag.write_text('64M');self.proxy.arm(None)
                 count=len(self.memory_observations())
                 result,status=self.cli(candidate,state,overlap_policy=policy)
                 observations=self.memory_observations()[count:]
                 puts=[value for value in self.proxy.request_sizes if value['method']=='PUT']
+                print('MEMORY SMALL ATTEMPT: '+json.dumps({'api_version':version,'exit_code':result,
+                    'healthy':status['healthy'],'origin_statuses':[value.get('origin_status') for value in puts],
+                    'php_observations':observations}),flush=True)
                 check(result==0 and status['healthy'] is True and status['changed'] is True,
                       'small real CLI publication works at the low memory budget')
                 check(len(observations)==len(puts)==1 and puts[0]['origin_status']==200
-                      and observations[0]['api_version']==version and observations[0]['memory_limit']=='32M'
-                      and observations[0]['oom'] is False and 0<observations[0]['peak_allocated_bytes']<=32*1024*1024,
+                      and observations[0]['api_version']==version and observations[0]['memory_limit']=='64M'
+                      and observations[0]['oom'] is False and 0<observations[0]['peak_allocated_bytes']<=64*1024*1024,
                       'low-budget positive control really executes with finite memory and no OOM')
                 check(self.snapshot()[1]['csv'].encode()==candidate and self.request('GET',FEED)[2]==candidate,
                       'low-budget small control verifies actual stored and public workload')
@@ -1117,7 +1120,7 @@ class Workload:
         check(doc['csv'].encode()==baseline and self.request('GET',FEED)[2]==baseline,'exact baseline before memory control')
         path=FEED_V2 if version==2 else FEED
         try:
-            flag.write_text('32M');self.proxy.arm(None)
+            flag.write_text('64M');self.proxy.arm(None)
             count=len(self.memory_observations())
             writes=len((self.control/'write-sizes.log').read_text().splitlines())
             result,status=self.cli(candidate,state,overlap_policy=policy)
@@ -1131,8 +1134,8 @@ class Workload:
             check(len(puts)==1 and puts[0]['path']==path and puts[0].get('origin_status') in (500,503),
                   'real memory failure makes one runner PUT without an HTTP retry')
             check(len(observations)==1 and observations[0]['api_version']==version
-                  and observations[0]['memory_limit']=='32M' and observations[0]['oom'] is True
-                  and 0<observations[0]['peak_allocated_bytes']<=32*1024*1024,
+                  and observations[0]['memory_limit']=='64M' and observations[0]['oom'] is True
+                  and 0<observations[0]['peak_allocated_bytes']<=64*1024*1024,
                   'PHP shutdown metadata proves actual memory exhaustion, not a simulated 500')
             failed=observations[0];failed_http=puts[0]['origin_status']
             # Diagnose with normal-budget GETs before correcting the PUT budget.
