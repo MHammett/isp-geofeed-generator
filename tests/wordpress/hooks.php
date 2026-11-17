@@ -18,6 +18,53 @@ add_action('application_password_did_authenticate', function ($user) {
 add_filter('pre_wp_mail', function () { return true; });
 add_action('isp_geofeed_generator_feed_committed', function ($event) {
     $dir=getenv('GEOFEED_WP_CONTROL');
+    $flag=$dir ? $dir.'/after-commit-oom' : '';
+    if (!$flag || !is_file($flag)) { return; }
+    $armed=json_decode(file_get_contents($flag, false, null, 0, 2048), true, 32, JSON_THROW_ON_ERROR);
+    if (!is_array($armed) || count($armed)!==4 ||
+        array_diff(array_keys($armed), ['nonce','candidate_sha256','before_sha256','api_version']) ||
+        !is_string($armed['nonce'] ?? null) || !preg_match('/^[0-9a-f]{32}$/D',$armed['nonce']) ||
+        !is_string($armed['candidate_sha256'] ?? null) || !preg_match('/^[0-9a-f]{64}$/D',$armed['candidate_sha256']) ||
+        !is_string($armed['before_sha256'] ?? null) || !preg_match('/^[0-9a-f]{64}$/D',$armed['before_sha256']) ||
+        !in_array($armed['api_version'] ?? null,[1,2],true)) {
+        throw new RuntimeException('Invalid private after-commit control');
+    }
+    $doc=isp_geofeed_generator_read();
+    if (is_wp_error($doc) || $event['method']!=='PUT' || $event['operation']!=='publish' ||
+        $event['api_version']!==$armed['api_version'] ||
+        hash('sha256',$doc['csv'])!==$armed['candidate_sha256'] || $event['sha256']!==$armed['candidate_sha256'] ||
+        hash('sha256',$doc['previous_csv'])!==$armed['before_sha256'] || $event['previous_sha256']!==$armed['before_sha256']) {
+        throw new RuntimeException('After-commit fault did not read the committed candidate and history');
+    }
+    // Consume first. The runner's conditional restore and any competing write must
+    // be able to commit normally even though this response will be lost to OOM.
+    if (!unlink($flag)) { throw new RuntimeException('Cannot consume private one-shot fault'); }
+    $mib=1048576;
+    $allocated=memory_get_usage(true);
+    $limit=(intdiv($allocated+$mib-1,$mib)+16)*$mib;
+    if (wp_convert_hr_to_bytes(ini_get('memory_limit'))!==256*$mib || $limit>192*$mib) {
+        throw new RuntimeException('After-commit allocation is outside the bounded fixture budget');
+    }
+    ini_set('memory_limit',(string)$limit);
+    if (wp_convert_hr_to_bytes(ini_get('memory_limit'))!==$limit || $limit<=$allocated) {
+        throw new RuntimeException('After-commit memory limit was not measured above current allocation');
+    }
+    $proof=['nonce'=>$armed['nonce'],'api_version'=>$event['api_version'],
+        'sha256'=>hash('sha256',$doc['csv']),'previous_sha256'=>hash('sha256',$doc['previous_csv']),
+        'overlap_policy'=>$doc['overlap_policy'],'previous_overlap_policy'=>$doc['previous_overlap_policy'],
+        'required_overlap_policy'=>$doc['required_overlap_policy'],'publication_id'=>$doc['publication_id'],
+        'allocated_before_fault_bytes'=>$allocated,'peak_before_fault_bytes'=>memory_get_peak_usage(true),
+        'oom_limit_bytes'=>$limit,'one_shot_consumed'=>true];
+    if (file_put_contents($dir.'/after-commit-oom.log',json_encode($proof)."\n",FILE_APPEND|LOCK_EX)===false) {
+        throw new RuntimeException('Cannot record private commit ordering proof');
+    }
+    $chunks=[];
+    for ($i=0;$i<48;$i++) { $chunks[]=str_repeat('x',$mib); }
+    // Reaching this is a failed control, never substitute an artificial HTTP 500.
+    throw new RuntimeException('Real after-commit exhaustion was not reached within the allocation bound');
+},5,1);
+add_action('isp_geofeed_generator_feed_committed', function ($event) {
+    $dir=getenv('GEOFEED_WP_CONTROL');
     $mode=$dir?trim(@file_get_contents($dir.'/delivery-mode')?:''):'';
     if ($mode==='') { return; }
     $doc=isp_geofeed_generator_read();

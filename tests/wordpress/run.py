@@ -95,6 +95,8 @@ class Proxy(ThreadingHTTPServer):
         self.policy_admin_headers = {}
         self.control = None
         self.cached_feed = None
+        self.after_oom = None
+        self.before_restore = None
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert, key)
         self.socket = context.wrap_socket(self.socket, server_side=True)
@@ -140,6 +142,9 @@ class Handler(BaseHTTPRequestHandler):
             observation={'method':self.command,'path':self.path,'bytes':length,
                          'authenticated':bool(self.headers.get('Authorization'))}
             proxy.request_sizes.append(observation)
+            if self.command=='PUT' and self.path in (FEED,FEED_V2) and proxy.before_restore is not None:
+                callback=proxy.before_restore;proxy.before_restore=None
+                callback(self.path,json.loads(body))
             mode = proxy.mode
             if mode == 'failed-recovery' and proxy.pending and self.command in ('PUT', 'DELETE'):
                 proxy.mode = None; proxy.faults.append('recovery-refused')
@@ -160,6 +165,11 @@ class Handler(BaseHTTPRequestHandler):
                 if isinstance(error,dict) and error.get('code')=='geofeed_db':
                     observation['origin_error']='geofeed_db'  # Fixed code only, no raw server message.
             mode = proxy.mode
+            if self.command=='PUT' and self.path in (FEED,FEED_V2) and status==500 and mode=='after-commit-oom':
+                proxy.mode=None;mode=None
+                check(callable(proxy.after_oom),'after-commit failure has an explicit inspection callback')
+                proxy.after_oom(self.path,json.loads(body))
+                proxy.faults.append('after-commit-oom-inspected')
             probe_path=self.path.startswith(FEED+'?isp_geofeed_probe=')
             if self.command=='GET' and self.path==FEED and mode=='purge-cache':
                 marker=proxy.control/'purged.sha256'
@@ -1182,9 +1192,161 @@ class Workload:
         print('PASS: real WordPress PHP exhaustion preserves baseline and same-candidate finite-memory correction succeeds',flush=True)
         flag.unlink(missing_ok=True)
 
+    def after_commit_oom_tests(self):
+        check(DISPOSABLE,'after-commit memory tests require the disposable runner')
+        check(not (self.control/'memory-probe').exists(),'previous memory controls were removed')
+        for version in (1,2):
+            convert=wrap_csv if version==2 else lambda value:value
+            for scenario in ('recover','publisher-inspection','publisher-restore'):
+                self.after_commit_oom_case(version,convert(A),convert(B),convert(C),'small',scenario)
+            if version==2:
+                for scenario in ('admin-inspection','admin-restore'):
+                    self.after_commit_oom_case(version,convert(A),convert(B),convert(C),'small',scenario)
+        city='\U0001f600'*60;start=ipaddress.ip_address('11.22.0.0');rows=[];size=0
+        def row(index):return f'{start+index}/32,US,US-IL,{city},\r\n'.encode()
+        while size<980000:
+            value=row(len(rows));rows.append(value);size+=len(value)
+        first=b''.join(rows);second=first+row(len(rows))
+        check(980000<=len(first)<len(second)<1000000,'after-commit Unicode candidates stay near the CSV limit')
+        for version in (1,2):
+            convert=wrap_csv if version==2 else lambda value:value
+            self.after_commit_oom_case(version,convert(first),convert(second),None,'near-limit','recover')
+        print('PASS: real WordPress after-commit OOM recovery and competing-owner protection',flush=True)
+
+    def after_commit_oom_case(self, version, first, candidate, winner, size_label, scenario):
+        check(DISPOSABLE,'after-commit memory cases require the disposable runner')
+        policy=LONGEST_PREFIX if version==2 else REJECT
+        path=FEED_V2 if version==2 else FEED
+        flag=self.control/'after-commit-oom';proof_path=self.control/'after-commit-oom.log'
+        flag.unlink(missing_ok=True);self.reset()
+        if version==2:
+            admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+            admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+            admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
+        state=self.directory/f'after-commit-{version}-{size_label}-{scenario}'
+        check(self.cli(first,state,overlap_policy=policy)[0]==0,'verified normal baseline before after-commit fault')
+        before=self.snapshot()[1]
+        last_good=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
+        proof_count=len(proof_path.read_text().splitlines()) if proof_path.exists() else 0
+        memory_count=len(self.memory_observations())
+        query_count=len((self.control/'write-sizes.log').read_text().splitlines())
+        nonce=secrets.token_hex(16);seen={}
+
+        def inject_winner():
+            current=seen['committed_doc'];identity=secrets.token_hex(16)
+            if scenario.startswith('admin-'):
+                payload={'protocol_version':2,'required_overlap_policy':REJECT,'expected_sha256':digest(candidate),
+                    'expected_overlap_policy':policy,'expected_required_overlap_policy':policy,
+                    'expected_publication_id':current['publication_id'],'publication_id':identity}
+                endpoint=POLICY_V2;headers=self.proxy.policy_admin_headers
+            elif version==2:
+                payload={'protocol_version':2,'csv':winner.decode(),'overlap_policy':policy,'operation':'publish',
+                    'expected_sha256':digest(candidate),'expected_overlap_policy':policy,
+                    'expected_required_overlap_policy':policy,'expected_publication_id':current['publication_id'],
+                    'publication_id':identity}
+                endpoint=FEED_V2;headers=self.proxy.publisher_headers
+            else:
+                payload={'csv':winner.decode(),'expected_sha256':digest(candidate)}
+                endpoint=FEED;headers=self.proxy.publisher_headers
+            response=self.proxy.forward('PUT',endpoint,json.dumps(payload).encode(),{**headers,'Content-Type':'application/json'})
+            check(response[0]==200,'real competing writer/admin commit after original OOM')
+            snapshot,doc=self.snapshot();seen['winner_raw']=snapshot['raw'];seen['winner_doc']=doc
+            check(doc['csv'].encode()==(candidate if scenario.startswith('admin-') else winner),'real competing actor stores intended exact bytes')
+            if version==2:check(doc['publication_id']==identity,'competing actor has a new real publication identity')
+            if scenario.startswith('admin-'):
+                check(doc['required_overlap_policy']==REJECT and doc['overlap_policy']==policy,
+                      'administrative winner changes policy/owner while preserving identical candidate bytes')
+            self.proxy.faults.append('competing-'+scenario)
+
+        def capture_commit(endpoint,payload):
+            check(endpoint==path and payload['csv'].encode()==candidate,'actual failed response belongs to intended publication')
+            proofs=[json.loads(line) for line in proof_path.read_text().splitlines()[proof_count:]]
+            memories=self.memory_observations()[memory_count:]
+            check(len(proofs)==len(memories)==1,'exactly one consumed fault and one PHP shutdown record before response')
+            proof=proofs[0];memory=memories[0];snapshot,doc=self.snapshot()
+            check(proof['nonce']==nonce and proof['one_shot_consumed'] is True and not flag.exists(),
+                  'one-shot fault was consumed before exhaustion')
+            check(proof['api_version']==version and proof['sha256']==digest(candidate)
+                  and proof['previous_sha256']==digest(first) and doc['csv'].encode()==candidate
+                  and doc['previous_csv'].encode()==first,'candidate and history really committed before OOM and before runner inspection')
+            check(proof['publication_id']==doc.get('publication_id') and proof['overlap_policy']==policy
+                  and proof['previous_overlap_policy']==policy and proof['required_overlap_policy']==policy,
+                  'commit proof binds actual server policy and publication identity')
+            if version==2:check(proof['publication_id']==payload['publication_id'],'server committed the runner candidate identity')
+            check(memory['api_version']==version and memory['oom'] is True
+                  and int(memory['memory_limit'])==proof['oom_limit_bytes']
+                  and 0<proof['allocated_before_fault_bytes']<proof['oom_limit_bytes']<=192*1024*1024,
+                  'real PHP fatal follows a measured bounded limit above current allocation')
+            seen.update(proof=proof,memory=memory,committed_doc=doc,committed_raw=snapshot['raw'])
+            if scenario.endswith('-inspection'):inject_winner()
+            elif scenario.endswith('-restore'):
+                def before_restore(endpoint,payload):
+                    check(endpoint==path and payload['csv'].encode()==first and payload['expected_sha256']==digest(candidate),
+                          'injection occurs before a justified restore, never a blind publication retry')
+                    if version==2:check(payload['operation']=='restore','v2 recovery uses the restore operation')
+                    inject_winner()
+                self.proxy.before_restore=before_restore
+
+        self.proxy.after_oom=capture_commit;self.proxy.arm('after-commit-oom')
+        flag.write_text(json.dumps({'nonce':nonce,'api_version':version,'candidate_sha256':digest(candidate),'before_sha256':digest(first)}))
+        try:
+            result,status=self.cli(candidate,state,overlap_policy=policy)
+            check(result==1 and status['healthy'] is False and '500' in status['error'],
+                  'actual after-commit HTTP 500 keeps the publication unhealthy')
+            check('proof' in seen and self.proxy.faults[0]=='after-commit-oom-inspected',
+                  'real candidate was inspected before the failed response reached the runner')
+            puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
+            statuses=[value.get('origin_status') for value in puts]
+            expected=[500,200] if scenario=='recover' else [500,409] if scenario.endswith('-restore') else [500]
+            check(statuses==expected and all(value['path']==path for value in puts),
+                  'one failed publication and only the justified conditional restore; no blind retries')
+            check(len((self.control/'write-sizes.log').read_text().splitlines())-query_count==2,
+                  'only candidate plus restore or competing actor reaches the query filter')
+            snapshot,doc=self.snapshot()
+            if scenario=='recover':
+                check(doc['csv'].encode()==first and doc['previous_csv'].encode()==candidate
+                      and self.request('GET',FEED)[2]==first and 'retained/restored' in status['error'],
+                      'real after-commit crash conditionally restores exact stored/public baseline and history')
+                if version==2:
+                    check(doc['overlap_policy']==doc['previous_overlap_policy']==doc['required_overlap_policy']==policy
+                          and doc['publication_id']!=seen['proof']['publication_id'],'restore owns a fresh policy-bound identity')
+            else:
+                check(snapshot['raw']==seen['winner_raw'] and self.request('GET',FEED)[2]==seen['winner_doc']['csv'].encode()
+                      and 'Recovery needs attention' in status['error'],'other actor state stays byte-exact and recovery stops')
+                check(self.proxy.before_restore is None,'restore-race injection actually ran when requested')
+            check((state/'before.csv').read_bytes()==first
+                  and ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==last_good,
+                  'failed after-commit run preserves private baseline and last-good modification time')
+            if version==2:
+                metadata=json.loads((state/'before-policy.json').read_text())
+                check(metadata['before_publication_id']==before['publication_id'] and metadata['before_sha256']==digest(first)
+                      and metadata['candidate_publication_id']==seen['proof']['publication_id'],
+                      'private recovery metadata binds original baseline and failed candidate owner')
+            check(len(proof_path.read_text().splitlines())-proof_count==1 and not flag.exists(),
+                  'restore and competing writes do not fire the consumed fault again')
+            if scenario=='recover':
+                normal_count=len(self.memory_observations());self.proxy.arm(None)
+                normal,normal_status=self.cli(candidate,state,overlap_policy=policy)
+                observed=self.memory_observations()[normal_count:];after=self.snapshot()[1]
+                check(normal==0 and normal_status['healthy'] is True and normal_status['changed'] is True
+                      and len(observed)==1 and observed[0]['oom'] is False and observed[0]['memory_limit']=='256M'
+                      and after['csv'].encode()==candidate and after['previous_csv'].encode()==first
+                      and self.request('GET',FEED)[2]==candidate,'same candidate passes normally after fault removal and verified recovery')
+            print('AFTER COMMIT OOM OBSERVATION: '+json.dumps({'api_version':version,'size':size_label,'scenario':scenario,
+                'candidate_bytes':len(candidate),'commit_sha256':seen['proof']['sha256'],
+                'commit_publication_id':seen['proof']['publication_id'],'allocated_before_fault_bytes':seen['proof']['allocated_before_fault_bytes'],
+                'peak_before_fault_bytes':seen['proof']['peak_before_fault_bytes'],'oom_limit_bytes':seen['proof']['oom_limit_bytes'],
+                'fatal_peak_allocated_bytes':seen['memory']['peak_allocated_bytes'],'actual_php_oom':True,
+                'one_shot_consumed':True,'runner_http_statuses':statuses,'failure_healthy':status['healthy'],
+                'query_filter_calls':2,'baseline_restored':scenario=='recover','competing_actor_preserved':scenario!='recover',
+                'same_candidate_normal_verified':scenario=='recover'}),flush=True)
+        finally:
+            flag.unlink(missing_ok=True);self.proxy.after_oom=None;self.proxy.before_restore=None;self.proxy.arm(None)
+
     def close(self):
         (self.control/'packet-probe').unlink(missing_ok=True)
         (self.control/'memory-probe').unlink(missing_ok=True)
+        (self.control/'after-commit-oom').unlink(missing_ok=True)
         if self.server:
             try:os.killpg(self.server.pid,signal.SIGTERM)
             except ProcessLookupError:pass
@@ -1202,7 +1364,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.memory_small_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.memory_small_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests();workload.after_commit_oom_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 
