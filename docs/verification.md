@@ -1,5 +1,28 @@
 # Verification
 
+## Real packet-limit refusal and deliberate correction
+
+Observed on 2026-11-17 from [hosted run 44159141685](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44159141685)
+at `936a3d1`. All eight jobs passed, including five Python jobs running 353 tests.
+Four real WordPress cases covered both APIs and three-byte/four-byte Unicode feeds.
+Each failed PUT measured an 8,388,608-byte database session budget and received the
+origin plugin's HTTP 503 `geofeed_db` response. Prepared statements ranged from
+8,584,900 to 12,837,412 bytes. The full stored document and public baseline stayed exact,
+private recovery data remained usable, and the failed runner status stayed unhealthy.
+
+After restoring and measuring the saved 16,777,216-byte budget, an explicit new run
+of the same CSV and same-sized statement passed in every case. Stored current/prior
+bytes, public CSV and private recovery history were verified. Each phase had one
+runner PUT and one query-filter call. Raw driver attempts remain not measured because
+WordPress can replay a query internally. The fixture restores the saved limit in
+`finally`, and a local guard probe refused both entry points outside the disposable
+environment with zero subprocess calls.
+
+The prior capacity, race, HTTPS, policy, cache/delivery, range, credential and external
+validator workloads also passed. No production setting, plugin or publisher changed.
+See [the measured packet workload](wordpress-integration.md#measured-packet-refusal-and-correction).
+Finite memory and managed-host/CDN behavior remain unmeasured.
+
 ## Nested policy publication and review follow-up
 
 Observed on 2026-11-16 at 20:53:15 UTC from hosted run

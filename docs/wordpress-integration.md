@@ -168,10 +168,11 @@ private recovery files. Recovery does not turn that failed run healthy. The unch
 control checks every private state file except the status report, including bytes and
 modification times, and makes no HTTP writes or geofeed SQL writes.
 
-This workload measures successful statements at the fixture's database budget. It does
-not lower the server's packet budget or establish the exact failure threshold. The
-small-client and oversized-CSV refusal controls remain separate checks. No production
-database or web-server setting is changed.
+The populated-history observations measure successful statements at the fixture's
+normal database budget. The separate packet-refusal stage below lowers that budget
+to test a real failure. It does not locate the exact failure threshold. Small-client
+and oversized-CSV refusal controls remain separate checks. No production database
+or web-server setting is changed.
 
 ## Measured populated-history workloads
 
@@ -201,9 +202,76 @@ PUT. Exact prior stored/public bytes were restored, and the failed run stayed un
 The v2 cases also kept the required, current and prior overlap policies intact.
 
 These measurements replace the earlier model's evidence gap for these four inputs.
-They are not maximum bounds. HTTP PHP still reported unlimited test-runner memory;
-finite memory, actual packet-limit failures, production proxies and CDN behavior remain
-unmeasured. Keep staging checks and packet headroom even if your first update succeeds.
+They are not maximum bounds. HTTP PHP still reported unlimited test-runner memory.
+At that revision, finite memory, actual packet-limit failures, production proxies and
+CDN behavior remained unmeasured. The later packet-refusal workload below adds one
+controlled failure budget. Keep staging checks and packet headroom even if your first
+update succeeds.
+
+## Packet-refusal workload
+
+Each populated-history case now tests its next update at an 8 MiB database packet
+budget. A disposable-only local socket command saves the original global setting,
+lowers it, and reads it back. A private fixture header also reads the actual HTTP
+request's database session setting. A setting that could not be measured does not pass.
+The [MariaDB variable is dynamic globally, but not for an existing session](https://mariadb.com/docs/server/server-management/variables-and-modes/server-system-variables#max_allowed_packet).
+
+The prepared statement must exceed the smaller budget and fit the original one.
+The runner must send one PUT and receive the real plugin's HTTP 503 `geofeed_db`
+response. Its status must stay unhealthy and name database/packet limits without
+exposing credentials. Read-only diagnosis then checks the exact stored document,
+public CSV and private recovery baseline before the budget is restored. The v2 case
+also checks private baseline policy and owner metadata.
+
+The original setting is restored in `finally`, even when a check fails. After the
+restored setting and unchanged baseline are measured, an explicit new publication of
+the same CSV must succeed. It must execute a same-sized prepared statement, verify
+exact current and previous stored/public bytes, and record verified recovery history.
+Both the failing and successful PUTs must report the expected database session budget.
+`PACKET LIMIT OBSERVATION` logs contain fixed codes, counts and sizes, not SQL or CSV.
+
+One runner PUT is not proof of one low-level database attempt. The `query` filter
+counts calls into `wpdb`, while [WordPress can reconnect and replay a query internally](https://developer.wordpress.org/reference/classes/wpdb/query/).
+Raw driver attempts remain `not_measured`. The test does not disable that core behavior
+or claim to measure it. No proxy-generated failure replaces the real database refusal.
+
+This is a controlled disposable-host experiment. It does not authorize changing a
+production limit, prove a universal minimum, or measure finite memory, a CDN or a
+managed host. On an operator's staging path, stop the timer after a capacity failure,
+inspect the named layer, verify the prior stored/public baseline, and have the database
+administrator check the actual statement and limits before a deliberate new run.
+
+### Measured packet refusal and correction
+
+On 2026-11-17, [hosted run 44159141685](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44159141685)
+at `936a3d1` passed all eight jobs. All four cases reported an actual HTTP database
+session budget of **8,388,608 bytes** for the failed PUT and **16,777,216 bytes** for
+the successful corrected PUT. The latter was the fixture's saved original setting.
+
+| API / UTF-8 bytes per character | Prepared SQL bytes, failed and corrected |
+| --- | ---: |
+| v1 / 3 | 8,584,900 |
+| v2 / 3 | 8,585,878 |
+| v1 / 4 | 12,836,434 |
+| v2 / 4 | 12,837,412 |
+
+These are later statements after the deliberate public-read-back recovery, rather
+than stage 3 in the earlier table. Each failed run made one runner PUT and received
+the origin plugin's HTTP 503 `geofeed_db` result. The exact database document, including
+history and policy/owner state, and public baseline remained unchanged. Private CSV
+recovery bytes remained exact, and the v2 private baseline kept the correct policy
+and owner. The failed status stayed unhealthy and included safe database-size guidance.
+
+At the measured restored budget, each explicit new run published the same CSV with
+the same prepared-statement size, one runner PUT and verified current/prior/public
+bytes. It then recorded healthy status and the correct private recovery history.
+Each phase made one call through the geofeed query filter. Raw driver attempts were
+not counted, so no claim is made about internal database retries.
+
+This measures refusal at one deliberately undersized budget and success after a
+verified correction. It does not find a universal minimum. Finite memory, production
+limits and managed-host/CDN behavior still need operator staging checks. The plugin,
+publisher and storage encoding are unchanged.
 
 ## Version-2 policy workload
 

@@ -145,6 +145,13 @@ problem. Private server responses and database details are not printed. The runn
 not retry failed writes automatically; it inspects stored state and public delivery,
 then performs only conditional recovery when appropriate.
 
+A [disposable packet-limit trial](wordpress-integration.md#measured-packet-refusal-and-correction)
+now verifies this path for both APIs and both Unicode widths: an 8 MiB database budget
+refused the update, preserved the exact prior feed and kept the run unhealthy. After
+the fixture restored and measured its saved 16 MiB budget, the same candidate passed.
+This is test evidence, not a recommendation to change your host automatically. The
+runner's single PUT does not count WordPress's possible internal database retries.
+
 On staging, publish a representative large feed, update it, run it unchanged, and test
 recovery while using the same proxy and database limits as production. A small liveness
 check does not establish large-feed capacity. If a limit rejects publication, stop the

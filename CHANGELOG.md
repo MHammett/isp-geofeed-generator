@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Disposable WordPress packet-limit controls verify refusal at a smaller database budget, preserved stored/public history, safe failure status and successful publication of the same candidate after a measured budget correction.
+
 - Offline registry checks accept exact inclusive IPv4/IPv6 address ranges alongside CIDRs, preserving object containment, equivalent-scope ambiguity and explicit refusal of crossing referring scopes.
 
 - Real WordPress capacity tests now cover first and three changed near-limit feeds with populated history, three- and four-byte Unicode, both APIs, unchanged runs and conditional recovery after failed public verification.
