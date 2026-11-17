@@ -5,6 +5,7 @@ import os
 import tempfile
 import re
 import secrets
+import time
 from . import __version__
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -12,8 +13,11 @@ from urllib.request import Request
 from .client import GeofeedError, JsonHTTP, https_url
 from .feed import change_guard, digest, parse_feed
 
+_WINDOWS_REPLACE = os.name == 'nt'
+
 
 def atomic_write(path, data, mode=0o600, *, before_replace=None):
+    """Prepare once; rerun a read-only precondition before each rename attempt."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
@@ -23,9 +27,22 @@ def atomic_write(path, data, mode=0o600, *, before_replace=None):
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        if before_replace is not None:
-            before_replace()
-        os.replace(name, path)
+        attempts = 5 if _WINDOWS_REPLACE else 1
+        for attempt in range(attempts):
+            # A competing writer may act during the short wait. Recheck the
+            # original destination/policy guard before every replacement attempt.
+            if before_replace is not None:
+                before_replace()
+            try:
+                os.replace(name, path)
+                break
+            except PermissionError as error:
+                # These Windows codes can also be permanent ACL/lock failures.
+                # Bound the wait and preserve the original error when it persists.
+                if (not _WINDOWS_REPLACE or getattr(error, 'winerror', None) not in (5, 32, 33)
+                        or attempt == attempts - 1):
+                    raise
+                time.sleep(0.05)
     finally:
         if os.path.exists(name):
             os.unlink(name)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bounded Windows-only local rename retries for access/sharing denials, rechecking destination guards before every attempt. Persistent failures retain existing stop/recovery behavior; remote writes are not retried.
+
 - Optional WordPress post-commit delivery action for separately maintained narrow cache-purge integrations, with checked failure/recovery and an initial WP Rocket example. No purge integration is enabled automatically and public verification remains required.
 
 - Read-only WordPress cache inspection with an optional anonymous fresh-query probe, dated hashes, explicit unmeasured outcomes and preserved failure/recovery state. Publication and rollback guards remain unchanged.

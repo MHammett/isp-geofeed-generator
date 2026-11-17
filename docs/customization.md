@@ -102,6 +102,11 @@ See [multiple inputs](multiple-inputs.md) for credential aliases and ID scope.
 
 ## Update and recover
 
+SDK `atomic_write(..., before_replace=...)` callbacks are read-only precondition
+checks. The [Windows rename retry](windows-file-writes.md) repeats that check before
+each attempt. Keep callbacks safe to repeat; do not use them for remote writes or
+cache purges. Those belong in the separate output/delivery integration.
+
 WordPress cache integrations can use the [post-commit delivery action](wordpress-delivery-hooks.md)
 from a separately installed local plugin. Keep that plugin and its protected settings
 outside the upstream plugin folder. No YAML callback, shell command or arbitrary URL

@@ -36,6 +36,11 @@ history or the publisher's normal refusal and rollback behavior.
 
 ## Local CSV and rich JSON
 
+Windows access/sharing denials during the final local rename get a
+[small bounded retry](windows-file-writes.md). Each attempt repeats the existing
+destination guard. The prepared file is reused, and persistent or unrelated failures
+still stop. This adds no network retry and does not change unchanged-content behavior.
+
 The publisher reads a bounded regular file: at most 1 MB for CSV or 8 MB for rich JSON.
 Final-component symlinks, devices and files that change during a read are refused. Configure
 the actual regular file if the web server exposes it through a symlink.

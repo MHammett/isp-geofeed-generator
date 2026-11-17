@@ -52,6 +52,7 @@ Read-only inputs -> selected exact public prefixes and site links -> validation 
 ## Quick start
 
 Requires Python 3.11+. The core runs on Linux or Windows. The optional systemd deployment is separate.
+For Windows replacement denials, see [bounded local retries and recovery](docs/windows-file-writes.md).
 
 In bash on Linux:
 
