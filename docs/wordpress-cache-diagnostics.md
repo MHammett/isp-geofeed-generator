@@ -55,6 +55,21 @@ An existing unhealthy publication status remains unchanged in either case.
 
 ## Recover and investigate
 
+Claude's [read-only observation](https://github.com/MHammett/isp-geofeed-generator/pull/73#pullrequestreview-5940807650)
+on 2026-11-17 at 14:48 UTC tested one managed host's existing core REST route. Our
+plugin was not installed. The normal URL was cached. Sending the runner's
+`Cache-Control: no-cache` request header twice still returned edge `HIT` responses.
+A new random probe value returned `MISS`; reusing it returned `HIT`; another new value
+returned `MISS`. These results support fresh per-request values on that route. They do
+not prove that this plugin's `no-store` feed response is cached, or that every MISS
+reaches an uncached origin.
+
+That core route returned `max-age=600, stale-if-error=86400`. Such a stale-on-error
+policy can mask an origin outage with an old public success response. A query response
+can also encounter other caches or fail independently. Treat these results as observed
+delivery evidence, not an origin-uptime guarantee. Keep #66 open until the actual plugin
+route, its response headers and the host's purge behavior are measured on staging.
+
 Keep the original candidate hash and private recovery files. Use the existing
 [conditional recovery commands](wordpress-nested-output.md#conditional-recovery) when
 recovery is appropriate. Do not force a hash or replace history based only on a probe.

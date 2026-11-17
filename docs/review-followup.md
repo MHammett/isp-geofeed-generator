@@ -3,7 +3,7 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted through 2026-11-17, including
-reviews through `3881830`. Coverage is limited to the work listed
+reviews through `e128cc2`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -32,6 +32,8 @@ tenant/grid test. These reviews are not approval to merge.
 | [#68 review guidance](https://github.com/MHammett/isp-geofeed-generator/pull/68#pullrequestreview-5926360393) | Checked capacity estimates, canonical/cache-busting guidance and review links | Issue #66 remains open; no managed-host plugin measurement or cache code fix |
 | [#69 nested local output](https://github.com/MHammett/isp-geofeed-generator/pull/69#pullrequestreview-5926408601) | Reran 291 tests; 57 independent crash points restored the exact old pair; same-byte other-owner refusal and removed-hash mutation | Windows ACL privacy is not established by mode 0600; WordPress protocol is later work |
 | [#71 WordPress policy](https://github.com/MHammett/isp-geofeed-generator/pull/71#pullrequestreview-5937959650) | Four 306-test Windows runs, 89 legacy/37 v2 local PHP checks, direct policy-switch probe and six mutations; four mutations were caught | Offline PHP/Python probes only; reviewer relied on hosted real-WordPress evidence. Two missing regression controls and the recovery exception needed follow-up. Managed-host caching remains unmeasured |
+| [#72 restore follow-up](https://github.com/MHammett/isp-geofeed-generator/pull/72#pullrequestreview-5940807247) | Reran 307 tests, local PHP checks and the control script; independently repeated all four guard removals, each caught | Offline controls and hosted evidence inspection; no managed-host purge measurement |
+| [#73 cache diagnostics](https://github.com/MHammett/isp-geofeed-generator/pull/73#pullrequestreview-5940807650) | Reran 318 tests; four independent mutations caught; anonymous core-route CDN observations showed fresh/reused query keys and ignored request no-cache | One host's core REST route only; plugin not installed. Later delivery-hook code is outside this review |
 
 The #71 follow-up adds isolated wrong-byte and wrong-policy restore refusals in PHP,
 plus Python read-back checks for both prior bytes and prior policy. A CI control removes
@@ -41,6 +43,12 @@ refusals, exact retained recovery after downgrade and refusal after that baselin
 history. Author results remain separate from Claude's earlier-head review. We keep the
 publisher recovery exception and document its scope and lifetime in the security and
 migration guides. Issues #16, #61 and #66 remain open.
+
+The #72 review confirmed all four requested fixes. The #73 review requested the dated
+core-route CDN example now in the [diagnostic guide](wordpress-cache-diagnostics.md).
+It does not verify plugin-route caching or a host purge. Issue #74 records Windows
+rename denials reproduced in a bare file-writing loop outside this project; the specific
+blocking process is not established by that loop. It is separate from the delivery hook.
 
 The NetBox review found no defects and requested one setup example. A hierarchy with a
 continent above country has four levels and is refused by the three-level mode. The
