@@ -79,4 +79,13 @@ $refused=false;
 try { do_action('isp_geofeed_generator_feed_committed',['schema_version'=>1,'url'=>'https://other.example/']); }
 catch (RuntimeException $error) { $refused=true; }
 check($refused && count($GLOBALS['geofeed_test_purge_urls'])===1,'example refuses a different URL without invoking provider helper');
+foreach (['https://example.net/?rest_route=/isp-geofeed-generator/v1/feed',
+          'http://example.net/wp-json/isp-geofeed-generator/v1/feed',
+          'https://example.net/wp-json/isp-geofeed-generator/v1/feed#fragment'] as $bad_url) {
+    $GLOBALS['geofeed_test_rest_url']=$bad_url;$refused=false;
+    try { do_action('isp_geofeed_generator_feed_committed',['schema_version'=>1,'url'=>$bad_url]); }
+    catch (RuntimeException $error) { $refused=true; }
+    check($refused && count($GLOBALS['geofeed_test_purge_urls'])===1,'example refuses broad query-based or unsafe canonical purge URLs');
+}
+unset($GLOBALS['geofeed_test_rest_url']);
 echo "PASS: $count offline WordPress delivery-hook checks\n";

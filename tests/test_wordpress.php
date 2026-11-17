@@ -14,7 +14,7 @@ function do_action($hook, ...$args) {
         foreach ($GLOBALS['geofeed_test_delivery_actions']??[] as $callback) { $callback(...$args); }
     }
 }
-function rest_url($path) { return 'https://example.net/wp-json/'.ltrim($path, '/'); }
+function rest_url($path) { return $GLOBALS['geofeed_test_rest_url']??('https://example.net/wp-json/'.ltrim($path, '/')); }
 function add_role(...$args) {}
 function is_ssl() { return $GLOBALS['ssl'] ?? true; }
 function current_user_can($cap) { return in_array($cap, $GLOBALS['caps'] ?? [], true); }

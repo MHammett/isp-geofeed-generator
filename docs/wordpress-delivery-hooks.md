@@ -58,8 +58,10 @@ that includes paths below that URL; see [the provider contract](https://docs.wp-
 It is not a whole-site purge. Whether REST responses are cached there, and whether a
 separate host or CDN cache is cleared, must be checked on that installation.
 
-The example refuses an unexpected event URL and throws if its required helper is
-missing. It is contract-tested with a stub, not live-tested against WP Rocket.
+The example refuses an unexpected event URL, a query-based REST URL, HTTP, fragments
+and embedded credentials. Query-based REST URLs can have the root path, which would
+widen this provider's recursive purge. Use a canonical HTTPS feed path. It also throws
+if its required helper is missing. It is contract-tested with a stub, not live-tested against WP Rocket.
 The generic hook is tested on real disposable WordPress with a synthetic cache.
 Other providers can use the same action with their verified narrow purge operation.
 
