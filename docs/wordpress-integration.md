@@ -72,6 +72,11 @@ artifacts are uploaded.
 - Near-limit Unicode first and changed CLI publications, followed by an unchanged
   run with no geofeed SQL writes or recovery-history changes. Measure CSV, upload JSON,
   state JSON and SQL bytes separately. Record the actual HTTP PHP and database limits.
+- First and three changed near-limit publications for both API versions, using
+  three-byte and four-byte Unicode city characters. Measure each stage separately,
+  including updates whose old and new documents both contain full history. Repeat
+  unchanged without HTTP or SQL writes. Force a public mismatch after a later change
+  and verify exact stored/public recovery while the failed run stays unhealthy.
 - A deliberately smaller state-response budget must refuse the large response without
   writes. An otherwise valid CSV above the plugin's byte limit must receive HTTP 400
   and preserve the stored/public feed. Neither refusal can count as successful publication.
@@ -149,6 +154,24 @@ modeled about 8.58 MB for a steady-state update using three-byte city characters
 hosted measurements or universal maximums. A 4 MB or 8 MB packet budget can fail a later
 update even when the first publications passed. Measure the actual statement and leave
 headroom; keep the setup guide's separate server/client budget checks.
+
+The harness now emits four `STEADY CAPACITY` observations, one for each Unicode width
+and API version. Each observation records four publication stages, plus an unchanged
+run and recovery from a forced public mismatch. The version-2 case uses the configured
+`longest_prefix` policy and its versioned payload; separate workloads test actual
+overlapping records. Stage 0 starts with empty feed history. Stages 2 and 3 compare
+populated old and new history. These logs contain byte counts, not SQL or feed data.
+
+The recovery control must observe one bad public response, one publication PUT and
+one conditional restore PUT. It then checks the exact database/public baseline and
+private recovery files. Recovery does not turn that failed run healthy. The unchanged
+control checks every private state file except the status report, including bytes and
+modification times, and makes no HTTP writes or geofeed SQL writes.
+
+This workload measures successful statements at the fixture's database budget. It does
+not lower the server's packet budget or establish the exact failure threshold. The
+small-client and oversized-CSV refusal controls remain separate checks. No production
+database or web-server setting is changed.
 
 ## Version-2 policy workload
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Real WordPress capacity tests now cover first and three changed near-limit feeds with populated history, three- and four-byte Unicode, both APIs, unchanged runs and conditional recovery after failed public verification.
+
 - Initial offline registry-reference checks from bounded operator-supplied unsigned CIDR snapshots, with native/remarks precedence, exact IPv4/IPv6 coverage, explicit unknowns and no source/credential/network/publication access.
 - Delivery-review follow-up checks that an empty-feed policy change skips the hook and clarifies WP Rocket REST defaults and canonical URL alignment.
 

@@ -889,6 +889,79 @@ class Workload:
         check((self.control/'writes.log').read_bytes()==writes,'oversize upload makes zero geofeed SQL write attempts')
         print('PASS: real WordPress oversize CSV refusal preserves large stored/public feed',flush=True)
 
+    def steady_capacity_tests(self):
+        for character,width in (('測',3),('\U0001f600',4)):
+            city=character*60
+            check(len(character.encode())==width,'capacity fixture UTF-8 width')
+            start=ipaddress.ip_address('11.22.0.0')
+            def row(index):return f'{start+index}/32,US,US-IL,{city},\r\n'.encode()
+            rows=[];size=0
+            while size<980000:
+                value=row(len(rows));rows.append(value);size+=len(value)
+            bodies=[b''.join(rows+[row(len(rows)+i) for i in range(extra)]) for extra in range(5)]
+            check(all(980000<=len(body)<1000000 for body in bodies),'all steady capacity bodies near CSV limit')
+            for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
+                self.reset()
+                state=self.directory/f'steady-unicode-{width}-v{version}'
+                feeds=[wrap_csv(body) if version==2 else body for body in bodies]
+                path=FEED_V2 if version==2 else FEED
+                if version==2:
+                    admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+                    admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+                    admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
+                stages=[]
+                for index,feed in enumerate(feeds[:4]):
+                    self.proxy.arm(None)
+                    before_sizes=(self.control/'write-sizes.log').read_text().splitlines()
+                    result,status=self.cli(feed,state,overlap_policy=policy)
+                    check(result==0 and status['changed'] is True,'near-limit first and three changed CLI publications')
+                    snapshot,doc=self.snapshot()
+                    previous=feeds[index-1] if index else b''
+                    check(doc['csv'].encode()==feed and doc['previous_csv'].encode()==previous,
+                          'steady capacity stores exact current and previous feeds')
+                    response=self.request('GET',STATE_V2 if version==2 else STATE,account='publisher')
+                    check(response[0]==200 and json.loads(response[2])['csv'].encode()==feed,
+                          'steady capacity authenticated state is readable')
+                    sizes=(self.control/'write-sizes.log').read_text().splitlines()[len(before_sizes):]
+                    uploads=[value['bytes'] for value in self.proxy.request_sizes if value['method']=='PUT' and value['path']==path]
+                    check(len(sizes)==len(uploads)==1,'one SQL write and one HTTP PUT per changed capacity publication')
+                    stages.append({'stage':index,'csv_bytes':len(feed),'upload_json_bytes':uploads[0],
+                        'state_json_bytes':len(response[2]),'sql_bytes':int(sizes[0].split()[1])})
+                check(stages[2]['sql_bytes']>stages[1]['sql_bytes']>stages[0]['sql_bytes'],
+                      'populated conditional history really increases measured SQL')
+                check(stages[2]['sql_bytes']>8*1024*1024,'steady Unicode SQL exceeds an 8 MiB packet budget')
+                prior=snapshot['raw'];writes=(self.control/'writes.log').read_bytes()
+                backups={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in state.iterdir() if p.name!='status.json'}
+                self.proxy.arm(None)
+                result,status=self.cli(feeds[3],state,overlap_policy=policy)
+                check(result==0 and status['changed'] is False and self.snapshot()[0]['raw']==prior and
+                      (self.control/'writes.log').read_bytes()==writes,'steady capacity no-op preserves database without SQL')
+                check({p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in state.iterdir() if p.name!='status.json'}==backups,
+                      'steady capacity no-op preserves all private recovery files and modification times')
+                check(not any(value['method'] in ('PUT','DELETE') for value in self.proxy.request_sizes),
+                      'steady capacity no-op makes no HTTP writes')
+                self.proxy.arm('bad-readback')
+                result,status=self.cli(feeds[4],state,overlap_policy=policy)
+                restored=self.snapshot()[1]
+                check(result==1 and status['healthy'] is False and 'Previous feed retained/restored' in status['error'],
+                      'near-limit failed read-back stays unhealthy after verified recovery')
+                check(restored['csv'].encode()==feeds[3] and restored['previous_csv'].encode()==feeds[4] and
+                      self.request('GET',FEED)[2]==feeds[3],'near-limit recovery restores exact stored/public baseline')
+                check((state/'before.csv').read_bytes()==feeds[3] and (state/'last-good.csv').read_bytes()==feeds[3],
+                      'near-limit recovery preserves exact private baseline')
+                check(self.proxy.faults==['public-mismatch'],'near-limit public mismatch control actually fired')
+                puts=[value for value in self.proxy.request_sizes if value['method']=='PUT' and value['path']==path]
+                check(len(puts)==2,'near-limit failure makes one publish and one conditional restore, without blind retries')
+                if version==2:
+                    check(restored['overlap_policy']==restored['previous_overlap_policy']==LONGEST_PREFIX and
+                          restored['required_overlap_policy']==LONGEST_PREFIX,'near-limit recovery preserves all policy fields')
+                print('STEADY CAPACITY: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+                    'records':len(rows)+3,'stages':stages,'database_max_allowed_packet':snapshot['max_allowed_packet'],
+                    'no_op_http_writes':0,'no_op_sql_writes':0,'recovery_puts':len(puts),
+                    'recovery_public_verified':True,'recovery_healthy':status['healthy']}),flush=True)
+                print('PASS: real WordPress populated-history Unicode capacity and conditional recovery',flush=True)
+                self.proxy.arm(None)
+
     def close(self):
         if self.server:
             try:os.killpg(self.server.pid,signal.SIGTERM)
@@ -907,7 +980,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 
