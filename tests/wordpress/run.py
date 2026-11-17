@@ -150,6 +150,8 @@ class Handler(BaseHTTPRequestHandler):
             for name,value in headers.items():
                 if name.lower()=='x-geofeed-test-max-packet' and len(value)<=10 and value.isdigit():
                     observation['session_packet_budget']=int(value)
+                if name.lower()=='x-geofeed-test-memory-limit' and value in ('32M','256M'):
+                    observation['php_memory_limit']=value
             if self.command=='PUT' and self.path in (FEED,FEED_V2) and status==503:
                 try:
                     error=json.loads(data)
@@ -294,7 +296,7 @@ class Workload:
         print('VERSIONS: '+json.dumps(installed),flush=True)
         self.proxy.publisher_headers = self.auth('publisher')
         self.proxy.policy_admin_headers = self.auth('policy_admin')
-        self.server = subprocess.Popen(['php','-d','opcache.enable=0','-d','opcache.enable_cli=0','-S',f'127.0.0.1:{self.backend}',
+        self.server = subprocess.Popen(['php','-d','memory_limit=256M','-d','opcache.enable=0','-d','opcache.enable_cli=0','-S',f'127.0.0.1:{self.backend}',
             '-t',str(self.webroot),str(self.webroot/'test-router.php')],env=self.environment,
             stdout=self.log,stderr=self.log,start_new_session=True)
         self.thread = threading.Thread(target=self.proxy.serve_forever,daemon=True); self.thread.start()
@@ -310,6 +312,7 @@ class Workload:
         headers={k.lower():v for k,v in ready[1].items()}
         check(headers.get('x-geofeed-test-sapi')=='cli-server' and headers.get('x-geofeed-test-opcache')=='0',
               'HTTP PHP worker has opcode caching disabled for mutation controls')
+        check(headers.get('x-geofeed-test-memory-limit')=='256M','real HTTP bootstrap uses finite 256 MiB PHP memory')
 
     def auth(self, account):
         return {'Authorization':'Basic '+base64.b64encode((account+':'+self.accounts[account]).encode()).decode()}
@@ -928,7 +931,7 @@ class Workload:
             rows=[];size=0
             while size<980000:
                 value=row(len(rows));rows.append(value);size+=len(value)
-            bodies=[b''.join(rows+[row(len(rows)+i) for i in range(extra)]) for extra in range(5)]
+            bodies=[b''.join(rows+[row(len(rows)+i) for i in range(extra)]) for extra in range(6)]
             check(all(980000<=len(body)<1000000 for body in bodies),'all steady capacity bodies near CSV limit')
             for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
                 self.reset()
@@ -993,6 +996,7 @@ class Workload:
                 print('PASS: real WordPress populated-history Unicode capacity and conditional recovery',flush=True)
                 self.proxy.arm(None)
                 self.packet_limit_test(feeds[4],feeds[3],state,policy,version,width)
+                self.memory_limit_test(feeds[5],feeds[4],state,policy,version,width)
 
     def packet_limit_test(self, candidate, baseline, state, policy, version, width):
         check(DISPOSABLE,'packet failure workload is disposable-only')
@@ -1072,8 +1076,110 @@ class Workload:
         print('PASS: real WordPress packet-limit refusal preserves baseline and same-candidate correction succeeds',flush=True)
         flag.unlink(missing_ok=True)
 
+    def memory_observations(self):
+        path=self.control/'memory-observations.log'
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def memory_small_tests(self):
+        check(DISPOSABLE,'memory controls require the disposable runner')
+        flag=self.control/'memory-probe'
+        try:
+            for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
+                self.reset();flag.unlink(missing_ok=True)
+                state=self.directory/f'memory-small-v{version}'
+                if version==2:
+                    admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+                    admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+                    admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
+                before=wrap_csv(A) if version==2 else A
+                candidate=wrap_csv(B) if version==2 else B
+                check(self.cli(before,state,overlap_policy=policy)[0]==0,'small memory-control baseline')
+                flag.write_text('32M');self.proxy.arm(None)
+                count=len(self.memory_observations())
+                result,status=self.cli(candidate,state,overlap_policy=policy)
+                observations=self.memory_observations()[count:]
+                puts=[value for value in self.proxy.request_sizes if value['method']=='PUT']
+                check(result==0 and status['healthy'] is True and status['changed'] is True,
+                      'small real CLI publication works at the low memory budget')
+                check(len(observations)==len(puts)==1 and puts[0]['origin_status']==200
+                      and observations[0]['api_version']==version and observations[0]['memory_limit']=='32M'
+                      and observations[0]['oom'] is False and 0<observations[0]['peak_allocated_bytes']<=32*1024*1024,
+                      'low-budget positive control really executes with finite memory and no OOM')
+                check(self.snapshot()[1]['csv'].encode()==candidate and self.request('GET',FEED)[2]==candidate,
+                      'low-budget small control verifies actual stored and public workload')
+                print('MEMORY SMALL OBSERVATION: '+json.dumps(observations[0]),flush=True)
+        finally:flag.unlink(missing_ok=True)
+
+    def memory_limit_test(self, candidate, baseline, state, policy, version, width):
+        check(DISPOSABLE,'memory failure controls require the disposable runner')
+        flag=self.control/'memory-probe'
+        before,doc=self.snapshot()
+        check(doc['csv'].encode()==baseline and self.request('GET',FEED)[2]==baseline,'exact baseline before memory control')
+        path=FEED_V2 if version==2 else FEED
+        try:
+            flag.write_text('32M');self.proxy.arm(None)
+            count=len(self.memory_observations())
+            writes=len((self.control/'write-sizes.log').read_text().splitlines())
+            result,status=self.cli(candidate,state,overlap_policy=policy)
+            observations=self.memory_observations()[count:]
+            puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
+            query_calls=len((self.control/'write-sizes.log').read_text().splitlines())-writes
+            print('MEMORY ATTEMPT: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+                'exit_code':result,'healthy':status['healthy'],'origin_statuses':[value.get('origin_status') for value in puts],
+                'query_filter_calls':query_calls,'php_observations':observations}),flush=True)
+            check(result==1 and status['healthy'] is False,'real PHP exhaustion leaves runner unhealthy')
+            check(len(puts)==1 and puts[0]['path']==path and puts[0].get('origin_status') in (500,503),
+                  'real memory failure makes one runner PUT without an HTTP retry')
+            check(len(observations)==1 and observations[0]['api_version']==version
+                  and observations[0]['memory_limit']=='32M' and observations[0]['oom'] is True
+                  and 0<observations[0]['peak_allocated_bytes']<=32*1024*1024,
+                  'PHP shutdown metadata proves actual memory exhaustion, not a simulated 500')
+            failed=observations[0];failed_http=puts[0]['origin_status']
+            # Diagnose with normal-budget GETs before correcting the PUT budget.
+            check(self.snapshot()[0]['raw']==before['raw'] and self.request('GET',FEED)[2]==baseline,
+                  'real memory exhaustion preserves exact stored/public baseline and history')
+            check((state/'before.csv').read_bytes()==baseline and (state/'last-good.csv').read_bytes()==baseline,
+                  'memory failure keeps private CSV recovery baseline')
+            if version==2:
+                metadata=json.loads((state/'before-policy.json').read_text())
+                check(metadata['before_policy']==metadata['before_required_policy']==policy
+                      and metadata['before_publication_id']==doc['publication_id'] and metadata['before_sha256']==digest(baseline),
+                      'memory failure keeps private baseline policy and owner metadata')
+            check(all(secret not in json.dumps(status) for secret in self.secrets),'memory status does not expose credentials')
+        finally:flag.write_text('256M')
+        check(flag.read_text()=='256M' and self.snapshot()[0]['raw']==before['raw']
+              and self.request('GET',FEED)[2]==baseline,'corrected fixture budget and unchanged baseline checked before new publication')
+        self.proxy.arm(None);count=len(self.memory_observations())
+        result,status=self.cli(candidate,state,overlap_policy=policy)
+        observations=self.memory_observations()[count:]
+        puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
+        after=self.snapshot()[1]
+        check(result==0 and status['healthy'] is True and status['changed'] is True,
+              'same candidate succeeds at corrected finite memory budget')
+        check(len(observations)==len(puts)==1 and puts[0]['origin_status']==200
+              and puts[0].get('php_memory_limit')=='256M' and observations[0]['memory_limit']=='256M'
+              and observations[0]['oom'] is False and 0<observations[0]['peak_allocated_bytes']<=256*1024*1024,
+              'corrected real PUT reports finite memory and an observed peak without exhaustion')
+        check(after['csv'].encode()==candidate and after['previous_csv'].encode()==baseline
+              and self.request('GET',FEED)[2]==candidate,'corrected finite-budget publication verifies exact current/history/public bytes')
+        check((state/'before.csv').read_bytes()==baseline and (state/'last-good.csv').read_bytes()==candidate,
+              'corrected finite-budget run records verified private history')
+        if version==2:
+            check(after['overlap_policy']==after['previous_overlap_policy']==after['required_overlap_policy']==policy,
+                  'corrected finite-memory run preserves all policy fields')
+        print('MEMORY LIMIT OBSERVATION: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+            'low_memory_limit':failed['memory_limit'],'failed_peak_allocated_bytes':failed['peak_allocated_bytes'],
+            'actual_php_oom':failed['oom'],'failed_http_status':failed_http,'failure_healthy':False,'failure_runner_puts':1,
+            'failure_query_filter_calls':query_calls,'baseline_preserved':True,
+            'corrected_memory_limit':observations[0]['memory_limit'],'corrected_peak_allocated_bytes':observations[0]['peak_allocated_bytes'],
+            'corrected_oom':observations[0]['oom'],'same_candidate_after_correction_healthy':status['healthy'],
+            'corrected_runner_puts':len(puts)}),flush=True)
+        print('PASS: real WordPress PHP exhaustion preserves baseline and same-candidate finite-memory correction succeeds',flush=True)
+        flag.unlink(missing_ok=True)
+
     def close(self):
         (self.control/'packet-probe').unlink(missing_ok=True)
+        (self.control/'memory-probe').unlink(missing_ok=True)
         if self.server:
             try:os.killpg(self.server.pid,signal.SIGTERM)
             except ProcessLookupError:pass
@@ -1091,7 +1197,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.memory_small_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 
