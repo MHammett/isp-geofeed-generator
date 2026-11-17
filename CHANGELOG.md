@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Read-only WordPress cache inspection with an optional anonymous fresh-query probe, dated hashes, explicit unmeasured outcomes and preserved failure/recovery state. Publication and rollback guards remain unchanged.
+
 - Restore-history regression controls detect removed byte/policy checks in private Python/PHP copies. Document the retained-baseline recovery permission after a WordPress policy downgrade.
 
 - WordPress version-2 policy publication with a separate administrator switch, atomic policy/feed concurrency checks, guarded strict migration, conditional recovery and read-only inspection. Core/plugin development version 0.3.0; staging validation remains required.

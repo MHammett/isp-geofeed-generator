@@ -69,6 +69,11 @@ isp-geofeed-generator inspect-wordpress --config /etc/isp-geofeed-generator/conf
 empty target is not proof of source completeness, ownership or provider ingestion.
 A failed publication stays unhealthy. Inspect before deciding on recovery.
 
+Add `--probe-cache` to compare a fresh anonymous query URL as well. The
+[cache diagnostic guide](wordpress-cache-diagnostics.md) explains its dated hashes,
+unmeasured results and exit codes. A matching query response does not establish normal
+public delivery and cannot clear the failed status or alter recovery rules.
+
 ## Conditional recovery
 
 Changed runs save private `before.csv` and matching `before-policy.json`, including

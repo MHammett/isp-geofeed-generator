@@ -172,3 +172,16 @@ This is separate from the publisher's HTTPS mutation control.
 Read-only inspection after recovery must leave the unhealthy publication status and
 its modification time intact. These workloads run only on the disposable stack. See
 the [rollout and recovery guide](wordpress-nested-output.md) before host staging.
+
+## Read-only cache inspection workload
+
+The disposable proxy injects stale canonical bytes, stale bytes on both public URLs
+and an unavailable canonical route. A control forwards both URLs unchanged. The real
+CLI must distinguish the four outcomes using exactly two authenticated state GETs and
+two anonymous public GETs. Every case must preserve the exact stored document, SQL
+write log, failed status and private recovery files. Its configured source file is
+removed before inspection, proving that the command does not need source inventory.
+
+These injected outcomes verify diagnostics only. They do not measure a managed host's
+cache policy or prove that a query response came from origin. The diagnostic cannot
+change publication health or the publisher's rollback behavior.

@@ -173,11 +173,14 @@ def main(argv=None):
     parser.add_argument("--controller-candidates", action="store_true", help="Discover Sonar controller management-IP site links")
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
     parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Policy configuration/recovery only: exact current feed or failed candidate hash')
+    parser.add_argument('--probe-cache',action='store_true',help='inspect-wordpress only: compare a fresh anonymous query URL with the canonical feed; no writes')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
     credentials = CredentialStore()
     try:
+        if args.probe_cache and args.command!='inspect-wordpress':
+            raise GeofeedError('--probe-cache requires inspect-wordpress; no write attempted')
         if args.approve_location_changes is not None and (args.command != 'publish' or not re.fullmatch(r'[a-f0-9]{64}', args.approve_location_changes)):
             raise GeofeedError('--approve-location-changes requires publish and a lowercase SHA-256 candidate hash')
         config = load_config(args.config)
@@ -190,13 +193,10 @@ def main(argv=None):
             if settings.get('type')!='wordpress':raise GeofeedError('inspect-wordpress requires a wordpress target')
             stage='inspecting WordPress bytes and policy'
             client=config.targets['wordpress'](settings,credentials).client
-            before=client.policy_state();public=client.read_public(overlap_policy=before.policy);after=client.policy_state()
-            result={'inspection_only':True,'feed_present':bool(before.csv),'url':client.public_url,'sha256':digest(before.csv),
-                    'overlap_policy':before.policy,'required_overlap_policy':before.required,'publication_id':before.publication_id,
-                    'previous_sha256':digest(before.previous),'previous_overlap_policy':before.previous_policy,
-                    'public_matches_stored':public==before.csv,'policy_state_stable':before==after}
+            from .wordpress_inspection import inspect_delivery
+            result=inspect_delivery(client,probe_cache=args.probe_cache)
             print(json.dumps(result))
-            return 0 if result['public_matches_stored'] and result['policy_state_stable'] else 1
+            return 0 if result['inspection_consistent'] else 1
         if args.command=='configure-wordpress-policy':
             if config.get('publish',{}).get('type')!='wordpress' or not args.expected_current_sha256:
                 raise GeofeedError('configure-wordpress-policy requires a wordpress target and --expected-current-sha256')

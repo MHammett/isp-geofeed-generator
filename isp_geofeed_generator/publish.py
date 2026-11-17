@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import re
+import secrets
 from . import __version__
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -93,7 +94,15 @@ class WordPress:
         return configure_request(self,policy,expected,publication_id)
 
     def read_public(self, *, overlap_policy='reject'):
-        req = Request(self.public_url, headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Cache-Control": "no-cache"})
+        return self._read_public(self.public_url, overlap_policy)
+
+    def read_public_probe(self, *, overlap_policy='reject'):
+        # One anonymous diagnostic GET on the same fixed route. A fresh cache key
+        # is not proof that the response reached origin or refreshed the normal URL.
+        return self._read_public(self.public_url + '?isp_geofeed_probe=' + secrets.token_hex(16), overlap_policy)
+
+    def _read_public(self, url, overlap_policy):
+        req = Request(url, headers={"User-Agent": "isp-geofeed-generator/" + __version__, "Cache-Control": "no-cache"})
         try:
             with self.http.opener.open(req, timeout=self.http.timeout) as response:
                 data = response.read(1_000_001)

@@ -20,6 +20,7 @@ import tempfile
 import threading
 import time
 from urllib.request import HTTPSHandler, build_opener, urlopen
+from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -134,7 +135,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(413); return
         body = self.rfile.read(length)
         with proxy.lock:
-            proxy.request_sizes.append({'method':self.command,'path':self.path,'bytes':length})
+            proxy.request_sizes.append({'method':self.command,'path':self.path,'bytes':length,
+                                        'authenticated':bool(self.headers.get('Authorization'))})
             mode = proxy.mode
             if mode == 'failed-recovery' and proxy.pending and self.command in ('PUT', 'DELETE'):
                 proxy.mode = None; proxy.faults.append('recovery-refused')
@@ -142,7 +144,16 @@ class Handler(BaseHTTPRequestHandler):
         status, headers, data = proxy.forward(self.command, self.path, body, dict(self.headers))
         with proxy.lock:
             mode = proxy.mode
-            if self.command == 'GET' and self.path == FEED and mode == 'preflight-mismatch':
+            probe_path=self.path.startswith(FEED+'?isp_geofeed_probe=')
+            if self.command=='GET' and (self.path==FEED or probe_path) and mode in (
+                    'cache-canonical-stale','cache-both-stale','cache-canonical-unavailable'):
+                if self.path==FEED:
+                    data=C
+                    if mode=='cache-canonical-unavailable':status=503
+                    proxy.faults.append('cache-canonical-unavailable' if status==503 else 'cache-canonical-stale')
+                elif mode=='cache-both-stale':
+                    data=C;proxy.faults.append('cache-probe-stale')
+            elif self.command == 'GET' and self.path == FEED and mode == 'preflight-mismatch':
                 proxy.mode = None; proxy.faults.append('preflight-mismatch'); data = C
             elif self.command == 'PUT' and self.path in (FEED,FEED_V2) and status == 200 and mode:
                 proxy.pending = True
@@ -339,7 +350,7 @@ class Workload:
             print('PASS: real WordPress '+mode+' race preserves one winner',flush=True)
         check(self.plugin.read_text()==self.original,'original plugin restored after mutation controls')
 
-    def cli(self, csv, state, *, overlap_policy=REJECT, approve=False, command='publish', expected=None):
+    def cli(self, csv, state, *, overlap_policy=REJECT, approve=False, command='publish', expected=None, probe_cache=False):
         inventory=self.directory/'inventory.json'
         pools=[]
         locations={}
@@ -360,6 +371,7 @@ class Workload:
         if command=='configure-wordpress-policy':
             config['credentials']['WP_POLICY_ADMIN_APP_PASSWORD']='env:WP_POLICY_ADMIN_APP_PASSWORD'
         path=self.directory/'config.yaml';path.write_text(yaml.safe_dump(config))
+        if command=='inspect-wordpress':inventory.unlink() # The inspection must work without its configured source file.
         previous={name:os.environ.get(name) for name in ('WP_SITE_URL','WP_USERNAME','WP_APP_PASSWORD','SSL_CERT_FILE',
                                                        'WP_POLICY_ADMIN_USERNAME','WP_POLICY_ADMIN_APP_PASSWORD')}
         os.environ.update({'WP_SITE_URL':self.url,'WP_USERNAME':'publisher','WP_APP_PASSWORD':self.accounts['publisher'],
@@ -374,6 +386,7 @@ class Workload:
                     args=[command,'--config',str(path)]
                     if approve:args+=['--approve-location-changes',digest(csv)]
                     if expected:args+=['--expected-current-sha256',expected]
+                    if probe_cache:args+=['--probe-cache']
                     result=main(args)
         finally:
             for name,value in previous.items():
@@ -705,6 +718,42 @@ class Workload:
         finally:
             self.proxy.nested_winner=None;self.proxy.arm(None)
 
+    def cache_inspection_tests(self):
+        self.reset(A)
+        state=self.directory/'cache-inspection';state.mkdir()
+        (state/'status.json').write_bytes(b'previous failed publication')
+        (state/'before.csv').write_bytes(C);(state/'last-good.csv').write_bytes(A)
+        prior={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in state.iterdir()}
+        stored=self.snapshot()[0]['raw'];writes=(self.control/'writes.log').read_bytes()
+        cases=[('cache-canonical-stale','canonical_differs_probe_matches',False,True,['cache-canonical-stale']),
+               ('cache-both-stale','both_differ_same_bytes',False,False,['cache-canonical-stale','cache-probe-stale']),
+               ('cache-canonical-unavailable','canonical_unavailable_probe_matches',None,True,['cache-canonical-unavailable']),
+               (None,'both_match',True,True,[])]
+        try:
+            for mode,finding,canonical,probe,faults in cases:
+                self.proxy.arm(mode)
+                result,report=self.cli(A,state,command='inspect-wordpress',probe_cache=True)
+                observed=list(self.proxy.request_sizes)
+                check(result==(0 if finding=='both_match' else 1) and report['delivery_finding']==finding and
+                      report['public_matches_stored']==canonical and report['cache_probe_matches_stored']==probe and
+                      report['policy_state_stable'] is True,'real diagnostic distinguishes canonical, probe and unavailable observations')
+                check(self.proxy.faults==faults,'cache diagnostic control really fired')
+                check(len(observed)==4 and all(r['method']=='GET' for r in observed),'exactly two state and two public GETs; no write or retry')
+                check(sum(r['path']==STATE_V2 for r in observed)==2,'authenticated state brackets public observations')
+                public=[r for r in observed if urlsplit(r['path']).path==FEED]
+                check(len(public)==2 and public[0]['path']==FEED and all(not r['authenticated'] for r in public),'both public observations are anonymous')
+                query=parse_qs(urlsplit(public[1]['path']).query)
+                check(set(query)=={'isp_geofeed_probe'} and len(query['isp_geofeed_probe'])==1 and
+                      len(query['isp_geofeed_probe'][0])==32 and set(query['isp_geofeed_probe'][0])<=set('0123456789abcdef'),'fresh probe stays on exact configured feed route')
+                check(not (self.directory/'inventory.json').exists(),'input inventory was unavailable during actual CLI inspection')
+                check(self.snapshot()[0]['raw']==stored and (self.control/'writes.log').read_bytes()==writes and
+                      {p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in state.iterdir()}==prior,'read-only diagnostic preserves feed, SQL, failed status and recovery history')
+                print('CACHE INSPECTION OBSERVATION: '+json.dumps({'mode':mode,'delivery_finding':finding,
+                    'canonical_matches':canonical,'probe_matches':probe,'exit_code':result,'get_requests':len(observed),
+                    'state_stable':report['policy_state_stable'],'faults':self.proxy.faults}),flush=True)
+            print('PASS: real WordPress cache inspection distinguishes stale canonical and probe responses without writes or health changes',flush=True)
+        finally:self.proxy.arm(None)
+
     def capacity_tests(self):
         self.reset()
         city='測'*60
@@ -774,7 +823,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.nested_policy_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.capacity_tests();workload.nested_policy_tests();workload.cache_inspection_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 

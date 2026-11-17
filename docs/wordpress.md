@@ -143,6 +143,11 @@ changes them automatically.
 
 ## Updates and failures
 
+For read-only comparisons of normal and fresh-query public URLs, use the
+[cache diagnostic command](wordpress-cache-diagnostics.md). It distinguishes observed
+differences and unavailable reads while preserving failed status and recovery files.
+It does not purge caches or change the publication/rollback checks below.
+
 The runner reads authenticated state before a write. Each write includes the hash of the state it saw.
 Withdrawal and location-change limits are checked against that state before any write.
 The public feed must match that state before a changed publication starts. A mismatch

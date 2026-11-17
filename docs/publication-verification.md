@@ -28,6 +28,12 @@ be verified before the runner reports that the previous feed was retained or res
 This checks the public route from the runner's network at that moment. It does not prove
 that every CDN node or remote geolocation provider has refreshed its copy.
 
+The optional [read-only cache probe](wordpress-cache-diagnostics.md) compares the
+canonical route, a fresh query URL and bracketed authenticated state. A probe-only match
+is a delivery discrepancy, not a successful publication. Failed or invalid public reads
+are reported as not measured. Inspection does not change failed status, private recovery
+history or the publisher's normal refusal and rollback behavior.
+
 ## Local CSV and rich JSON
 
 The publisher reads a bounded regular file: at most 1 MB for CSV or 8 MB for rich JSON.
