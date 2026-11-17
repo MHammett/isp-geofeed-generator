@@ -175,6 +175,14 @@ changes them automatically.
 
 ## Updates and failures
 
+HTTP 500 can happen after the feed has already committed. A [real after-commit crash
+test](wordpress-integration.md#measured-after-commit-crash-and-ownership-outcomes) verifies
+that the runner inspects state before deciding whether to restore its own candidate.
+It preserves another publication or administrator's newer state and stops unhealthy
+when recovery is unsafe. Verified restoration does not turn the failed run healthy;
+a deliberate later publication must pass its own checks. Do not infer stored state
+from an HTTP status alone or blindly repeat a failed write.
+
 An optional [post-commit delivery action](wordpress-delivery-hooks.md) lets a separate
 local plugin request a narrow cache purge. It runs only after changed feed writes and
 does not replace public verification. A callback failure can return HTTP 503 after the

@@ -359,6 +359,101 @@ These are synthetic single-request measurements. They do not establish a host mi
 whole-process RSS, combined worker capacity or behavior after a hard kill. No production
 limit, plugin or publisher behavior was changed.
 
+## After-commit PHP exhaustion
+
+The [issue #83](https://github.com/MHammett/isp-geofeed-generator/issues/83) workload
+tests a different boundary: the feed is already saved, but PHP exhausts memory before
+the response finishes. It uses the existing post-commit action in the installed fixture.
+No plugin, publisher, role or permission check is replaced.
+
+The private one-shot control names a nonce, API version and expected candidate/history
+hashes. The hook reads the real saved document and checks those values before consuming
+the control. It then measures current allocation, sets a finite threshold 16 MiB above
+the rounded allocation, and reads the setting back. The threshold must be no more than
+192 MiB within the normal `256M` fixture. At most 48 one-MiB chunks are attempted.
+If PHP does not raise an actual fatal memory error, the control fails.
+
+The existing early shutdown logger must record the real fatal at the measured setting.
+A second direct fixture read then captures the committed candidate before the proxy
+delivers the real HTTP 500 to the runner. The proxy does not substitute an error response.
+Logs expose fixed hashes, policies, publication identities and allocation sizes, never
+CSV, SQL, passwords or raw fatal text. The request peak may include earlier publication
+work done before the threshold was lowered; these fault budgets are not host sizing data.
+
+| Scenario | APIs | Cases | Runner HTTP statuses | Required outcome |
+| --- | --- | ---: | --- | --- |
+| Recover small and near-limit Unicode feeds | v1, v2 | 4 | 500, 200 | Exact prior feed restored; failed run stays unhealthy |
+| Publisher wins before inspection | v1, v2 | 2 | 500 | New publication preserved; no restore attempted |
+| Publisher wins immediately before restore | v1, v2 | 2 | 500, 409 | Stale restore refused; winner preserved |
+| Administrator wins before inspection | v2 | 1 | 500 | Identical candidate bytes with a new policy/owner preserved |
+| Administrator changes policy and changes it back before restore | v2 | 1 | 500, 409 | Identical bytes and policy with a new owner still block the stale restore |
+
+Race actors use real authenticated backend API calls after the original fatal response
+has reached the proxy. Restore-window actors run after the runner has inspected its
+candidate but before its restore reaches the server. The interception checks that the
+outgoing request is the justified baseline restore, not a repeated publication.
+The v2 policy round trip isolates identity protection even when bytes and policy match.
+The v1 races test competing changed bytes; they do not establish same-byte owner identity
+protection for the legacy byte-comparison protocol.
+
+All cases check exact stored/public state, retained history, policies where applicable,
+private baseline bytes and unchanged last-good bytes/modification time. The crash control
+must be gone before restoration or a competing write. Only the original request may
+have an exhaustion record. Each recovery case then publishes the same candidate normally
+and verifies it at `256M`, without rearming the fault. That deliberate new run is separate
+from the failed run, whose result remains unhealthy even after verified restoration.
+
+Before the ten real crashes, a negative control disables the allocator only in the
+installed temporary MU-plugin copy. It must actually commit, consume the fault and return
+an ordinary HTTP 503 callback error with no OOM records. The after-commit crash assertion
+must fail at the intended check, while normal conditional recovery preserves the baseline.
+The exact fixture source is restored before the ten real cases. Thus an ordinary callback
+exception cannot pass as a real memory crash, and the checkout is never mutated by the
+control.
+
+Controls and interception callbacks are removed in `finally` and on close. These are
+changed-publication tests on the disposable loopback stack. First-publication exhaustion,
+hard process/kernel kills, whole-host capacity and managed-host/CDN behavior remain
+separate from this evidence.
+
+### Measured after-commit crash and ownership outcomes
+
+On 2026-11-17, [hosted run 44174167353](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44174167353)
+at `f62f705` passed all eight jobs. The disabled-allocator control reached the saved
+candidate, consumed its one-shot flag, returned an ordinary callback HTTP 503 and
+recorded no OOM. Crash verification failed at the intended assertion, and the runner
+restored the baseline. The intact installed fixture then passed all ten real cases.
+
+Four cases restored the prior feed after the real HTTP 500, with runner statuses
+`[500, 200]`. The failed runs stayed unhealthy, kept exact private baseline/last-good
+history, and later published the same candidate normally with the fault removed.
+The near-limit candidate CSVs were 980,432 bytes for v1 and 980,567 bytes for v2.
+
+Six races preserved the other actor's exact raw state and public bytes. Three happened
+before inspection and made no runner restore attempt (`[500]`). Three happened just
+before restore and received a real server refusal (`[500, 409]`). This includes the
+v2 administrator round trip: candidate bytes and required policy returned to their
+earlier values, but the new publication identity still blocked the stale restore.
+Those runs stopped unhealthy with recovery needing attention.
+
+| Workload, both APIs | Current allocation after commit | Lowered fault threshold | Earlier request peak | Peak after fatal |
+| --- | ---: | ---: | ---: | ---: |
+| Small feed | 44,040,192 | 60,817,408 | 44,040,192 | 60,817,408 |
+| Near-limit Unicode feed | 75,796,480 | 93,323,264 | 95,895,552 | 95,895,552 |
+
+These are PHP allocator byte counts in this injected-fault experiment. The near-limit
+request had already peaked above its later fault threshold during normal publication.
+That is why a peak alone cannot prove when or why an OOM happened. The real fatal
+record, consumed nonce-bound control, saved document and independent pre-response read
+were all required. No sizing recommendation follows from these artificial thresholds.
+
+Each failure cycle made two geofeed query-filter calls: the candidate plus its restore
+or the competing actor. The admin round-trip case made three because the administrator
+made two real policy changes. The three stale restores were refused before another
+geofeed write query. These counts do not measure raw driver retries. No restore or
+competing feed request had a second OOM record. First-publication crashes, hard kills,
+total host memory and the actual managed-host/CDN path remain unmeasured.
+
 ## Version-2 policy workload
 
 The 0.3.0 workload also runs the real policy commands with separate administrator and

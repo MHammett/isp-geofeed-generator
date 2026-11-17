@@ -1,5 +1,32 @@
 # Verification
 
+## Real after-commit PHP crashes and owner protection
+
+Observed on 2026-11-17 from [hosted run 44174167353](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44174167353)
+at `f62f705`. All eight jobs passed, including five Python jobs running 353 tests.
+The private disabled-allocator mutation produced a real committed callback error
+(HTTP 503), no OOM records and a restored baseline. It failed the intended crash
+assertion. The exact installed fixture was restored before the real crash cases.
+
+All ten real cases proved the candidate and history were saved before the fatal PHP
+memory error and before the runner saw HTTP 500. Four small/near-limit cases restored
+the old feed on both APIs and stayed unhealthy. Their paired deliberate normal runs
+then verified the same candidate. Six races preserved a competing publication or
+administrator's exact state. Three refused a stale restore with HTTP 409, including
+identical v2 bytes and policy after an administrator round trip with a new identity.
+
+Only the original request exhausted memory. Recovery and competing requests ran at
+the normal finite setting. The one-shot control, fixed metadata, bounded allocation,
+exact raw/public/private history checks and both race windows were exercised. A local
+guard probe refused both entry points outside the disposable runner with no subprocess
+calls. Existing packet, before-commit memory, capacity, race, HTTPS, policy, delivery,
+credential, installed-range and external-validator workloads also passed.
+
+See [the exact outcomes and scope](wordpress-integration.md#measured-after-commit-crash-and-ownership-outcomes).
+V1 races protect competing changed bytes; v2 also tests same-byte owner changes. No
+production plugin, publisher or storage code changed. First-publication OOM, hard
+process kills, total host capacity and managed-host/CDN behavior remain unmeasured.
+
 ## Finite PHP memory and actual exhaustion
 
 Observed on 2026-11-17 from [hosted run 44165181249](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44165181249)
