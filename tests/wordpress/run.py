@@ -943,7 +943,8 @@ class Workload:
                 self.proxy.arm('bad-readback')
                 result,status=self.cli(feeds[4],state,overlap_policy=policy)
                 restored=self.snapshot()[1]
-                check(result==1 and status['healthy'] is False and 'Previous feed retained/restored' in status['error'],
+                recovery_message='Previous feed and policy retained/restored' if version==2 else 'Previous feed retained/restored'
+                check(result==1 and status['healthy'] is False and recovery_message in status['error'],
                       'near-limit failed read-back stays unhealthy after verified recovery')
                 check(restored['csv'].encode()==feeds[3] and restored['previous_csv'].encode()==feeds[4] and
                       self.request('GET',FEED)[2]==feeds[3],'near-limit recovery restores exact stored/public baseline')
