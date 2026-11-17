@@ -1195,6 +1195,30 @@ class Workload:
     def after_commit_oom_tests(self):
         check(DISPOSABLE,'after-commit memory tests require the disposable runner')
         check(not (self.control/'memory-probe').exists(),'previous memory controls were removed')
+        hooks=self.webroot/'wp-content/mu-plugins/geofeed-integration.php'
+        original=hooks.read_text();needle="for ($i=0;$i<48;$i++) { $chunks[]=str_repeat('x',$mib); }"
+        check(original.count(needle)==1,'allocator negative control changes exactly one private fixture loop')
+        memory_count=len(self.memory_observations())
+        proof_path=self.control/'after-commit-oom.log'
+        proof_count=len(proof_path.read_text().splitlines()) if proof_path.exists() else 0
+        try:
+            hooks.write_text(original.replace(needle,"for ($i=0;$i<0;$i++) { $chunks[]=str_repeat('x',$mib); }"))
+            failed_check='actual after-commit HTTP 500 keeps the publication unhealthy'
+            try:self.after_commit_oom_case(1,A,B,C,'no-oom-control','recover')
+            except AssertionError as exc:check(str(exc)==failed_check,'disabled allocator fails at the intended real-crash assertion')
+            else:raise AssertionError('disabled allocator passed a real after-commit crash check')
+            proofs=[json.loads(line) for line in proof_path.read_text().splitlines()[proof_count:]]
+            memories=self.memory_observations()[memory_count:]
+            status=json.loads((self.directory/'after-commit-1-no-oom-control-recover/status.json').read_text())['data']
+            check(len(proofs)==1 and proofs[0]['sha256']==digest(B) and proofs[0]['one_shot_consumed'] is True
+                  and len(memories)==3 and all(value['oom'] is False for value in memories)
+                  and status['healthy'] is False and '503' in status['error']
+                  and self.snapshot()[1]['csv'].encode()==A and self.request('GET',FEED)[2]==A,
+                  'disabled allocator really committed, produced an ordinary callback error and recovered without any OOM')
+            print('AFTER COMMIT MUTATION OBSERVATION: '+json.dumps({'allocator_disabled':True,'real_oom_records':0,
+                'callback_http_status':503,'baseline_restored':True,'detected_check':failed_check}),flush=True)
+        finally:hooks.write_text(original)
+        check(hooks.read_text()==original,'private fixture restored before real crash cases')
         for version in (1,2):
             convert=wrap_csv if version==2 else lambda value:value
             for scenario in ('recover','publisher-inspection','publisher-restore'):
