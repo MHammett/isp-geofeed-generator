@@ -159,6 +159,13 @@ peak and fatal record were checked separately. A configured threshold need not b
 strict peak ceiling. This does not size all workers, host memory or another site's
 plugins, and no production memory setting is changed automatically.
 
+Those four successful corrected requests used **97,316,864 to 109,506,560 bytes** of
+PHP allocation, about **93 to 104.4 MiB**, for roughly 981 KB of CSV. For comparison,
+the largest observed peak leaves about **23.6 MiB (18%)** under a configured 128 MiB
+threshold by simple subtraction. The corrected runs used 256 MiB; this is not a test
+of 128 MiB, a sizing guarantee, or a whole-worker memory measurement. Include your
+other plugins, request types and worker concurrency in staging capacity checks.
+
 On staging, publish a representative large feed, update it, run it unchanged, and test
 recovery while using the same proxy and database limits as production. A small liveness
 check does not establish large-feed capacity. If a limit rejects publication, stop the
