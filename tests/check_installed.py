@@ -199,6 +199,36 @@ result=json.loads(output.getvalue())
 assert result['comparison_consistent'] is False and result['live_registry_read']=='not_measured' and 'healthy' not in result
 assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
 print('PASS: installed offline registry precedence and unsigned coverage checks without configuration or publication writes')
+import ipaddress
+networks=list(parse_feed(feed.read_bytes()))
+ranges=[{'id':str(index),'start':str(net.network_address),'end':str(net.broadcast_address),'geofeed':url}
+        for index,net in enumerate(networks)]
+def range_snapshot(values):
+    registry.write_text(json.dumps({'schema_version':1,'observed_at':'2020-01-01T00:00:00Z','objects':values}))
+range_snapshot(ranges)
+output=io.StringIO()
+with contextlib.redirect_stdout(output):
+    assert main(['check-registry','--registry-records',str(registry),'--feed',str(feed),'--feed-url',url])==0
+result=json.loads(output.getvalue())
+assert result['comparison_consistent'] is True and result['scope']=='supplied_unsigned_range_snapshot'
+assert result['registry_scope_formats']=={'cidr':0,'address_range':len(networks)}
+index=next(i for i,net in enumerate(networks) if net.num_addresses>=4)
+net=networks[index]
+clipped=[dict(value) for value in ranges]
+clipped[index]['start']=str(net.network_address+1)
+clipped[index]['end']=str(net.broadcast_address-1)
+range_snapshot(clipped)
+output=io.StringIO()
+with contextlib.redirect_stdout(output):
+    assert main(['check-registry','--registry-records',str(registry),'--feed',str(feed),'--feed-url',url])==1
+assert json.loads(output.getvalue())['coverage'][str(net.version)]['unreferenced']=='2'
+range_snapshot(ranges+[{'id':'crossing','start':str(net.network_address+1),'end':str(net.broadcast_address+1),'geofeed':url}])
+error=io.StringIO()
+with contextlib.redirect_stderr(error):
+    assert main(['check-registry','--registry-records',str(registry),'--feed',str(feed),'--feed-url',url])==1
+assert 'crossing referring scopes' in error.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
+print('PASS: installed exact registry range coverage and crossing-scope refusal without publication writes')
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

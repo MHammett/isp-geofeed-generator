@@ -6,7 +6,7 @@ Publish to WordPress or write a file. Rich JSON supports separately selected loc
 See [provider workflows](docs/geoip-providers.md) for URL registration, corrections and
 registry discovery. Provider submission adapters remain planned work.
 Use [offline registry-reference checks](docs/registry-reference-checks.md) to compare a
-candidate with supplied unsigned CIDR registry records. Live discovery remains separate.
+candidate with supplied unsigned CIDR or exact address-range registry records. Live discovery remains separate.
 
 This is an independent community project. Contributions are welcome.
 Built-in source adapters are read-only.

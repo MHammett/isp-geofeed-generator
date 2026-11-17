@@ -38,7 +38,8 @@ Each object has:
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique stable export ID, 1–128 ASCII letters, digits, dots, underscores, colons or hyphens |
-| `prefix` | Exact canonical IPv4/IPv6 CIDR scope of the registry object |
+| `prefix` | Exact canonical IPv4/IPv6 CIDR scope. Use this or the `start`/`end` pair, never both. |
+| `start`, `end` | Alternative exact inclusive address bounds of one registry object. Both are required, in the same address family, with `start` no greater than `end`. |
 | `geofeed` | Optional native attribute value, consisting of one HTTPS URL. Omit when absent. |
 | `remarks` | Optional array of at most 20 single-line strings, containing attribute values without the `remarks:` label |
 
@@ -48,11 +49,28 @@ the two distinct [RFC 9632 reference forms](https://www.rfc-editor.org/rfc/rfc96
 The JSON keys represent the attributes; do not put the attribute labels in the values.
 Do not include credentials, customer locations or administrative geography fields.
 
-This initial format supports unsigned feeds and CIDR scopes. It is not a WHOIS/RDAP
-parser. Non-CIDR ranges, signatures, same-scope tie resolution and multiple remarks
-references need further support. Do not widen a real object, invent IDs or split it
-arbitrarily just to make it fit. This is a diagnostic-format limit, not evidence that
-the source platform cannot model the data.
+For a non-CIDR object, retain its exact inclusive bounds:
+
+```json
+{
+  "id": "example-allocation",
+  "start": "11.22.33.1",
+  "end": "11.22.33.254",
+  "geofeed": "https://example.net/geofeed.csv"
+}
+```
+
+That example covers 254 addresses. A candidate `/24` still has two uncovered addresses.
+Single-address ranges are allowed. IPv6 uses canonical compressed lowercase text,
+without a zone ID. Address bounds are capped at 45 characters each. Do not put a CIDR,
+an attribute label or a combined `a - b` string into either address field.
+
+This initial format supports unsigned feeds and exact CIDR or address-range scopes.
+It is not a WHOIS/RDAP parser. Signatures, same-scope tie resolution and multiple
+remarks references need further support. Do not widen a real object, invent IDs or
+split one object into CIDRs to make it fit. Splitting changes which object appears
+most specific and can change discovery precedence. Format limits do not establish
+whether the source platform can model the data.
 
 ## What is compared
 
@@ -61,6 +79,24 @@ reference does not shadow a referring parent. The most-specific referring scope 
 to each address. That choice is separate from location overrides within the CSV.
 The checker clips unsigned feed coverage to the supplied referring scopes, counts
 overlapping feed rows once, and keeps IPv4/IPv6 counts exact as decimal strings.
+
+Referring scopes must be disjoint, equal, or wholly contained in one another. The
+smallest containing object then has an unambiguous place in that hierarchy. CIDRs
+and exact ranges use the same bounds; equal bounds remain a tie even when one is a
+CIDR and the other is a range. Two inclusive ranges that share only one endpoint
+overlap at that address. If they cross without containment, the whole command exits 1
+with `crossing referring scopes` and produces no comparison report. This also applies
+to crossing references outside the candidate. Correct the export or inspect the
+registry hierarchy; do not truncate, widen or drop an object to force a pass.
+
+An object with no reference does not participate in reference precedence. Its syntax
+is still checked. The containment check and coverage sweep use range boundaries,
+not address enumeration, including for large IPv6 ranges.
+
+Reports include `registry_scope_formats` counts for `cidr` and `address_range` objects.
+The `scope` stays `supplied_unsigned_cidr_snapshot` for CIDR-only input and becomes
+`supplied_unsigned_range_snapshot` when any address-range object is supplied. The
+snapshot schema stays at version 1; older tool versions refuse these new fields.
 
 It reports coverage in five categories: `this_feed`, `other_feed`, `unreferenced`,
 `invalid_reference` and `ambiguous_reference`. A different URL is an exact-string

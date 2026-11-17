@@ -1,5 +1,6 @@
-"""Offline unsigned-feed discovery checks against a bounded supplied CIDR snapshot."""
+"""Offline unsigned-feed discovery checks against bounded supplied registry scopes."""
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import heapq
 import ipaddress
@@ -15,6 +16,49 @@ from .overlap import REJECT
 MAX_OBJECTS = 50_000
 MAX_DETAILS = 1_000
 KINDS = ('this_feed', 'other_feed', 'unreferenced', 'invalid_reference', 'ambiguous_reference')
+
+
+@dataclass(frozen=True)
+class _Scope:
+    version: int
+    start: int
+    end: int  # Inclusive. Preserve the original object rather than splitting into CIDRs.
+
+
+def _scope(row, identity):
+    try:
+        if 'prefix' in row and not {'start', 'end'} & row.keys():
+            prefix = row['prefix']
+            if not isinstance(prefix, str) or not 1 <= len(prefix) <= 128 or '%' in prefix:
+                raise ValueError()
+            net = ipaddress.ip_network(prefix, strict=True)
+            if str(net) != prefix:
+                raise ValueError()
+            return _Scope(net.version, int(net.network_address), int(net.broadcast_address))
+        if 'prefix' not in row and {'start', 'end'} <= row.keys():
+            values = (row['start'], row['end'])
+            if any(not isinstance(value, str) or not 1 <= len(value) <= 45 or '%' in value for value in values):
+                raise ValueError()
+            start, end = (ipaddress.ip_address(value) for value in values)
+            if (start.version != end.version or int(start) > int(end)
+                    or str(start) != values[0] or str(end) != values[1]):
+                raise ValueError()
+            return _Scope(start.version, int(start), int(end))
+        raise ValueError()
+    except (ValueError, TypeError):
+        raise GeofeedError(f'Registry object {identity} needs either a canonical CIDR prefix or inclusive canonical start/end addresses of one family') from None
+
+
+def _check_hierarchy(references):
+    """Containment gives one most-specific scope. Crossing ranges have no such order."""
+    stack = []
+    for reference in sorted(references, key=lambda value: (value[0].version, value[0].start, -value[0].end)):
+        scope = reference[0]
+        while stack and (scope.version != stack[-1][0].version or scope.start > stack[-1][0].end):
+            stack.pop()
+        if stack and scope.end > stack[-1][0].end:
+            raise GeofeedError(f'Registry objects {stack[-1][2][0]} and {reference[2][0]} have crossing referring scopes; containment order is unsupported, no comparison made')
+        stack.append(reference)
 
 
 def feed_url(value):
@@ -70,6 +114,7 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
         raise GeofeedError('Registry comparison exceeds the supported feed record limit')
     findings, finding_count, groups, ids = [], 0, defaultdict(list), set()
     precedence = 0
+    formats = {'cidr': 0, 'address_range': 0}
 
     def finding(kind, object_ids):
         nonlocal finding_count
@@ -78,18 +123,13 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
             findings.append({'kind': kind, 'object_ids': object_ids[:4], 'object_count': len(object_ids)})
 
     for row in source['objects']:
-        if (not isinstance(row, dict) or set(row) - {'id', 'prefix', 'geofeed', 'remarks'}
+        if (not isinstance(row, dict) or set(row) - {'id', 'prefix', 'start', 'end', 'geofeed', 'remarks'}
                 or not isinstance(row.get('id'), str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', row['id'])
                 or row['id'] in ids):
-            raise GeofeedError('Registry objects need unique safe IDs and supported unsigned CIDR fields')
+            raise GeofeedError('Registry objects need unique safe IDs and supported unsigned scope fields')
         identity = row['id']; ids.add(identity)
-        try:
-            prefix = row['prefix']
-            net = ipaddress.ip_network(prefix, strict=True)
-            if not isinstance(prefix, str) or str(net) != prefix or '%' in prefix:
-                raise ValueError()
-        except (KeyError, TypeError, ValueError):
-            raise GeofeedError(f'Registry object {identity} needs a canonical CIDR scope; other range formats are not supported yet') from None
+        scope = _scope(row, identity)
+        formats['cidr' if 'prefix' in row else 'address_range'] += 1
         remarks = row.get('remarks', [])
         if (not isinstance(remarks, list) or len(remarks) > 20
                 or any(not isinstance(item, str) or len(item) > 2048
@@ -112,16 +152,17 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
                 kind = 'invalid_reference'; finding('invalid_remarks_reference', [identity])
             else:
                 kind = 'this_feed' if candidates[0][8:] == expected_url else 'other_feed'
-        groups[net].append((identity, kind))
+        groups[scope].append((identity, kind))
 
     references = []
-    for net, rows in groups.items():
+    for scope, rows in groups.items():
         if len(rows) > 1:
             finding('same_scope_resolution_unsupported', [row[0] for row in rows])
             kind = 'ambiguous_reference'
         else:
             kind = rows[0][1]
-        references.append((net, kind, [row[0] for row in rows]))
+        references.append((scope, kind, [row[0] for row in rows]))
+    _check_hierarchy(references)
 
     coverage, details, interval_count = {}, [], 0
     for version in (4, 6):
@@ -130,10 +171,10 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
             if net.version == version:
                 events[int(net.network_address)].append(('feed', 1, 0))
                 events[int(net.broadcast_address) + 1].append(('feed', -1, 0))
-        for index, (net, _, _) in enumerate(references):
-            if net.version == version:
-                events[int(net.network_address)].append(('reference', 1, index))
-                events[int(net.broadcast_address) + 1].append(('reference', -1, index))
+        for index, (scope, _, _) in enumerate(references):
+            if scope.version == version:
+                events[scope.start].append(('reference', 1, index))
+                events[scope.end + 1].append(('reference', -1, index))
         counts = {kind: 0 for kind in KINDS}
         active, heap, feeds, previous = set(), [], 0, None
         for point in sorted(events):
@@ -155,7 +196,8 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
                     feeds += direction
                 elif direction == 1:
                     active.add(index)
-                    heapq.heappush(heap, (-references[index][0].prefixlen, index))
+                    scope = references[index][0]
+                    heapq.heappush(heap, (scope.end - scope.start, index))
                 else:
                     active.remove(index)
             previous = point
@@ -163,7 +205,8 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
     consistent = finding_count == 0 and all(values['this_feed'] == values['total'] for values in coverage.values())
     return {
         'inspection_only': True, 'comparison_consistent': consistent,
-        'scope': 'supplied_unsigned_cidr_snapshot', 'observed_at': now.isoformat(timespec='seconds'),
+        'scope': 'supplied_unsigned_range_snapshot' if formats['address_range'] else 'supplied_unsigned_cidr_snapshot',
+        'registry_scope_formats': formats, 'observed_at': now.isoformat(timespec='seconds'),
         'snapshot_observed_at': stamp.isoformat(timespec='seconds'), 'snapshot_age_seconds': int((now - stamp).total_seconds()),
         'live_registry_read': 'not_measured', 'ownership_validation': 'not_measured',
         'signature_validation': 'not_measured',

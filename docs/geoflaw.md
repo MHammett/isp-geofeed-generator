@@ -53,7 +53,7 @@ ownership. Registry administrative geography must not replace the operator's poo
 ## Planned integration
 
 The initial [offline registry checker](registry-reference-checks.md) now compares a
-supplied unsigned CIDR snapshot with a CSV candidate. It keeps exact discovery coverage
+supplied unsigned CIDR/address-range snapshot with a CSV candidate. It keeps exact discovery coverage
 separate from local geography and reports live registry/provider checks as not measured.
 It does not scrape Geoflaw or fetch the references in that snapshot.
 
