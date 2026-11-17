@@ -152,6 +152,13 @@ the fixture restored and measured its saved 16 MiB budget, the same candidate pa
 This is test evidence, not a recommendation to change your host automatically. The
 runner's single PUT does not count WordPress's possible internal database retries.
 
+A [later finite-PHP trial](wordpress-integration.md#measured-finite-memory-exhaustion-and-correction)
+also required small-feed success at `64M`, real large-feed exhaustion with the prior
+feed preserved, and same-candidate success at `256M`. The actual PHP setting, allocator
+peak and fatal record were checked separately. A configured threshold need not be a
+strict peak ceiling. This does not size all workers, host memory or another site's
+plugins, and no production memory setting is changed automatically.
+
 On staging, publish a representative large feed, update it, run it unchanged, and test
 recovery while using the same proxy and database limits as production. A small liveness
 check does not establish large-feed capacity. If a limit rejects publication, stop the

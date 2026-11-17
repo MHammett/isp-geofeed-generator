@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Disposable WordPress tests use finite PHP memory, prove small-feed success and real large-feed exhaustion at a lower budget, verify preserved baseline/history, and require the same candidate to succeed after a measured correction. Peak allocation and configured limits are reported separately.
+
 - Disposable WordPress packet-limit controls verify refusal at a smaller database budget, preserved stored/public history, safe failure status and successful publication of the same candidate after a measured budget correction.
 
 - Offline registry checks accept exact inclusive IPv4/IPv6 address ranges alongside CIDRs, preserving object containment, equivalent-scope ambiguity and explicit refusal of crossing referring scopes.

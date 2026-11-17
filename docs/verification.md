@@ -1,5 +1,32 @@
 # Verification
 
+## Finite PHP memory and actual exhaustion
+
+Observed on 2026-11-17 from [hosted run 44165181249](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44165181249)
+at `099aa1a`. All eight jobs passed, including five Python jobs running 353 tests.
+The entire WordPress workload used a configured finite `256M` setting. Small changed
+publications passed on both APIs at `64M`, peaking at 44,040,192 PHP-allocated bytes.
+
+All four large Unicode/API cases then produced actual PHP memory exhaustion and
+HTTP 500 at `64M`. They made one runner PUT and zero geofeed write-query filter calls,
+kept unhealthy status, and preserved the full stored document, public baseline and
+private recovery data, including v2 policy/owner metadata. After a measured correction
+and read-only baseline checks, each explicit new run of the same CSV passed at `256M`
+with exact current/history/public verification. Successful peaks were 97,316,864 through
+109,506,560 PHP-allocated bytes. The lower-budget fatal peaks sometimes exceeded the
+configured threshold; a strict peak ceiling was not assumed.
+
+The first two attempts exposed a too-small small-feed prerequisite and an incorrect
+peak-bound assumption. Both stopped the job; neither was treated as healthy. The
+corrected full controls, prior packet failures, races, HTTPS, policy, cache/delivery,
+range, credential and external-validator workloads all passed. A local guard probe
+refused both new entry points outside the disposable environment with zero subprocess
+calls. Local PHP was not measured by Codex.
+
+See [the actual measurements and limits](wordpress-integration.md#measured-finite-memory-exhaustion-and-correction).
+PHP allocator peaks do not measure whole-process RSS, combined workers, host OOM kills
+or managed-host behavior. No production limit, plugin or publisher code changed.
+
 ## Real packet-limit refusal and deliberate correction
 
 Observed on 2026-11-17 from [hosted run 44159141685](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44159141685)
@@ -21,7 +48,8 @@ environment with zero subprocess calls.
 The prior capacity, race, HTTPS, policy, cache/delivery, range, credential and external
 validator workloads also passed. No production setting, plugin or publisher changed.
 See [the measured packet workload](wordpress-integration.md#measured-packet-refusal-and-correction).
-Finite memory and managed-host/CDN behavior remain unmeasured.
+Finite PHP memory was not measured at that revision. The later workload above adds
+that check; whole-host capacity and managed-host/CDN behavior remain unmeasured.
 
 ## Nested policy publication and review follow-up
 

@@ -118,6 +118,11 @@ checks in [the setup guide](wordpress.md). This harness is not a production inst
 
 ## Measured large-feed example
 
+The earlier observations below used unlimited fixture memory. The current harness
+uses a finite 256 MiB PHP setting and separate lower-memory controls described in
+[the finite-memory workload](#finite-php-memory-workload). Historical measurements
+retain their original run, setting and scope.
+
 Hosted run [43926425105](https://github.com/MHammett/isp-geofeed-generator/actions/runs/43926425105)
 on 2026-11-16 used 4,735 synthetic records with a 60-character Unicode city. Both
 current and previous feeds were near the CSV limit. WordPress 7.1.4, PHP 8.3.6 and
@@ -269,9 +274,90 @@ Each phase made one call through the geofeed query filter. Raw driver attempts w
 not counted, so no claim is made about internal database retries.
 
 This measures refusal at one deliberately undersized budget and success after a
-verified correction. It does not find a universal minimum. Finite memory, production
-limits and managed-host/CDN behavior still need operator staging checks. The plugin,
-publisher and storage encoding are unchanged.
+verified correction. It does not find a universal minimum. Finite PHP memory was not
+measured at that revision; the later stage below adds that check. Total host memory,
+production limits and managed-host/CDN behavior still need operator staging checks.
+The plugin, publisher and storage encoding are unchanged.
+
+## Finite PHP memory workload
+
+The fixture sets PHP `memory_limit`, `WP_MEMORY_LIMIT` and `WP_MAX_MEMORY_LIMIT` to
+`256M` before WordPress loads. Its startup response must report the real HTTP value.
+The whole workload runs with that finite setting. This changes only the disposable
+test configuration. The plugin, publisher and production defaults are untouched.
+
+Two small changed publications, one per API, must also pass at `64M`. They run real
+authentication, CSV validation, database commit and public verification. This proves
+the lower setting can run a small feed before testing a near-limit feed at that budget.
+It is more than a liveness check.
+
+Each of the four large-feed cases then attempts its next update at `64M`. A private
+fixture control applies the lower setting only to feed PUTs. GETs and the private CLI
+retain `256M` so preflight and read-only diagnosis remain available. The test therefore
+measures exhaustion in the write path, not exhaustion of every route on a host.
+
+A shutdown callback is registered before core's fatal handler, with a small reserved
+allocation released for logging. It records only API version, actual PHP setting, peak
+allocation, an exhaustion flag and the raw hard-limit directive when available. It
+never writes the fatal message, SQL, CSV or credentials. The exhaustion flag requires
+a real PHP fatal memory error; a proxy-generated HTTP 500 cannot satisfy it.
+
+The failed run must stay unhealthy, make one runner PUT and preserve the full stored
+document, public CSV and private recovery baseline. The v2 private baseline must keep
+the correct policy and owner. The fixture restores its normal control in `finally`.
+After checking that control and the unchanged baseline, a deliberate new run of the
+same candidate must succeed at the observed `256M` setting. Stored current/prior bytes,
+public CSV, private history and policy fields must all match.
+
+`memory_limit` is not a promise that observed allocation never crosses that number.
+[PHP documents deferred fatal handling and a separate hard-limit setting](https://www.php.net/manual/en/ini.core.php#ini.memory-limit).
+The test records actual peaks and requires actual exhaustion rather than assuming a
+peak must be below the configured threshold. `hard_limit_percent` is the raw directive;
+`null` means it was unavailable. It is not a measured process-memory ceiling.
+
+The peak comes from [PHP's allocator measurement](https://www.php.net/manual/en/function.memory-get-peak-usage.php),
+not whole-process RSS or total host memory. Kernel/container OOM kills, hard-limit
+termination without a shutdown callback, multiple workers' combined memory, plugins
+on another host and managed-host/CDN behavior remain unmeasured. Missing shutdown
+evidence fails the check. These synthetic budgets are not host sizing recommendations.
+
+### Measured finite-memory exhaustion and correction
+
+On 2026-11-17, [hosted run 44165181249](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44165181249)
+at `099aa1a` passed all eight jobs. WordPress 7.1.4, PHP 8.3.6 and MariaDB 10.11.14
+ran the full workload with `256M` configured. Both small changed publications passed
+at `64M`, each with a 44,040,192-byte PHP allocator peak and no exhaustion.
+
+The four large cases each produced a real PHP fatal memory record, HTTP 500 and an
+unhealthy runner result at `64M`. Each made one runner PUT and zero calls through the
+geofeed write-query filter. The exact raw stored document, public baseline and private
+recovery bytes were preserved. The v2 baseline also retained the correct policy and
+publication owner. After the normal control and unchanged baseline were checked, each
+explicit new run of the same CSV passed at the observed `256M` setting.
+
+| API / UTF-8 bytes per character | Peak bytes before fatal at `64M` | Peak bytes on successful correction at `256M` |
+| --- | ---: | ---: |
+| v1 / 3 | 72,519,680 | 97,316,864 |
+| v2 / 3 | 72,523,776 | 97,320,960 |
+| v1 / 4 | 65,445,888 | 109,502,464 |
+| v2 / 4 | 65,445,888 | 109,506,560 |
+
+The configured 64 MiB threshold is 67,108,864 bytes. The three-byte cases peaked above
+it before the fatal handler ran. A failed allocation also need not appear in the peak.
+The runtime returned an empty string for the hard-limit directive, so no numeric hard
+ceiling was measured. These observations are why the test separates settings, actual
+peaks and fatal evidence instead of treating the setting as a strict peak bound.
+
+Two early controls stopped correctly rather than reporting success. The `32M` small
+publication prerequisite failed. At `64M`, an assertion that the peak must stay below
+the configured threshold was disproved by the recorded fatal peak and was corrected.
+The final controls still require real exhaustion, exact baseline preservation and
+same-candidate success at the finite corrected setting. The fixed lower budget must
+be recalibrated if a future storage change makes these workloads fit without exhaustion.
+
+These are synthetic single-request measurements. They do not establish a host minimum,
+whole-process RSS, combined worker capacity or behavior after a hard kill. No production
+limit, plugin or publisher behavior was changed.
 
 ## Version-2 policy workload
 
