@@ -105,11 +105,13 @@ The disposable integration test measured a 980,230-byte Unicode CSV using a
 1,842,098-byte upload, 3,693,183-byte state response and 6,434,412-byte SQL statement.
 See [the measured workload](wordpress-integration.md#measured-large-feed-example).
 Those values describe one synthetic feed and test stack; measure your own workload.
-The SQL figure is the first change after empty history. Later updates compare two full
-documents and can carry four feeds. Claude's offline model estimated roughly 8.6 MB
-with three-byte characters and 12.8 MB with four-byte characters near the CSV limit.
-Those estimates are not hosted measurements or universal bounds. Test at least three
-changed publications with populated history and leave packet headroom.
+That SQL figure is the first change after empty history. Later updates compare two full
+documents and can carry four feeds. A [later four-case test](wordpress-integration.md#measured-populated-history-workloads)
+measured up to 8,583,154 SQL bytes with three-byte characters and 12,832,174 with
+four-byte characters, using roughly 981 KB of CSV. Both API versions completed first
+publication and three changes, an unchanged run and conditional recovery. These are
+measurements of synthetic feeds, not universal bounds. Test at least three changed
+publications with populated history and leave packet headroom.
 
 - The runner sends JSON. Escaping non-ASCII characters can roughly triple the CSV's
   wire size. A proxy limit of 1 MB is not enough for every valid feed. For example,

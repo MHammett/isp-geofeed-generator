@@ -173,6 +173,38 @@ not lower the server's packet budget or establish the exact failure threshold. T
 small-client and oversized-CSV refusal controls remain separate checks. No production
 database or web-server setting is changed.
 
+## Measured populated-history workloads
+
+On 2026-11-17, [hosted run 44138616802](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44138616802)
+at `fd18752` passed all eight jobs. WordPress 7.1.4, PHP 8.3.6 and MariaDB 10.11.14
+completed all four workloads. The table shows stage 3, the last normal changed feed.
+The city field contains 60 copies of a three-byte or four-byte Unicode character.
+These are synthetic encoding workloads, not actual customer locations.
+
+| API / UTF-8 bytes per character | CSV bytes | Upload JSON bytes | State JSON bytes | SQL statement bytes |
+| --- | ---: | ---: | ---: | ---: |
+| v1 / 3 | 980,646 | 1,842,878 | 3,694,829 | 8,582,176 |
+| v2 / 3 | 980,781 | 1,843,314 | 3,695,271 | 8,583,154 |
+| v1 / 4 | 980,966 | 2,752,896 | 5,512,384 | 12,831,196 |
+| v2 / 4 | 981,101 | 2,753,332 | 5,512,826 | 12,832,174 |
+
+For v1 with three-byte characters, the SQL grew from 2,144,741 bytes on first
+publication to 6,434,412 on the first change and 8,580,360 on the next change.
+With four-byte characters, the same stages were 3,206,158, 9,619,082 and 12,827,704
+bytes. The test database reported a 16,777,216-byte packet budget. Successful commits
+and exact stored/public read-back were checked, rather than statement size alone.
+
+Every case then repeated unchanged with zero HTTP writes and zero geofeed SQL writes.
+All private state files except the status report kept their exact bytes and modification
+times. A later forced public mismatch made one publish PUT and one conditional restore
+PUT. Exact prior stored/public bytes were restored, and the failed run stayed unhealthy.
+The v2 cases also kept the required, current and prior overlap policies intact.
+
+These measurements replace the earlier model's evidence gap for these four inputs.
+They are not maximum bounds. HTTP PHP still reported unlimited test-runner memory;
+finite memory, actual packet-limit failures, production proxies and CDN behavior remain
+unmeasured. Keep staging checks and packet headroom even if your first update succeeds.
+
 ## Version-2 policy workload
 
 The 0.3.0 workload also runs the real policy commands with separate administrator and

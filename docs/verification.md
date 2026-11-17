@@ -49,6 +49,30 @@ This is a measured disposable-stack control, not a change to the shipped authent
 or a production proxy measurement. The prior race, recovery and large-Unicode workloads
 also passed. The review and this author follow-up remain separate evidence.
 
+## Populated-history WordPress capacity and recovery
+
+Observed on 2026-11-17 from [hosted run 44138616802](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44138616802)
+at `fd18752`. All eight jobs passed. Each of five Python jobs ran 342 tests;
+platform-specific checks were skipped only on the other platform. The real WordPress
+job completed four capacity cases: API v1 and v2, each with three-byte and four-byte
+Unicode city characters.
+
+Each case published first and changed three times with populated history. Later
+normal updates reached 8,583,154 or 12,832,174 SQL bytes for roughly 981 KB of CSV.
+Each unchanged run made zero HTTP writes and zero geofeed SQL writes, preserving
+private recovery bytes and modification times. A forced public mismatch then caused
+one publish and one conditional restore, with exact stored/public recovery and an
+unhealthy result. Policy-v2 recovery also preserved all three policy fields.
+
+The prior small-client and oversized-CSV refusal controls passed, as did the existing
+race mutations, HTTPS controls, policy and delivery tests. The first attempt at the new
+workload failed because its assertion expected v1's recovery message from v2. The test
+was corrected to check each protocol's actual message; runtime code was unchanged.
+
+See [all measured stages and limits](wordpress-integration.md#measured-populated-history-workloads).
+Actual packet-limit failures, finite host memory and the managed-host/CDN path remain
+unmeasured. No production setting changed.
+
 ## Near-limit WordPress Unicode workload
 
 Observed on 2026-11-16 from hosted run
