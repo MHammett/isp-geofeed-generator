@@ -1250,11 +1250,22 @@ class Workload:
                 endpoint=FEED;headers=self.proxy.publisher_headers
             response=self.proxy.forward('PUT',endpoint,json.dumps(payload).encode(),{**headers,'Content-Type':'application/json'})
             check(response[0]==200,'real competing writer/admin commit after original OOM')
+            seen['actor_puts']=1
+            if scenario=='admin-restore':
+                # Return the policy to its old value but advance the owner again.
+                # The stale restore must still fail on identity, not just policy.
+                previous_identity=identity;identity=secrets.token_hex(16)
+                payload.update(required_overlap_policy=policy,expected_required_overlap_policy=REJECT,
+                               expected_publication_id=previous_identity,publication_id=identity)
+                response=self.proxy.forward('PUT',endpoint,json.dumps(payload).encode(),{**headers,'Content-Type':'application/json'})
+                check(response[0]==200,'real administrator policy round trip commits a second identity')
+                seen['actor_puts']=2
             snapshot,doc=self.snapshot();seen['winner_raw']=snapshot['raw'];seen['winner_doc']=doc
             check(doc['csv'].encode()==(candidate if scenario.startswith('admin-') else winner),'real competing actor stores intended exact bytes')
             if version==2:check(doc['publication_id']==identity,'competing actor has a new real publication identity')
             if scenario.startswith('admin-'):
-                check(doc['required_overlap_policy']==REJECT and doc['overlap_policy']==policy,
+                check(doc['required_overlap_policy']==(policy if scenario=='admin-restore' else REJECT)
+                      and doc['overlap_policy']==policy,
                       'administrative winner changes policy/owner while preserving identical candidate bytes')
             self.proxy.faults.append('competing-'+scenario)
 
@@ -1300,7 +1311,8 @@ class Workload:
             expected=[500,200] if scenario=='recover' else [500,409] if scenario.endswith('-restore') else [500]
             check(statuses==expected and all(value['path']==path for value in puts),
                   'one failed publication and only the justified conditional restore; no blind retries')
-            check(len((self.control/'write-sizes.log').read_text().splitlines())-query_count==2,
+            expected_queries=3 if scenario=='admin-restore' else 2
+            check(len((self.control/'write-sizes.log').read_text().splitlines())-query_count==expected_queries,
                   'only candidate plus restore or competing actor reaches the query filter')
             snapshot,doc=self.snapshot()
             if scenario=='recover':
@@ -1343,7 +1355,9 @@ class Workload:
                 'peak_before_fault_bytes':seen['proof']['peak_before_fault_bytes'],'oom_limit_bytes':seen['proof']['oom_limit_bytes'],
                 'fatal_peak_allocated_bytes':seen['memory']['peak_allocated_bytes'],'actual_php_oom':True,
                 'one_shot_consumed':True,'runner_http_statuses':statuses,'failure_healthy':status['healthy'],
-                'query_filter_calls':2,'baseline_restored':scenario=='recover','competing_actor_preserved':scenario!='recover',
+                'query_filter_calls':expected_queries,'injected_actor_puts':seen.get('actor_puts',0),
+                'admin_policy_round_trip':scenario=='admin-restore',
+                'baseline_restored':scenario=='recover','competing_actor_preserved':scenario!='recover',
                 'same_candidate_normal_verified':scenario=='recover'}),flush=True)
         finally:
             flag.unlink(missing_ok=True);self.proxy.after_oom=None;self.proxy.before_restore=None;self.proxy.arm(None)
