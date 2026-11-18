@@ -5,6 +5,11 @@ application passwords and a loopback HTTPS proxy. It is separate from the fast P
 stub suite. Work is tracked in [issue #61](https://github.com/MHammett/isp-geofeed-generator/issues/61).
 No production site, credential store or operator inventory is used.
 
+The separate `wordpress-storage-prototype` job runs a [private storage experiment](wordpress-storage-options.md)
+for issue #80. It changes only its temporary installed plugin copy and disposable
+column. Its measurements do not select or ship a new storage format. The normal job
+below keeps the existing escaped format and all of its failure controls.
+
 ## What runs
 
 The `wordpress-integration` job uses a disposable GitHub-hosted Ubuntu 24.04 runner.

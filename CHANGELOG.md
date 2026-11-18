@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Isolated WordPress Unicode storage experiment compares actual write sizes, format compatibility and older-column refusal without changing the shipped plugin or selecting a new storage policy.
+
 - First-publication crash tests cover conditional DELETE recovery to an empty feed, competing publisher/admin protection, exact private empty baselines and rejection of ordinary errors as fatal-crash evidence.
 
 - Real after-commit PHP exhaustion tests verify one-shot crash ordering, conditional recovery, competing publisher/admin protection before inspection and restore, and normal same-candidate publication after recovery. A disabled-allocator control must fail crash verification.

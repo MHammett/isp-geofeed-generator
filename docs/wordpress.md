@@ -175,6 +175,11 @@ changes them automatically.
 
 ## Updates and failures
 
+The [storage decision guide](wordpress-storage-options.md) describes a separate
+private CI experiment. It does not change the plugin's escaped storage or require
+operators to convert their databases. Storage format and write-guard decisions
+remain separate from normal updates.
+
 HTTP 500 can happen after the feed has already committed. A [real after-commit crash
 test](wordpress-integration.md#measured-after-commit-crash-and-ownership-outcomes) verifies
 that the runner inspects state before deciding whether to restore its own candidate.

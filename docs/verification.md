@@ -1,5 +1,30 @@
 # Verification
 
+## Private WordPress storage experiment
+
+Observed on 2026-11-18 from the successful prototype job in
+[run 44341755100](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44341755100)
+at `398f7d1`. Eight matched capacity workloads compared current escaped storage with
+direct Unicode on the same near-limit inputs. Third-change SQL was about 4 MB in the
+private prototype, compared with about 8.6 MB and 12.8 MB under the current format.
+Upload and state-response sizes were unchanged. Exact stage measurements and PHP
+allocation peaks are in [the decision guide](wordpress-storage-options.md#measured-comparison).
+
+Both formats passed no-op and conditional recovery checks. Four format round trips
+passed. Two real three-byte-column refusals kept exact stored/public/private baseline
+state and remained unhealthy. The original escaped plugin then published the same
+four-byte candidates on the unchanged column. The disabled encoder failed the intended
+format assertion. The PHP guard refused an actual column change outside prototype
+mode and preserved metadata. Original plugin/column restoration and a real subsequent
+publication also passed.
+
+Five Python entry paths refused outside the disposable environment, with zero
+subprocess calls. Compilation, workflow YAML parsing and diff checks passed locally.
+PHP and real WordPress were not measured locally by Codex. The initial test-folder
+failure is recorded in the guide. This experiment does not ship a format, fallback,
+schema conversion or digest guard. Full prototype race, packet, memory and host-path
+coverage remains open under #80. Normal regression controls test the shipped format.
+
 ## First-publication crashes and conditional DELETE
 
 Observed on 2026-11-18 from [hosted run 44330999200](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44330999200)
