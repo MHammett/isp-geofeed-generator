@@ -152,8 +152,9 @@ into the report. Response links are never fetched.
 
 Each safe object ID contains its type and a SHA-256 digest of its exact scope.
 The report labels `registry_input_format` as `ripe-rest` and `registry_source` as
-`RIPE`. It hashes the original file in `snapshot_sha256` and the internal normalized
-snapshot in `normalized_snapshot_sha256`. Contact data and raw reference URLs are
+`RIPE`. For a single input, it hashes the original file in `snapshot_sha256` and the
+internal normalized snapshot in `normalized_snapshot_sha256`. For multiple files,
+use the combined and per-input hash fields described above. Contact data and raw reference URLs are
 not printed. These labels and hashes describe supplied data, not its authenticity.
 
 ## Refusals and limits
@@ -161,8 +162,7 @@ not printed. These labels and hashes describe supplied data, not its authenticit
 One command accepts up to 32 saved files. Their total original bytes and the combined
 normalized snapshot must each fit within 8 MB. The total object count is at most
 50,000, across the whole set. These are combined limits, not a fresh budget per file.
-Each object has at most 200
-attributes. Names are bounded lowercase attribute names; values must be strings
+Each object has at most 200 attributes. Names are bounded lowercase attribute names; values must be strings
 with at most 8,192 characters and no line controls. The shared checker further
 limits remarks to 20 lines of at most 2,048 characters. Duplicate JSON keys,
 non-finite numbers, empty responses and API messages are refused. Even a warning
