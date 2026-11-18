@@ -19,6 +19,19 @@ def identity(info):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
+def identity_changes(before, after):
+    """Fixed field names only; never include paths, IDs, times or file contents."""
+    if before is None or after is None:
+        return ['existence'] if before != after else []
+    fields = ('device', 'file_id', 'size', 'mtime', 'ctime')
+    return [name for name, left, right in zip(fields, before, after) if left != right]
+
+
+def change_description(before, after):
+    fields = ([] if before.data == after.data else ['content']) + identity_changes(before.identity, after.identity)
+    return ','.join(fields) or 'unknown'
+
+
 def read_output(path, max_bytes):
     """Do not follow final symlinks, read devices or load unbounded old files."""
     path = Path(path)
@@ -36,7 +49,8 @@ def read_output(path, max_bytes):
             if len(data) > max_bytes:
                 raise GeofeedError('Existing published output exceeds the supported size limit')
             if identity(before) != identity(after):
-                raise GeofeedError('Published output changed during read; no partial snapshot accepted')
+                changed = ','.join(identity_changes(identity(before), identity(after)))
+                raise GeofeedError(f'Published output changed during read; no partial snapshot accepted [changed: {changed}]')
             return FileState(data, identity(after))
     except FileNotFoundError:
         return FileState(b'', None)
@@ -106,8 +120,10 @@ def publish_local(path, value, state_dir, backup_name, validate, max_bytes):
         atomic_write(Path(state_dir)/backup_name, before.data)
 
         def unchanged():
-            if read_output(target, max_bytes) != before:
-                raise GeofeedError('Published output changed before replacement; no overwrite attempted; recovery backup retained')
+            current = read_output(target, max_bytes)
+            if current != before:
+                changed = change_description(before, current)
+                raise GeofeedError(f'Published output changed before replacement; no overwrite attempted; recovery backup retained [changed: {changed}]')
 
         try:
             atomic_write(target, value, 0o644, before_replace=unchanged)

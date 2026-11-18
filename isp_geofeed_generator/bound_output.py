@@ -7,7 +7,7 @@ import secrets
 
 from .client import GeofeedError
 from .feed import digest
-from .local_output import output_lock, read_output
+from .local_output import output_lock, read_output, change_description
 from .overlap import REJECT, LONGEST_PREFIX
 from .publish import atomic_write
 
@@ -40,8 +40,14 @@ def manifest(data, kind):
 
 
 def same_pair(path, before, metadata, max_bytes):
-    if read_output(path,max_bytes) != before or read_output(policy_path(path),4096) != metadata:
-        raise GeofeedError('Destination bytes or policy changed; no overwrite attempted')
+    current = read_output(path,max_bytes)
+    if current != before:
+        changed = change_description(before,current)
+        raise GeofeedError(f'Destination bytes or policy changed; no overwrite attempted [feed changed: {changed}]')
+    current = read_output(policy_path(path),4096)
+    if current != metadata:
+        changed = change_description(metadata,current)
+        raise GeofeedError(f'Destination bytes or policy changed; no overwrite attempted [policy changed: {changed}]')
 
 
 def backup_name(kind):
