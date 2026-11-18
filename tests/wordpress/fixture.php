@@ -30,6 +30,22 @@ if ($geofeed_test_action === 'install') {
     $collation = $wpdb->get_var($wpdb->prepare("SELECT COLLATION(option_value) FROM {$wpdb->options} WHERE option_name = %s", 'isp_geofeed_generator_document'));
     echo json_encode(['raw' => $raw, 'collation' => $collation,
         'max_allowed_packet' => (int)$wpdb->get_var('SELECT @@max_allowed_packet')]);
+} elseif ($geofeed_test_action === 'storage-metadata' || $geofeed_test_action === 'storage-charset') {
+    global $wpdb;
+    // Only the private CLI fixture can change its disposable options column.
+    if ($geofeed_test_action === 'storage-charset') {
+        $collation = $geofeed_test_input['collation'] ?? '';
+        $allowed = ['utf8_general_ci' => 'utf8', 'utf8mb3_general_ci' => 'utf8mb3',
+            'utf8mb4_unicode_ci' => 'utf8mb4', 'utf8mb4_unicode_520_ci' => 'utf8mb4'];
+        if (!isset($allowed[$collation])) { throw new RuntimeException('Unsupported disposable column collation'); }
+        $charset = $allowed[$collation];
+        if ($wpdb->query("ALTER TABLE {$wpdb->options} MODIFY option_value longtext CHARACTER SET $charset COLLATE $collation NOT NULL") === false) {
+            throw new RuntimeException('Cannot change disposable column charset');
+        }
+    }
+    $column = $wpdb->get_row("SHOW FULL COLUMNS FROM {$wpdb->options} LIKE 'option_value'", ARRAY_A);
+    echo json_encode(['column_collation' => $column['Collation'], 'column_type' => $column['Type'],
+        'connection' => $wpdb->get_row('SELECT @@character_set_client AS client, @@character_set_connection AS connection, @@character_set_results AS results', ARRAY_A)]);
 } elseif ($geofeed_test_action === 'reset') {
     delete_option('isp_geofeed_generator_document');
     if (isset($geofeed_test_input['csv'])) {

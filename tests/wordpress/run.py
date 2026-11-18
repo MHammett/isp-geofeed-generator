@@ -157,6 +157,8 @@ class Handler(BaseHTTPRequestHandler):
                     observation['session_packet_budget']=int(value)
                 if name.lower()=='x-geofeed-test-memory-limit' and value in ('64M','256M'):
                     observation['php_memory_limit']=value
+                if name.lower().startswith('x-geofeed-test-charset-') and value in ('utf8','utf8mb3','utf8mb4'):
+                    observation[name.lower().removeprefix('x-geofeed-test-')]=value
             if self.command=='PUT' and self.path in (FEED,FEED_V2) and status==503:
                 try:
                     error=json.loads(data)
@@ -932,7 +934,10 @@ class Workload:
         check((self.control/'writes.log').read_bytes()==writes,'oversize upload makes zero geofeed SQL write attempts')
         print('PASS: real WordPress oversize CSV refusal preserves large stored/public feed',flush=True)
 
-    def steady_capacity_tests(self):
+    def steady_capacity_tests(self, *, storage_format=None):
+        check(storage_format in (None,'escaped','direct-unicode'),'known private storage experiment format')
+        if storage_format is not None:check(DISPOSABLE,'storage capacity prototype is disposable-only')
+        observations=[]
         for character,width in (('測',3),('\U0001f600',4)):
             city=character*60
             check(len(character.encode())==width,'capacity fixture UTF-8 width')
@@ -945,7 +950,8 @@ class Workload:
             check(all(980000<=len(body)<1000000 for body in bodies),'all steady capacity bodies near CSV limit')
             for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
                 self.reset()
-                state=self.directory/f'steady-unicode-{width}-v{version}'
+                label=f'storage-{storage_format}' if storage_format is not None else 'steady'
+                state=self.directory/f'{label}-unicode-{width}-v{version}'
                 feeds=[wrap_csv(body) if version==2 else body for body in bodies]
                 path=FEED_V2 if version==2 else FEED
                 if version==2:
@@ -956,6 +962,7 @@ class Workload:
                 for index,feed in enumerate(feeds[:4]):
                     self.proxy.arm(None)
                     before_sizes=(self.control/'write-sizes.log').read_text().splitlines()
+                    memory_count=len(self.memory_observations())
                     result,status=self.cli(feed,state,overlap_policy=policy)
                     check(result==0 and status['changed'] is True,'near-limit first and three changed CLI publications')
                     snapshot,doc=self.snapshot()
@@ -970,9 +977,21 @@ class Workload:
                     check(len(sizes)==len(uploads)==1,'one SQL write and one HTTP PUT per changed capacity publication')
                     stages.append({'stage':index,'csv_bytes':len(feed),'upload_json_bytes':uploads[0],
                         'state_json_bytes':len(response[2]),'sql_bytes':int(sizes[0].split()[1])})
+                    if storage_format is not None:
+                        memory=self.memory_observations()[memory_count:]
+                        check(len(memory)==1 and memory[0]['oom'] is False and memory[0]['memory_limit']=='256M',
+                              'storage experiment measures one normal finite-memory publication')
+                        check((character in snapshot['raw'])==(storage_format=='direct-unicode'),
+                              'stored bytes really use the selected private JSON format')
+                        stages[-1].update(stored_document_bytes=len(snapshot['raw'].encode()),
+                                          php_peak_allocated_bytes=memory[0]['peak_allocated_bytes'])
+                        headers={key.lower():value for key,value in response[1].items()}
+                        check(all(headers.get('x-geofeed-test-charset-'+name)=='utf8mb4' for name in ('client','connection','results')),
+                              'HTTP storage experiment actually uses utf8mb4 connection charsets')
                 check(stages[2]['sql_bytes']>stages[1]['sql_bytes']>stages[0]['sql_bytes'],
                       'populated conditional history really increases measured SQL')
-                check(stages[2]['sql_bytes']>8*1024*1024,'steady Unicode SQL exceeds an 8 MiB packet budget')
+                if storage_format!='direct-unicode':
+                    check(stages[2]['sql_bytes']>8*1024*1024,'steady Unicode SQL exceeds an 8 MiB packet budget')
                 prior=snapshot['raw'];writes=(self.control/'writes.log').read_bytes()
                 backups={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in state.iterdir() if p.name!='status.json'}
                 self.proxy.arm(None)
@@ -999,14 +1018,150 @@ class Workload:
                 if version==2:
                     check(restored['overlap_policy']==restored['previous_overlap_policy']==LONGEST_PREFIX and
                           restored['required_overlap_policy']==LONGEST_PREFIX,'near-limit recovery preserves all policy fields')
-                print('STEADY CAPACITY: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+                observation={'api_version':version,'unicode_utf8_bytes':width,
                     'records':len(rows)+3,'stages':stages,'database_max_allowed_packet':snapshot['max_allowed_packet'],
                     'no_op_http_writes':0,'no_op_sql_writes':0,'recovery_puts':len(puts),
-                    'recovery_public_verified':True,'recovery_healthy':status['healthy']}),flush=True)
-                print('PASS: real WordPress populated-history Unicode capacity and conditional recovery',flush=True)
+                    'recovery_public_verified':True,'recovery_healthy':status['healthy']}
+                if storage_format is not None:observation['storage_format']=storage_format
+                observations.append(observation)
+                print(('STORAGE PROTOTYPE CAPACITY: ' if storage_format is not None else 'STEADY CAPACITY: ')+json.dumps(observation),flush=True)
+                if storage_format is None:print('PASS: real WordPress populated-history Unicode capacity and conditional recovery',flush=True)
                 self.proxy.arm(None)
-                self.packet_limit_test(feeds[4],feeds[3],state,policy,version,width)
-                self.memory_limit_test(feeds[5],feeds[4],state,policy,version,width)
+                if storage_format is None:
+                    self.packet_limit_test(feeds[4],feeds[3],state,policy,version,width)
+                    self.memory_limit_test(feeds[5],feeds[4],state,policy,version,width)
+        return observations
+
+    def storage_charset(self, collation=None):
+        check(DISPOSABLE,'storage charset changes require the disposable runner')
+        return self.fixture('storage-metadata' if collation is None else 'storage-charset',
+                            None if collation is None else {'collation':collation})
+
+    def storage_prototype_tests(self):
+        check(DISPOSABLE,'storage prototype requires the disposable runner')
+        check(self.environment.get('GEOFEED_WP_STORAGE_PROTOTYPE')=='1','explicit isolated storage prototype mode')
+        original_metadata=self.storage_charset()
+        check(original_metadata['column_collation'] in ('utf8mb4_unicode_ci','utf8mb4_unicode_520_ci')
+              and original_metadata['column_type']=='longtext'
+              and set(original_metadata['connection'].values())=={'utf8mb4'},'known original utf8mb4 disposable storage')
+        check(self.original.count('wp_json_encode(')==4,'private prototype replaces exactly four storage encoders')
+        prototype=self.original.replace('wp_json_encode(','isp_geofeed_test_json_encode(')+'''
+// Private installed-copy experiment only. Never shipped as the plugin.
+function isp_geofeed_test_json_encode($value) {
+    return wp_json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+'''
+        try:
+            escaped=self.steady_capacity_tests(storage_format='escaped')
+            failed_check='stored bytes really use the selected private JSON format'
+            try:self.steady_capacity_tests(storage_format='direct-unicode')
+            except AssertionError as exc:check(str(exc)==failed_check,'disabled direct encoder fails the exact stored-format assertion')
+            else:raise AssertionError('unchanged encoder passed direct-Unicode verification')
+            check(self.plugin.read_text()==self.original and self.snapshot()[0]['raw'].isascii(),
+                  'negative encoder control used actual original escaped storage')
+            (self.directory/'storage-direct-unicode-3-v1').rename(self.directory/'storage-disabled-encoder-control')
+            print('STORAGE PROTOTYPE MUTATION OBSERVATION: '+json.dumps({'encoder_disabled':True,
+                'stored_ascii_only':True,'detected_check':failed_check}),flush=True)
+            self.reset();self.plugin.write_text(prototype)
+            direct=self.steady_capacity_tests(storage_format='direct-unicode')
+            for before,after in zip(escaped,direct):
+                check((before['api_version'],before['unicode_utf8_bytes'])==(after['api_version'],after['unicode_utf8_bytes']),
+                      'storage comparison uses matching API and Unicode width')
+                for left,right in zip(before['stages'],after['stages']):
+                    check(left['csv_bytes']==right['csv_bytes'] and left['upload_json_bytes']==right['upload_json_bytes']
+                          and left['state_json_bytes']==right['state_json_bytes'] and right['sql_bytes']<left['sql_bytes']
+                          and right['stored_document_bytes']<left['stored_document_bytes'],
+                          'private format reduces actual storage and SQL without changing CSV or API response size')
+                print('STORAGE PROTOTYPE COMPARISON: '+json.dumps({'api_version':before['api_version'],
+                    'unicode_utf8_bytes':before['unicode_utf8_bytes'],'escaped':before['stages'][-1],
+                    'direct_unicode':after['stages'][-1],'http_connection_charset':'utf8mb4'}),flush=True)
+            self.storage_migration_tests(prototype)
+            self.storage_legacy_charset_tests(prototype)
+        finally:
+            self.plugin.write_text(self.original)
+            self.reset()
+            restored=self.storage_charset(original_metadata['column_collation'])
+            check(restored==original_metadata and self.plugin.read_text()==self.original,
+                  'original installed plugin and exact column metadata restored')
+        self.reset();state=self.directory/'storage-original-restored'
+        check(self.cli(B,state)[0]==0 and self.snapshot()[1]['csv'].encode()==B and self.request('GET',FEED)[2]==B,
+              'restored original plugin runs a real publication workload')
+        print('PASS: isolated WordPress storage prototype comparison and original-format restoration',flush=True)
+
+    def storage_migration_tests(self, prototype):
+        check(DISPOSABLE,'storage migration experiment requires the disposable runner')
+        for character,width in (('測',3),('\U0001f600',4)):
+            for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
+                convert=wrap_csv if version==2 else lambda value:value
+                first,candidate,third=[convert(value.replace(b'Example City',(character*3).encode())) for value in (A,B,C)]
+                self.reset();self.plugin.write_text(self.original)
+                if version==2:
+                    admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+                    admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+                    admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
+                state=self.directory/f'storage-migration-{width}-v{version}'
+                check(self.cli(first,state,overlap_policy=policy)[0]==0 and self.snapshot()[0]['raw'].isascii(),
+                      'mixed-format trial begins with actual escaped Unicode history')
+                self.plugin.write_text(prototype)
+                check(self.cli(candidate,state,overlap_policy=policy)[0]==0 and character in self.snapshot()[0]['raw']
+                      and self.snapshot()[1]['previous_csv'].encode()==first and self.request('GET',FEED)[2]==candidate,
+                      'direct prototype reads and conditionally replaces existing escaped document')
+                self.proxy.arm('bad-readback');result,status=self.cli(third,state,overlap_policy=policy)
+                restored=self.snapshot()[1]
+                check(result==1 and status['healthy'] is False and self.proxy.faults==['public-mismatch']
+                      and restored['csv'].encode()==candidate and restored['previous_csv'].encode()==third
+                      and self.request('GET',FEED)[2]==candidate,'direct format recovers after escaped-to-direct migration')
+                self.plugin.write_text(self.original);self.proxy.arm(None)
+                check(self.cli(third,state,overlap_policy=policy)[0]==0 and self.snapshot()[0]['raw'].isascii()
+                      and self.snapshot()[1]['previous_csv'].encode()==candidate and self.request('GET',FEED)[2]==third,
+                      'original escaped plugin reads direct document and safely writes escaped storage again')
+                check((state/'before.csv').read_bytes()==candidate and (state/'last-good.csv').read_bytes()==third,
+                      'format round trip keeps exact private recovery history')
+                if version==2:
+                    doc=self.snapshot()[1]
+                    check(doc['overlap_policy']==doc['previous_overlap_policy']==doc['required_overlap_policy']==policy,
+                          'format round trip keeps all policy fields')
+                print('STORAGE MIGRATION OBSERVATION: '+json.dumps({'api_version':version,'unicode_utf8_bytes':width,
+                    'escaped_to_direct':True,'direct_recovery_healthy':status['healthy'],
+                    'direct_to_escaped':True,'public_and_private_bytes_verified':True}),flush=True)
+
+    def storage_legacy_charset_tests(self, prototype):
+        check(DISPOSABLE,'legacy storage experiment requires the disposable runner')
+        self.reset();legacy=self.storage_charset('utf8_general_ci')
+        check(legacy['column_collation'] in ('utf8_general_ci','utf8mb3_general_ci')
+              and set(legacy['connection'].values())=={'utf8mb4'},'real three-byte column with utf8mb4 connection')
+        for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
+            convert=wrap_csv if version==2 else lambda value:value
+            candidate=convert(B.replace(b'Example City',('\U0001f600'*3).encode()))
+            self.reset();self.plugin.write_text(self.original)
+            if version==2:
+                admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
+                admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
+                admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
+            state=self.directory/f'storage-legacy-v{version}'
+            check(self.cli(convert(A),state,overlap_policy=policy)[0]==0,'escaped baseline succeeds on legacy column')
+            # Migration trial: keep the existing escaped document, then try a direct
+            # four-byte candidate. The real wpdb error must leave that row intact.
+            before=self.snapshot()[0]['raw'];last_good=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
+            self.plugin.write_text(prototype);self.proxy.arm(None)
+            result,status=self.cli(candidate,state,overlap_policy=policy)
+            writes=[v for v in self.proxy.request_sizes if v['method'] in ('PUT','DELETE')]
+            check(result==1 and status['healthy'] is False and len(writes)==1 and writes[0]['origin_status']==503
+                  and writes[0].get('origin_error')=='geofeed_db','direct four-byte legacy-column write really fails without retry')
+            check(self.snapshot()[0]['raw']==before and self.request('GET',FEED)[2]==convert(A)
+                  and (state/'before.csv').read_bytes()==convert(A)
+                  and ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==last_good,
+                  'real legacy-column refusal preserves exact stored/public/private baseline')
+            self.plugin.write_text(self.original);self.proxy.arm(None)
+            result,corrected=self.cli(candidate,state,overlap_policy=policy)
+            check(result==0 and corrected['healthy'] is True and self.snapshot()[1]['csv'].encode()==candidate
+                  and self.snapshot()[1]['previous_csv'].encode()==convert(A) and self.request('GET',FEED)[2]==candidate,
+                  'same four-byte candidate succeeds with original escaped format on unchanged legacy column')
+            check(self.storage_charset()==legacy,'legacy-column correction did not change database charset')
+            print('STORAGE LEGACY OBSERVATION: '+json.dumps({'api_version':version,'column_collation':legacy['column_collation'],
+                'connection':legacy['connection'],'direct_unicode_http_status':503,'failure_healthy':False,
+                'failure_runner_writes':len(writes),'exact_baseline_preserved':True,
+                'same_candidate_escaped_healthy':corrected['healthy']}),flush=True)
 
     def packet_limit_test(self, candidate, baseline, state, policy, version, width):
         check(DISPOSABLE,'packet failure workload is disposable-only')
@@ -1488,10 +1643,15 @@ class Workload:
 
 def run():
     check(DISPOSABLE,'requires disposable GitHub-hosted Linux runner; not measured elsewhere')
+    check(sys.argv[1:] in ([],['--storage-prototype']),'unknown disposable workload argument')
     for program in ('php','mariadb','openssl','sudo'):check(shutil.which(program),'missing prerequisite: '+program)
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
+            if sys.argv[1:]==['--storage-prototype']:
+                workload.environment['GEOFEED_WP_STORAGE_PROTOTYPE']='1'
+                workload.start();workload.storage_prototype_tests()
+                return
             workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.memory_small_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests();workload.after_commit_oom_tests();workload.first_publication_oom_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
