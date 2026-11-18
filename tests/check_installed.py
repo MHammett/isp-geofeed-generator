@@ -229,6 +229,30 @@ with contextlib.redirect_stderr(error):
 assert 'crossing referring scopes' in error.getvalue()
 assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
 print('PASS: installed exact registry range coverage and crossing-scope refusal without publication writes')
+ripe_objects=[]
+for net in networks:
+    kind='inetnum' if net.version==4 else 'inet6num'
+    value=f'{net.network_address} - {net.broadcast_address}' if net.version==4 else str(net)
+    ripe_objects.append({'type':kind,'source':{'id':'ripe'},
+        'primary-key':{'attribute':[{'name':kind,'value':value}]},
+        'attributes':{'attribute':[{'name':kind,'value':value},{'name':'source','value':'RIPE'},
+                                   {'name':'geofeed','value':url},{'name':'admin-c','value':'PRIVATE-CONTACT'}]}})
+registry.write_text(json.dumps({'objects':{'object':ripe_objects}}))
+ripe_args=['check-registry','--registry-format','ripe-rest','--registry-observed-at','2020-01-01T00:00:00Z',
+           '--registry-records',str(registry),'--feed',str(feed),'--feed-url',url,'--config',str(root/'absent.yaml')]
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(ripe_args)==0
+result=json.loads(output.getvalue())
+assert result['comparison_consistent'] and result['registry_input_format']=='ripe-rest'
+assert result['snapshot_observed_at_source']=='operator_supplied' and result['live_registry_read']=='not_measured'
+assert 'PRIVATE' not in output.getvalue() and url not in output.getvalue() and 'healthy' not in result
+ripe_objects[0]['primary-key']['attribute'][0]['value']='11.22.34.0 - 11.22.34.255'
+registry.write_text(json.dumps({'objects':{'object':ripe_objects}}))
+error=io.StringIO();output=io.StringIO()
+with contextlib.redirect_stderr(error),contextlib.redirect_stdout(output):assert main(ripe_args)==1
+assert 'matching primary key' in error.getvalue() and output.getvalue()==''
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
+print('PASS: installed saved-RIPE exact coverage and primary-key refusal without configuration or publication writes')
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

@@ -174,7 +174,9 @@ def main(argv=None):
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
     parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Policy configuration/recovery only: exact current feed or failed candidate hash')
     parser.add_argument('--probe-cache',action='store_true',help='inspect-wordpress only: compare a fresh anonymous query URL with the canonical feed; no writes')
-    parser.add_argument('--registry-records',help='check-registry only: private normalized registry snapshot JSON')
+    parser.add_argument('--registry-records',help='check-registry only: private registry snapshot or saved RIPE REST JSON')
+    parser.add_argument('--registry-format',choices=('normalized','ripe-rest'),help='check-registry only: saved input format; default normalized')
+    parser.add_argument('--registry-observed-at',help='check-registry with ripe-rest only: actual UTC export observation date')
     parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
     parser.add_argument('--feed-url',help='check-registry only: exact public HTTPS feed URL; never fetched')
     parser.add_argument('--reference-policy',choices=('reject','longest_prefix'),help='check-registry only: explicit CSV overlap policy; default reject')
@@ -190,10 +192,12 @@ def main(argv=None):
                 raise GeofeedError('check-registry requires --registry-records, --feed and --feed-url; no other operation flags or output writes are supported')
             from .registry_check import check_files
             stage='checking supplied registry references'
-            result=check_files(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT)
+            result=check_files(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT,
+                               input_format=args.registry_format or 'normalized',observed_at=args.registry_observed_at)
             print(json.dumps(result))
             return 0 if result['comparison_consistent'] else 1
-        if any(value is not None for value in (args.registry_records,args.feed,args.feed_url,args.reference_policy)):
+        if any(value is not None for value in (args.registry_records,args.feed,args.feed_url,args.reference_policy,
+                                               args.registry_format,args.registry_observed_at)):
             raise GeofeedError('Registry reference flags require check-registry; no write attempted')
         if args.probe_cache and args.command!='inspect-wordpress':
             raise GeofeedError('--probe-cache requires inspect-wordpress; no write attempted')

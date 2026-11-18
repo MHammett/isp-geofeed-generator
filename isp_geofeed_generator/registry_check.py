@@ -204,7 +204,7 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
         coverage[str(version)] = {**{key: str(value) for key, value in counts.items()}, 'total': str(sum(counts.values()))}
     consistent = finding_count == 0 and all(values['this_feed'] == values['total'] for values in coverage.values())
     return {
-        'inspection_only': True, 'comparison_consistent': consistent,
+        'inspection_only': True, 'comparison_consistent': consistent, 'registry_input_format': 'normalized',
         'scope': 'supplied_unsigned_range_snapshot' if formats['address_range'] else 'supplied_unsigned_cidr_snapshot',
         'registry_scope_formats': formats, 'observed_at': now.isoformat(timespec='seconds'),
         'snapshot_observed_at': stamp.isoformat(timespec='seconds'), 'snapshot_age_seconds': int((now - stamp).total_seconds()),
@@ -219,9 +219,22 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
     }
 
 
-def check_files(snapshot_path, feed_path, expected_url, *, overlap_policy=REJECT):
+def check_files(snapshot_path, feed_path, expected_url, *, overlap_policy=REJECT, input_format='normalized', observed_at=None):
+    if input_format not in ('normalized', 'ripe-rest') or (input_format == 'normalized' and observed_at is not None):
+        raise GeofeedError('Registry format must be normalized or ripe-rest; a separate observation date is only supported for ripe-rest')
+    if input_format == 'ripe-rest' and observed_at is None:
+        raise GeofeedError('Saved RIPE JSON requires --registry-observed-at with its actual UTC observation date')
     snapshot = read_output(snapshot_path, 8_000_000)
     feed = read_output(feed_path, 1_000_000)
     if snapshot.identity is None or feed.identity is None:
         raise GeofeedError('Registry snapshot and feed must both be existing bounded regular files')
-    return check_snapshot(snapshot.data, feed.data, expected_url, overlap_policy=overlap_policy)
+    data = snapshot.data
+    if input_format == 'ripe-rest':
+        from .registry_ripe import normalize_ripe
+        data = normalize_ripe(data, observed_at)
+    result = check_snapshot(data, feed.data, expected_url, overlap_policy=overlap_policy)
+    if input_format == 'ripe-rest':
+        result.update(registry_input_format='ripe-rest', registry_source='RIPE',
+                      normalized_snapshot_sha256=result['snapshot_sha256'], snapshot_sha256=digest(snapshot.data),
+                      snapshot_observed_at_source='operator_supplied')
+    return result
