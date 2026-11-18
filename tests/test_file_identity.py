@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 from types import SimpleNamespace, ModuleType
 import unittest
 from unittest.mock import patch
@@ -114,6 +115,10 @@ class NativeWindowsIdentityTests(unittest.TestCase):
         def write(path,data,*args,**kwargs):
             if Path(path)==policy and not seen:
                 before,old_bytes=self.observe(self.target)
+                # Timestamp precision varies between Windows filesystems/runners.
+                # Separate this deliberate mutation from the preceding rename;
+                # still require an actual observed change, never just API success.
+                time.sleep(0.05)
                 restore=mutate(self.target)
                 after,new_bytes=self.observe(self.target)
                 self.assertEqual(old_bytes,new_bytes);self.assertEqual(old_bytes,self.second)
@@ -135,7 +140,7 @@ class NativeWindowsIdentityTests(unittest.TestCase):
         self.assertEqual(policy.read_bytes(),old_policy)
         print('WINDOWS IDENTITY OBSERVATION: '+json.dumps({'mutation':kind,'bytes_and_file_id_unchanged':True,
             'mtime_unchanged':True,'ctime_changed':True,'automatic_continuation_refused':True,
-            'policy_preserved':True,'checked_recovery_verified':True}))
+            'policy_preserved':True,'checked_recovery_verified':True,'pre_mutation_wait_seconds':0.05}))
 
     def test_real_attribute_round_trip_stops_and_checked_recovery_works(self):
         self.stop_after_candidate(self.toggle_attribute,'attribute-round-trip')
