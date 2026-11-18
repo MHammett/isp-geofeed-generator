@@ -122,7 +122,7 @@ class RdapRegistryTests(unittest.TestCase):
         for key in ('notices','remarks'):
             for kind in ('result set truncated due to authorization','object truncated due to excessive load',
                          'object truncated due to unexplainable reasons'):
-                with self.subTest(key=key,kind=kind),self.assertRaises(GeofeedError):
+                with self.subTest(key=key,kind=kind),self.assertRaisesRegex(GeofeedError,'reports truncation'):
                     normalize(network(**{key:[{'type':kind,'description':['PRIVATE']}]}))
         self.assertTrue(compare(network(notices=[{'title':'Terms','description':['PRIVATE']}]))[0]['comparison_consistent'])
 
@@ -132,6 +132,8 @@ class RdapRegistryTests(unittest.TestCase):
             with self.subTest(changes=changes),self.assertRaises(GeofeedError) as caught:
                 normalize(network(**changes))
             self.assertNotIn('PRIVATE',str(caught.exception))
+            if 'redacted' in changes:self.assertIn('not supported by this reader',str(caught.exception))
+            if 'errorCode' in changes:self.assertIn('error response',str(caught.exception))
 
     def test_unsafe_or_unsupported_geofeed_links_are_not_dropped(self):
         for changes in ({'value':None},{'value':'https://user:PRIVATE@rdap.example/ip/1'},

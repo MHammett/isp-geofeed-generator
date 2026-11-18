@@ -22,8 +22,10 @@ def _text(value, limit):
 
 
 def _complete(source):
-    if 'errorCode' in source or 'redacted' in source:
-        raise ValueError()
+    if 'errorCode' in source:
+        raise GeofeedError('Saved RDAP is an error response; obtain a successful lookup before comparison; values are not logged')
+    if 'redacted' in source:
+        raise GeofeedError('Saved RDAP contains explicit redaction; redaction-path analysis is not supported by this reader; preserve the original reply, no comparison made')
     for key in ('notices', 'remarks'):
         messages = source.get(key, [])
         if not isinstance(messages, list) or len(messages) > 100:
@@ -35,7 +37,7 @@ def _complete(source):
             if not isinstance(kind, str) or len(kind) > 256 or any(ord(c) < 32 or ord(c) == 127 for c in kind):
                 raise ValueError()
             if kind.lower().startswith(('result set truncated', 'object truncated')):
-                raise ValueError()
+                raise GeofeedError('Saved RDAP reports truncation; no partial comparison made; preserve the original reply and inspect the export')
 
 
 def _link(source):
