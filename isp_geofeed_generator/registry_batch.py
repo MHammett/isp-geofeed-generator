@@ -7,6 +7,7 @@ from .feed import digest
 from .local_output import read_output
 from .overlap import REJECT
 from .registry_check import MAX_OBJECTS, _load_snapshot, check_files, check_snapshot
+from .registry_formats import INPUT_FORMATS, normalize_input
 
 MAX_FILES = 32
 MAX_BYTES = 8_000_000
@@ -20,8 +21,8 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
     """Every file and date participates. A refusal never becomes a partial report."""
     if not isinstance(paths, (list, tuple)) or not 1 <= len(paths) <= MAX_FILES:
         raise GeofeedError('Registry comparison requires 1 to 32 explicitly supplied input files')
-    if input_format not in ('normalized', 'ripe-rest'):
-        raise GeofeedError('Registry input format must be normalized or ripe-rest')
+    if input_format not in INPUT_FORMATS:
+        raise GeofeedError('Registry input format must be normalized, ripe-rest or rdap')
     if input_format == 'normalized':
         if observed_at is not None:
             raise GeofeedError('Normalized registry inputs use their embedded dates; a separate observation date is refused')
@@ -29,7 +30,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
     else:
         if (not isinstance(observed_at, (list, tuple)) or len(observed_at) != len(paths)
                 or any(not isinstance(stamp, str) for stamp in observed_at)):
-            raise GeofeedError('Saved RIPE inputs require one --registry-observed-at per --registry-records, in the same order')
+            raise GeofeedError('Saved registry inputs require one --registry-observed-at per --registry-records, in the same order')
         dates = observed_at
     if len(paths) == 1:
         # Preserve the existing single-file API/report, including the raw-file hash.
@@ -44,10 +45,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
             if snapshot.identity is None:
                 raise GeofeedError('Registry input must be an existing bounded regular file')
             remaining -= len(snapshot.data)
-            data = snapshot.data
-            if input_format == 'ripe-rest':
-                from .registry_ripe import normalize_ripe
-                data = normalize_ripe(data, dates[index - 1])
+            data, metadata = normalize_input(snapshot.data, input_format, dates[index - 1])
             source, stamp = _load_snapshot(data, now)
             total_objects += len(source['objects'])
             if total_objects > MAX_OBJECTS:
@@ -59,7 +57,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
                            'snapshot_observed_at': stamp.isoformat(timespec='seconds'),
                            'snapshot_age_seconds': int((now - stamp).total_seconds()),
                            'snapshot_observed_at_source': 'operator_supplied',
-                           'registry_objects': len(source['objects'])})
+                           'registry_objects': len(source['objects']), **metadata})
         except GeofeedError as exc:
             raise GeofeedError(f'Registry input {index}: {exc}; no partial comparison made') from None
 
@@ -78,6 +76,10 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
                                                          if key != 'snapshot_age_seconds'} for item in inputs])),
                   snapshot_observed_at_basis='oldest_supplied_input',
                   snapshot_observed_at_source='operator_supplied')
-    if input_format == 'ripe-rest':
-        result['registry_source'] = 'RIPE'
+    if input_format != 'normalized':
+        result['registry_source'] = inputs[0]['registry_source']
+    if input_format == 'rdap':
+        result['rdap_geofeed1_advertised_inputs'] = sum(item['rdap_geofeed1_advertised'] for item in inputs)
+        result['rdap_linked_inputs'] = sum(item['rdap_link_status'] == 'link_returned' for item in inputs)
+        result['rdap_absence_unknown_inputs'] = sum(item['rdap_link_status'] == 'availability_not_measured' for item in inputs)
     return result

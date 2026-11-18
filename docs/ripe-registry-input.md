@@ -117,8 +117,8 @@ the repeated records/date options above.
 
 [Claude tested this recipe](https://github.com/MHammett/isp-geofeed-generator/pull/92#pullrequestreview-5964452587)
 on public RIPE NCC records: two parent objects and eight child objects passed the CLI.
-He also verified that a child reference in a separate file wins in either file order.
-These are his reported checks, not a live verification of an operator's allocation.
+Claude also verified that a child reference in a separate file wins in either file order.
+These are Claude's reported checks, not a live verification of an operator's allocation.
 
 Keep requests within the chosen allocation and the reader's combined budgets. Do
 not expand the query to all address space to avoid shared parents. Different

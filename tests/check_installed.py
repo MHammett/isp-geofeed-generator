@@ -293,6 +293,46 @@ for duplicate in (False,True):
 print('REGISTRY BATCH INSTALLED OBSERVATION: '+json.dumps({'input_count':2,'object_count':2,'matched_families':[4,6],
     'oldest_date_verified':True,'input_hashes_verified':True,'api_message_refused':True,'duplicate_version_refused':True,
     'private_files_preserved':True,'no_configuration_needed':True}))
+rdap_objects=[]
+for family,start,end in (('v4','11.22.33.0','11.22.33.255'),('v6','2001:4860:1234::','2001:4860:1234::3')):
+    rdap_objects.append({'objectClassName':'ip network','handle':'PRIVATE-'+family,'startAddress':start,'endAddress':end,
+        'ipVersion':family,'rdapConformance':['rdap_level_0']+(['geofeed1'] if family=='v4' else []),
+        'links':[{'rel':'geofeed alternate','value':'https://rdap.example/ip/object','href':url}],
+        'country':'NL','entities':[{'handle':'PRIVATE-CONTACT'}]})
+for source,value in zip(batch_sources,rdap_objects):source.write_text(json.dumps(value))
+rdap_args=list(batch_args);rdap_args[rdap_args.index('ripe-rest')]='rdap'
+rdap_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+            (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(rdap_args)==0
+rdap_report=json.loads(output.getvalue())
+assert rdap_report['registry_input_format']=='rdap' and rdap_report['registry_source']=='operator_supplied_rdap'
+assert rdap_report['coverage']['4']['this_feed']=='256' and rdap_report['coverage']['6']['this_feed']=='4'
+assert rdap_report['rdap_geofeed1_advertised_inputs']==1 and rdap_report['rdap_linked_inputs']==2
+assert [v['snapshot_sha256'] for v in rdap_report['snapshot_inputs']]==[digest(p.read_bytes()) for p in batch_sources]
+assert 'PRIVATE' not in output.getvalue() and url not in output.getvalue() and 'healthy' not in rdap_report
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}==rdap_prior
+rdap_objects[1]['notices']=[{'type':'object truncated due to authorization','description':['PRIVATE']}]
+batch_sources[1].write_text(json.dumps(rdap_objects[1]))
+output=io.StringIO();error=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(rdap_args)==1
+assert output.getvalue()=='' and 'Registry input 2' in error.getvalue() and 'PRIVATE' not in error.getvalue()
+del rdap_objects[1]['notices'];rdap_objects[1]['links']=[]
+batch_sources[1].write_text(json.dumps(rdap_objects[1]))
+source_prior=(batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(rdap_args)==1
+unknown=json.loads(output.getvalue())
+assert unknown['comparison_consistent'] is False and unknown['rdap_absence_unknown_inputs']==1
+assert unknown['snapshot_inputs'][1]['rdap_link_status']=='availability_not_measured'
+assert unknown['provider_ingestion']=='not_measured' and unknown['coverage']['6']['unreferenced']=='4'
+assert (batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)==source_prior
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,batch_sources[0],feed,root/'state/status.json',backup)}=={key:value for key,value in rdap_prior.items() if key!=str(batch_sources[1])}
+print('RDAP REGISTRY INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'input_hashes_verified':True,
+    'optional_media_type_accepted':True,'combined_relation_accepted':True,'link_without_extension_accepted':True,'truncation_refused':True,
+    'absence_without_extension_unknown':True,'private_files_preserved':True,'no_configuration_needed':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

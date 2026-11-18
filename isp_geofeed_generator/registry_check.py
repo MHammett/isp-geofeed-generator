@@ -226,21 +226,19 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
 
 
 def check_files(snapshot_path, feed_path, expected_url, *, overlap_policy=REJECT, input_format='normalized', observed_at=None):
-    if input_format not in ('normalized', 'ripe-rest') or (input_format == 'normalized' and observed_at is not None):
-        raise GeofeedError('Registry format must be normalized or ripe-rest; a separate observation date is only supported for ripe-rest')
-    if input_format == 'ripe-rest' and observed_at is None:
-        raise GeofeedError('Saved RIPE JSON requires --registry-observed-at with its actual UTC observation date')
+    from .registry_formats import INPUT_FORMATS, normalize_input
+    if input_format not in INPUT_FORMATS or (input_format == 'normalized' and observed_at is not None):
+        raise GeofeedError('Registry format must be normalized, ripe-rest or rdap; separate dates are only supported for saved response formats')
+    if input_format != 'normalized' and observed_at is None:
+        raise GeofeedError('Saved registry response requires --registry-observed-at with its actual UTC observation date')
     snapshot = read_output(snapshot_path, 8_000_000)
     feed = read_output(feed_path, 1_000_000)
     if snapshot.identity is None or feed.identity is None:
         raise GeofeedError('Registry snapshot and feed must both be existing bounded regular files')
-    data = snapshot.data
-    if input_format == 'ripe-rest':
-        from .registry_ripe import normalize_ripe
-        data = normalize_ripe(data, observed_at)
+    data, metadata = normalize_input(snapshot.data, input_format, observed_at)
     result = check_snapshot(data, feed.data, expected_url, overlap_policy=overlap_policy)
-    if input_format == 'ripe-rest':
-        result.update(registry_input_format='ripe-rest', registry_source='RIPE',
+    if input_format != 'normalized':
+        result.update(registry_input_format=input_format, **metadata,
                       normalized_snapshot_sha256=result['snapshot_sha256'], snapshot_sha256=digest(snapshot.data),
                       snapshot_observed_at_source='operator_supplied')
     return result

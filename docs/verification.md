@@ -1,5 +1,32 @@
 # Verification
 
+## Initial saved RDAP network input
+
+On 2026-11-18, local Windows passed 419 tests in 24.597 seconds with two POSIX-only
+skips. The 18 new methods cover exact bounds, optional extension/media declarations,
+relation lists, unknown availability, contact isolation, truncation, errors, dates,
+hashes and unchanged files. Shared RIPE/normalized tests still pass. Three private
+mutations remove multiple-link/truncation guards or mislabel unknown absence. They
+cause 2, 6 and 1 assertion failures with zero setup errors. Intact code passes before
+and after. Compilation and diff checks pass.
+
+The installed-wheel workload checks dual-family RDAP files, original hashes, a
+combined relation, absent optional media type, a link without `geofeed1`, truncation
+refusal and unknown availability. Feed, status and recovery bytes/times must remain
+exact. CLI controls forbid configuration, credentials, DNS, HTTP and output writes.
+The installed workload passed locally in an isolated environment outside the checkout.
+
+One bounded public RIPE NCC response was saved and refused because it explicitly
+contained redaction data. The real response and failure log were retained privately;
+read-only diagnosis identified that guard. No redaction was removed and the guard
+was not relaxed. This is a measured refusal, not a successful live import. No accepted
+live operator export, full hierarchy or bootstrap authority was measured. PHP and
+real WordPress remain unmeasured locally by Codex.
+
+The [initial guide](rdap-registry-input.md) and
+[#95](https://github.com/MHammett/isp-geofeed-generator/issues/95) record scope and
+limits. No registry write, hosting change or provider submission is part of this work.
+
 ## Private storage-refusal layer
 
 Seven local helper controls verify observation-only source insertion, exact anchors,

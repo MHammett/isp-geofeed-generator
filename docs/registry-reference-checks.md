@@ -18,6 +18,11 @@ order; normalized files keep their embedded dates. See the
 duplicate refusals and per-input report fields. Support stays
 offline and uses the same exact coverage and reference rules.
 
+Initial [saved RDAP network support](rdap-registry-input.md) uses
+`--registry-format rdap`, with one actual observation date per saved reply. It reads
+standard geofeed links and distinguishes an absent link from unknown availability.
+It performs no registry lookup or bootstrap authority check.
+
 In Bash on Linux:
 
 ```bash

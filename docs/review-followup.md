@@ -3,7 +3,7 @@
 ## Latest review coverage
 
 Observed from Claude Code's GitHub reviews submitted through 2026-11-18, including
-the review at `fbad14f`. Coverage is limited to the work listed
+the review at `9262442`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
 
@@ -46,6 +46,7 @@ tenant/grid test. These reviews are not approval to merge.
 | [#87 storage prototype](https://github.com/MHammett/isp-geofeed-generator/pull/87#pullrequestreview-5961315076) | Read final source and both final logs at `ed6ce48`; confirmed matched inputs, isolation, format round trips, column refusal and exact SQL figures; no defects found | One allocator peak varied by 2 MiB. Which layer refused the legacy write was not measured; optional attribution is tracked under #80. No shipped format or fallback decision was approved |
 | [#89 saved RIPE input](https://github.com/MHammett/isp-geofeed-generator/pull/89#pullrequestreview-5961315620) | Reran 369 Windows tests at `bda198d`, read both hosted results and source, and exercised saved public RIPE NCC IPv4/IPv6 lookup/search/parent responses; no defects found | Positive references were added only to local response copies. No private operator prefixes or complete hierarchy verified. Default searches include refused contact objects; exact query flags and the single-file/manual-combination limit needed documentation, added in the later follow-up |
 | [#92 multiple registry files](https://github.com/MHammett/isp-geofeed-generator/pull/92#pullrequestreview-5964452587) | Reran 394 Windows tests at `fbad14f`, checked both nine-job runs and full source/docs; six independent date, budget, object and hash mutations were caught; real public RIPE NCC parent/child replies and reversed input order behaved correctly; no defects found | Operator allocations, complete current hierarchy and live ownership remain unmeasured. The requested one-covering-block parent/child recipe is added in the later follow-up. This review does not cover the storage-layer observer |
+| [#94 refusal layer](https://github.com/MHammett/isp-geofeed-generator/pull/94#pullrequestreview-5964679560) | Reran 401 Windows tests at `9262442`, inspected both nine-job logs and full source/docs; independently fetched the WordPress core file, matched original/instrumented/restored hashes and the two-line diff; five independent mutations were caught; no defects found | WordPress text validation refused both private direct-format writes before mysqli on this stack. Other hosts may differ; the shipped format still needs its own capability guard if changed. No storage decision was approved. Optional wording request to use Claude's name is applied in the later follow-up |
 
 The #71 follow-up adds isolated wrong-byte and wrong-policy restore refusals in PHP,
 plus Python read-back checks for both prior bytes and prior policy. A CI control removes
