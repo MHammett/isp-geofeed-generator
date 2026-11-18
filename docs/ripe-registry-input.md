@@ -95,6 +95,40 @@ and child query results can overlap; obtain a set without repeated objects, or u
 separately reviewed normalized snapshot. Different IDs for the same referring scope
 remain unsupported ambiguity. Crossing referring scopes remain a refusal.
 
+#### Avoid shared parents for prefixes in one allocation
+
+Running `all-less` once per customer prefix repeats shared parent objects. For several
+prefixes inside one operator-chosen covering allocation, query that covering block
+once with `all-less` and once with `all-more`. Keep the same source, address family,
+type filter and query range in both requests. Save the replies as separate files,
+for example `parents.json` and `children.json`:
+
+```http
+GET https://rest.db.ripe.net/search.json?source=ripe&type-filter=inetnum&flags=no-referenced&flags=no-irt&flags=all-less&query-string=<URL-encoded-owned-covering-prefix>
+GET https://rest.db.ripe.net/search.json?source=ripe&type-filter=inetnum&flags=no-referenced&flags=no-irt&flags=all-more&query-string=<URL-encoded-owned-covering-prefix>
+```
+
+Use `inet6num` in both requests for IPv6. RIPE's
+[query table](https://docs.db.ripe.net/Tables-of-Query-Types-Supported-by-the-RIPE-Database)
+states that `all-less` includes an exact match and its parents, while `all-more`
+returns smaller ranges and excludes that exact match. This separates the two sets
+without dropping an object. Supply both files with their own observation dates using
+the repeated records/date options above.
+
+[Claude tested this recipe](https://github.com/MHammett/isp-geofeed-generator/pull/92#pullrequestreview-5964452587)
+on public RIPE NCC records: two parent objects and eight child objects passed the CLI.
+He also verified that a child reference in a separate file wins in either file order.
+These are his reported checks, not a live verification of an operator's allocation.
+
+Keep requests within the chosen allocation and the reader's combined budgets. Do
+not expand the query to all address space to avoid shared parents. Different
+covering allocations can still share ancestors; this recipe does not automatically
+resolve that case. Concurrent changes can also prevent separately saved files from
+forming one current view. Duplicate IDs and API messages remain refusals. An error
+reply, including a no-entries reply, must not be stripped or presented as a successful
+empty export. Inspect the source set or prepare a separately reviewed normalized
+snapshot; the checker cannot prove hierarchy completeness from these files.
+
 If any file is missing, malformed, over budget or contains API messages, no partial
 report is printed. Retain the original responses. Correct the input set and rerun
 the read-only comparison; feed, status and recovery files stay untouched.
