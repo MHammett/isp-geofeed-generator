@@ -50,6 +50,22 @@ if ($geofeed_test_action === 'install') {
     $column = $wpdb->get_row("SHOW FULL COLUMNS FROM {$wpdb->options} LIKE 'option_value'", ARRAY_A);
     echo json_encode(['column_collation' => $column['Collation'], 'column_type' => $column['Type'],
         'connection' => $wpdb->get_row('SELECT @@character_set_client AS client, @@character_set_connection AS connection, @@character_set_results AS results', ARRAY_A)]);
+} elseif ($geofeed_test_action === 'storage-driver-control') {
+    global $wpdb;
+    if (PHP_SAPI !== 'cli' || getenv('GITHUB_ACTIONS') !== 'true' ||
+        getenv('RUNNER_ENVIRONMENT') !== 'github-hosted' || getenv('GEOFEED_WP_STORAGE_PROTOTYPE') !== '1') {
+        throw new RuntimeException('Storage driver control requires disposable prototype CLI');
+    }
+    $query = $wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'isp_geofeed_generator_document');
+    $before = $wpdb->get_var($query);
+    $suppressed = $wpdb->suppress_errors(true);
+    try {
+        // Fixed unknown-column error. WHERE 1=0 also forbids changing any row.
+        $failed = $wpdb->query("UPDATE {$wpdb->options} SET isp_geofeed_test_missing_column = 1 WHERE 1=0 AND option_name = 'isp_geofeed_generator_document'") === false;
+        $error_present = $wpdb->last_error !== '';
+    } finally { $wpdb->suppress_errors($suppressed); }
+    echo json_encode(['query_failed' => $failed, 'error_present' => $error_present,
+        'document_unchanged' => $before === $wpdb->get_var($query)]);
 } elseif ($geofeed_test_action === 'reset') {
     delete_option('isp_geofeed_generator_document');
     if (isset($geofeed_test_input['csv'])) {

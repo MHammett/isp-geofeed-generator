@@ -82,14 +82,52 @@ three-byte column. This separates a format compatibility limit from WordPress's
 ability to publish those characters. It is not evidence that an operator must convert
 their database to use the current tool.
 
-The measured refusal was the plugin's `geofeed_db` response. The experiment did not
-identify whether WordPress validation or the database engine refused the write.
+The original measured refusal was the plugin's `geofeed_db` response. That first
+experiment did not identify whether WordPress validation or the database engine
+refused the write.
 [Claude's review](https://github.com/MHammett/isp-geofeed-generator/pull/87#pullrequestreview-5961315076)
 notes that database behavior can depend on SQL modes and database-layer replacements.
 Do not treat this trial as proof that every database engine will reject rather than
 alter incompatible text. A shipped direct format needs an explicit column/connection
 capability check before writing. Attributing the current refusal to a fixed safe
-layer code remains optional follow-up under #80; raw SQL/errors must not be logged.
+layer code is tracked under [#93](https://github.com/MHammett/isp-geofeed-generator/issues/93);
+raw SQL/errors must not be logged.
+
+### Private refusal-layer observer
+
+The follow-up adds two observation calls to the disposable site's pinned core copy.
+One runs at WordPress's actual invalid-data return. The other runs after the actual
+`mysqli_query` call and records whether it failed. Neither changes the query, guard,
+result or error. The source anchors must each match once. Already instrumented or
+unrecognized core source is refused before a write. The original exact core bytes
+are restored in `finally`, followed by the existing original-plugin publication.
+
+The logger requires the hosted disposable prototype and a private enabled flag.
+Only feed-document mutations are recorded. Events contain a fixed stage, a boolean
+and a fixed error class. They contain no SQL, raw message, path, feed or credential.
+Capacity workloads run before this observer is installed, so the comparison table's
+allocation measurements are not made with the observer active.
+
+A private CLI control sends a fixed unknown-column statement with `WHERE 1=0`.
+It must produce a real driver error and leave the document exact. WordPress's error
+printing is suppressed for that control and restored afterward. Its statement and
+raw error are never recorded. The PHP action must refuse outside prototype mode.
+A disabled observer must fail the missing-data check; no events cannot mean a
+healthy or measured refusal. Missing, mixed and contradictory sequences are refused.
+
+Both legacy-column trials require one attempted mutation and exact supported layer
+evidence. The original escaped plugin must then publish the same candidate through
+a successful driver call. The existing public/private baseline and unhealthy-status
+checks remain required. Fixed `STORAGE LAYER` records report these outcomes in CI.
+An observation of one tested layer does not establish every host's behavior or a
+database-wide charset guarantee. The dated author evidence on #93 records what was
+actually measured; local Python helper tests alone do not measure WordPress or PHP.
+
+[WordPress's query method](https://developer.wordpress.org/reference/classes/wpdb/query/)
+runs its `query` filter before text validation. Counting that filter is not proof
+of a database mutation. The private observer therefore uses the actual validation
+return and [native-query call](https://developer.wordpress.org/reference/classes/wpdb/_do_query/),
+rather than inferring a layer from HTTP 503, `geofeed_db` or a query-filter count.
 
 Only the private CLI fixture can change the disposable column, using a fixed list of
 collations. Python refuses outside the hosted disposable environment. PHP also refuses

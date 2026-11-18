@@ -1,5 +1,24 @@
 # Verification
 
+## Private storage-refusal layer
+
+Seven local helper controls verify observation-only source insertion, exact anchors,
+strict layer records, missing and contradictory evidence, and isolation before file
+or process access. A private classifier mutation accepts missing evidence and must
+cause one assertion failure with zero setup errors, with intact checks passing
+before and after. On 2026-11-18, the full local Windows run passed 401 tests in
+37.560 seconds with two POSIX-only skips. Compilation and diff checks passed too.
+This does not measure PHP or WordPress locally.
+
+The disposable hosted prototype checks a harmless real driver error, rejects a
+disabled observer and an out-of-mode PHP control, then measures both APIs' existing
+legacy-column refusals. It requires exact baseline preservation, an original-format
+correction through a successful driver call, exact core restoration and an ordinary
+publication after cleanup. Capacity workloads stay uninstrumented. Actual hosted
+results belong in the dated evidence for
+[#93](https://github.com/MHammett/isp-geofeed-generator/issues/93).
+The shipped plugin and storage decision in #80 are unchanged.
+
 ## Multiple saved registry files
 
 On 2026-11-18, the local Windows suite passed 394 tests with two POSIX-only skips.

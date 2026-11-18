@@ -16,6 +16,27 @@ add_action('application_password_did_authenticate', function ($user) {
     }
 });
 add_filter('pre_wp_mail', function () { return true; });
+// Called only by observation-only insertions in the private core copy. Never
+// change a query, error or result, and never persist SQL or raw database messages.
+function isp_geofeed_test_storage_layer_event($stage, $sql, $failed, $errno) {
+    $dir = getenv('GEOFEED_WP_CONTROL');
+    if (getenv('GITHUB_ACTIONS') !== 'true' || getenv('RUNNER_ENVIRONMENT') !== 'github-hosted' ||
+        getenv('GEOFEED_WP_STORAGE_PROTOTYPE') !== '1' || !$dir ||
+        !is_file($dir.'/storage-layer-probe') ||
+        trim(file_get_contents($dir.'/storage-layer-probe', false, null, 0, 16)) !== 'enabled' ||
+        !str_contains($sql, 'isp_geofeed_generator_document') ||
+        !preg_match('/^\s*(INSERT|REPLACE|UPDATE|DELETE)\b/i', $sql)) { return; }
+    if (!in_array($stage, ['wordpress_validation', 'driver_result'], true)) {
+        throw new RuntimeException('Unsupported private storage observation stage');
+    }
+    $error = $stage === 'wordpress_validation' ? 'not_applicable' :
+        ($errno === 0 ? 'none' : ($errno === 1054 ? 'unknown_column' : ($errno === 1366 ? 'charset' : 'other')));
+    if (file_put_contents($dir.'/storage-layers.log', json_encode([
+        'stage' => $stage, 'failed' => (bool)$failed, 'driver_error' => $error
+    ])."\n", FILE_APPEND | LOCK_EX) === false) {
+        throw new RuntimeException('Cannot record private storage observation');
+    }
+}
 add_action('isp_geofeed_generator_feed_committed', function ($event) {
     $dir=getenv('GEOFEED_WP_CONTROL');
     $flag=$dir ? $dir.'/after-commit-oom' : '';

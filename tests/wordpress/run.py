@@ -38,6 +38,7 @@ from isp_geofeed_generator.publish import WordPress
 from isp_geofeed_generator.feed import render_csv,csv_records
 from isp_geofeed_generator.envelope import csv_body,wrap_csv
 from isp_geofeed_generator.overlap import REJECT,LONGEST_PREFIX
+from wordpress.storage_layers import instrument_core, classify_trace
 import contextlib
 import yaml
 
@@ -1139,6 +1140,59 @@ function isp_geofeed_test_json_encode($value) {
 
     def storage_legacy_charset_tests(self, prototype):
         check(DISPOSABLE,'legacy storage experiment requires the disposable runner')
+        check(self.environment.get('GEOFEED_WP_STORAGE_PROTOTYPE')=='1','legacy layer observer requires explicit prototype mode')
+        core=self.webroot/'wp-includes/class-wpdb.php';original=core.read_bytes()
+        observed=instrument_core(original.decode('utf-8')).encode('utf-8')
+        self.storage_layer_hashes={'original_core_sha256':digest(original),'observed_core_sha256':digest(observed)}
+        flag=self.control/'storage-layer-probe';log=self.control/'storage-layers.log'
+        try:
+            core.write_bytes(observed);log.write_text('');flag.write_text('enabled')
+            self.storage_layer_control()
+            self._storage_legacy_charset_trials(prototype)
+        finally:
+            core.write_bytes(original)
+            if flag.exists():flag.unlink()
+            check(core.read_bytes()==original,'exact original core restored after private layer observation')
+        print('STORAGE CORE RESTORE OBSERVATION: '+json.dumps({**self.storage_layer_hashes,
+            'restored_core_sha256':digest(core.read_bytes()),'observer_flag_removed':not flag.exists()}),flush=True)
+
+    def storage_layer_control(self):
+        check(DISPOSABLE,'layer control requires the disposable runner')
+        check(self.environment.get('GEOFEED_WP_STORAGE_PROTOTYPE')=='1','layer control requires explicit prototype mode')
+        log=self.control/'storage-layers.log';flag=self.control/'storage-layer-probe'
+        before=self.snapshot()[0]['raw'];prior_events=log.read_text()
+        self.environment['GEOFEED_WP_STORAGE_PROTOTYPE']='0'
+        try:
+            try:self.fixture('storage-driver-control')
+            except AssertionError as exc:check('Storage driver control requires disposable prototype CLI' in str(exc),
+                                               'PHP driver control refuses at its intended isolation guard')
+            else:raise AssertionError('PHP driver control ran outside prototype mode')
+        finally:self.environment['GEOFEED_WP_STORAGE_PROTOTYPE']='1'
+        check(self.snapshot()[0]['raw']==before and log.read_text()==prior_events,
+              'out-of-mode driver control preserves document and observer log')
+        # Prove absent observation cannot be reported as a measured refusal.
+        flag.write_text('disabled');start=len(log.read_text().splitlines())
+        try:
+            control=self.fixture('storage-driver-control')
+            check(control=={'query_failed':True,'error_present':True,'document_unchanged':True},
+                  'disabled observer still runs the harmless real database refusal')
+            events=[json.loads(line) for line in log.read_text().splitlines()[start:]]
+            try:classify_trace(events)
+            except AssertionError as exc:check(str(exc)=='Missing or unsupported storage-layer evidence',
+                                               'disabled observer fails at the intended missing-data check')
+            else:raise AssertionError('disabled observer was accepted as a measured storage layer')
+        finally:flag.write_text('enabled')
+        start=len(log.read_text().splitlines());control=self.fixture('storage-driver-control')
+        events=[json.loads(line) for line in log.read_text().splitlines()[start:]]
+        check(control=={'query_failed':True,'error_present':True,'document_unchanged':True}
+              and events==[{'stage':'driver_result','failed':True,'driver_error':'unknown_column'}]
+              and classify_trace(events)=='database_driver','real fixed driver error is seen after mysqli without changing the document')
+        print('STORAGE LAYER CONTROL OBSERVATION: '+json.dumps({'disabled_observer_refused':True,
+            'actual_driver_error_verified':True,'document_unchanged':True,'php_outside_mode_refused':True,'events':events}),flush=True)
+
+    def _storage_legacy_charset_trials(self, prototype):
+        check(DISPOSABLE,'legacy charset trials require the disposable runner')
+        check(self.environment.get('GEOFEED_WP_STORAGE_PROTOTYPE')=='1','legacy trials require explicit prototype mode')
         self.reset();legacy=self.storage_charset('utf8_general_ci')
         check(legacy['column_collation'] in ('utf8_general_ci','utf8mb3_general_ci')
               and set(legacy['connection'].values())=={'utf8mb4'},'real three-byte column with utf8mb4 connection')
@@ -1157,7 +1211,14 @@ function isp_geofeed_test_json_encode($value) {
             # four-byte candidate. The real wpdb error must leave that row intact.
             before=self.snapshot()[0]['raw'];last_good=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
             self.plugin.write_text(prototype);self.proxy.arm(None)
+            layer_log=self.control/'storage-layers.log';start=len(layer_log.read_text().splitlines())
+            queries=len((self.control/'write-sizes.log').read_text().splitlines())
             result,status=self.cli(candidate,state,overlap_policy=policy)
+            layer_events=[json.loads(line) for line in layer_log.read_text().splitlines()[start:]]
+            refusal_layer=classify_trace(layer_events)
+            query_calls=len((self.control/'write-sizes.log').read_text().splitlines())-queries
+            check(refusal_layer in ('wordpress_validation','database_driver') and query_calls==1,
+                  'one attempted mutation has exact supported refusal-layer evidence')
             writes=[v for v in self.proxy.request_sizes if v['method'] in ('PUT','DELETE')]
             check(result==1 and status['healthy'] is False and len(writes)==1 and writes[0]['origin_status']==503
                   and writes[0].get('origin_error')=='geofeed_db','direct four-byte legacy-column write really fails without retry')
@@ -1166,7 +1227,10 @@ function isp_geofeed_test_json_encode($value) {
                   and ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==last_good,
                   'real legacy-column refusal preserves exact stored/public/private baseline')
             self.plugin.write_text(self.original);self.proxy.arm(None)
+            start=len(layer_log.read_text().splitlines())
             result,corrected=self.cli(candidate,state,overlap_policy=policy)
+            success_events=[json.loads(line) for line in layer_log.read_text().splitlines()[start:]]
+            check(classify_trace(success_events)=='database_success','original escaped correction really reaches a successful mysqli call')
             check(result==0 and corrected['healthy'] is True and self.snapshot()[1]['csv'].encode()==candidate
                   and self.snapshot()[1]['previous_csv'].encode()==baseline and self.request('GET',FEED)[2]==candidate,
                   'same four-byte candidate succeeds with original escaped format on unchanged legacy column')
@@ -1175,6 +1239,10 @@ function isp_geofeed_test_json_encode($value) {
                 'connection':legacy['connection'],'direct_unicode_http_status':503,'failure_healthy':False,
                 'failure_runner_writes':len(writes),'exact_baseline_preserved':True,
                 'same_candidate_escaped_healthy':corrected['healthy']}),flush=True)
+            print('STORAGE LAYER OBSERVATION: '+json.dumps({'api_version':version,'refusal_layer':refusal_layer,
+                'query_filter_calls':query_calls,'failure_events':layer_events,'corrected_events':success_events,
+                'exact_baseline_preserved':True,'same_candidate_escaped_healthy':corrected['healthy'],
+                **self.storage_layer_hashes}),flush=True)
 
     def packet_limit_test(self, candidate, baseline, state, policy, version, width):
         check(DISPOSABLE,'packet failure workload is disposable-only')

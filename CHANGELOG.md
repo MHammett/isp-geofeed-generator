@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Disposable storage tests distinguish WordPress text validation from actual database-driver refusals with fixed private events, missing-evidence controls and exact temporary core restoration. Shipped storage behavior is unchanged.
+
 - Offline registry checks combine bounded saved response files with separate dates and hashes, reject duplicate versions and partial inputs, and preserve child-reference precedence without hand-editing JSON.
 
 - Local guard errors identify changed feed/policy fields without exposing values. Native Windows attribute and ACL controls verify strict metadata-only stops and checked recovery; the unexplained intermittent actor remains under investigation.
