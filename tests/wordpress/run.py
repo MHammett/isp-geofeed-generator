@@ -142,7 +142,7 @@ class Handler(BaseHTTPRequestHandler):
             observation={'method':self.command,'path':self.path,'bytes':length,
                          'authenticated':bool(self.headers.get('Authorization'))}
             proxy.request_sizes.append(observation)
-            if self.command=='PUT' and self.path in (FEED,FEED_V2) and proxy.before_restore is not None:
+            if self.command in ('PUT','DELETE') and self.path in (FEED,FEED_V2) and proxy.before_restore is not None:
                 callback=proxy.before_restore;proxy.before_restore=None
                 callback(self.path,json.loads(body))
             mode = proxy.mode
@@ -1237,7 +1237,56 @@ class Workload:
             self.after_commit_oom_case(version,convert(first),convert(second),None,'near-limit','recover')
         print('PASS: real WordPress after-commit OOM recovery and competing-owner protection',flush=True)
 
-    def after_commit_oom_case(self, version, first, candidate, winner, size_label, scenario):
+    def first_publication_oom_tests(self):
+        check(DISPOSABLE,'first-publication memory tests require the disposable runner')
+        # The same bounded real allocator and disabled-allocator control used above
+        # exercise the first publication too, where recovery must DELETE the feed.
+        hooks=self.webroot/'wp-content/mu-plugins/geofeed-integration.php'
+        original=hooks.read_text();needle="for ($i=0;$i<48;$i++) { $chunks[]=str_repeat('x',$mib); }"
+        check(original.count(needle)==1,'first-publication negative control targets exactly one fixture allocator')
+        memory_count=len(self.memory_observations())
+        proof_path=self.control/'after-commit-oom.log'
+        proof_count=len(proof_path.read_text().splitlines()) if proof_path.exists() else 0
+        observation={}
+        try:
+            hooks.write_text(original.replace(needle,"for ($i=0;$i<0;$i++) { $chunks[]=str_repeat('x',$mib); }"))
+            failed_check='actual after-commit HTTP 500 keeps the publication unhealthy'
+            try:self.after_commit_oom_case(2,b'',wrap_csv(B),wrap_csv(C),'first-no-oom-control','recover',
+                                           first_publication=True,observation_sink=observation)
+            except AssertionError as exc:check(str(exc)==failed_check,'ordinary first-publication error fails the real-crash assertion')
+            else:raise AssertionError('disabled first-publication allocator passed real crash verification')
+            memories=self.memory_observations()[memory_count:]
+            status=json.loads((self.directory/'after-commit-2-first-no-oom-control-recover/status.json').read_text())['data']
+            puts=observation['requests']
+            proofs=[json.loads(line) for line in proof_path.read_text().splitlines()[proof_count:]]
+            doc=self.snapshot()[1]
+            check(len(memories)==2 and all(value['oom'] is False for value in memories)
+                  and [value['method'] for value in memories]==['PUT','DELETE']
+                  and [(value['method'],value.get('origin_status')) for value in puts]==[('PUT',503),('DELETE',200)]
+                  and status['healthy'] is False and '503' in status['error'] and doc['csv']==''
+                  and doc['previous_csv'].encode()==wrap_csv(B) and doc['overlap_policy']==REJECT
+                  and doc['required_overlap_policy']==LONGEST_PREFIX and self.request('GET',FEED)[0]==404,
+                  'ordinary first-publication callback error deletes only the owned candidate without a real OOM')
+            check(len(proofs)==1 and proofs[0]['sha256']==digest(wrap_csv(B))
+                  and proofs[0]['previous_sha256']==digest(b'') and proofs[0]['one_shot_consumed'] is True
+                  and (self.directory/'after-commit-2-first-no-oom-control-recover/before.csv').read_bytes()==b''
+                  and not (self.directory/'after-commit-2-first-no-oom-control-recover/last-good.csv').exists(),
+                  'ordinary first-publication control proves committed empty history and has no successful baseline')
+            print('FIRST PUBLICATION MUTATION OBSERVATION: '+json.dumps({'allocator_disabled':True,
+                'real_oom_records':0,'runner_http_methods':['PUT','DELETE'],'runner_http_statuses':[503,200],
+                'public_status':404,'failure_healthy':False,'detected_check':failed_check}),flush=True)
+        finally:hooks.write_text(original)
+        check(hooks.read_text()==original,'private allocator restored before genuine first-publication crashes')
+        for version in (1,2):
+            convert=wrap_csv if version==2 else lambda value:value
+            for scenario in ('recover','publisher-inspection','publisher-restore'):
+                self.after_commit_oom_case(version,b'',convert(B),convert(C),'first',scenario,first_publication=True)
+            if version==2:
+                for scenario in ('admin-inspection','admin-restore'):
+                    self.after_commit_oom_case(version,b'',convert(B),convert(C),'first',scenario,first_publication=True)
+        print('PASS: real WordPress first-publication OOM conditional DELETE and competing-owner protection',flush=True)
+
+    def after_commit_oom_case(self, version, first, candidate, winner, size_label, scenario, *, first_publication=False, observation_sink=None):
         check(DISPOSABLE,'after-commit memory cases require the disposable runner')
         policy=LONGEST_PREFIX if version==2 else REJECT
         path=FEED_V2 if version==2 else FEED
@@ -1248,9 +1297,20 @@ class Workload:
             admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
             admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
         state=self.directory/f'after-commit-{version}-{size_label}-{scenario}'
-        check(self.cli(first,state,overlap_policy=policy)[0]==0,'verified normal baseline before after-commit fault')
-        before=self.snapshot()[1]
-        last_good=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
+        if first_publication:
+            check(first==b'' and not state.exists(),'first-publication trial has no prior local state')
+            initial,before=self.snapshot()
+            check(before['csv']==before['previous_csv']=='' and self.request('GET',FEED)[0]==404,
+                  'first-publication baseline is empty and public feed is absent')
+            check((initial['raw'] is None) if version==1 else
+                  (before['overlap_policy']==REJECT and before['required_overlap_policy']==policy
+                   and before['publication_id'] is not None),'first publication starts with absent v1 row or configured empty v2 policy row')
+            last_good=None
+        else:
+            check(self.cli(first,state,overlap_policy=policy)[0]==0,'verified normal baseline before after-commit fault')
+            before=self.snapshot()[1]
+            last_good=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
+        before_policy=before.get('overlap_policy',REJECT)
         proof_count=len(proof_path.read_text().splitlines()) if proof_path.exists() else 0
         memory_count=len(self.memory_observations())
         query_count=len((self.control/'write-sizes.log').read_text().splitlines())
@@ -1305,7 +1365,7 @@ class Workload:
                   and proof['previous_sha256']==digest(first) and doc['csv'].encode()==candidate
                   and doc['previous_csv'].encode()==first,'candidate and history really committed before OOM and before runner inspection')
             check(proof['publication_id']==doc.get('publication_id') and proof['overlap_policy']==policy
-                  and proof['previous_overlap_policy']==policy and proof['required_overlap_policy']==policy,
+                  and proof['previous_overlap_policy']==before_policy and proof['required_overlap_policy']==policy,
                   'commit proof binds actual server policy and publication identity')
             if version==2:check(proof['publication_id']==payload['publication_id'],'server committed the runner candidate identity')
             check(memory['api_version']==version and memory['oom'] is True
@@ -1332,8 +1392,10 @@ class Workload:
                   'real candidate was inspected before the failed response reached the runner')
             puts=[value for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
             statuses=[value.get('origin_status') for value in puts]
+            methods=[value['method'] for value in puts]
             expected=[500,200] if scenario=='recover' else [500,409] if scenario.endswith('-restore') else [500]
-            check(statuses==expected and all(value['path']==path for value in puts),
+            expected_methods=['PUT']+(['DELETE' if first_publication else 'PUT'] if len(expected)==2 else [])
+            check(statuses==expected and methods==expected_methods and all(value['path']==path for value in puts),
                   'one failed publication and only the justified conditional restore; no blind retries')
             expected_queries=3 if scenario=='admin-restore' else 2
             check(len((self.control/'write-sizes.log').read_text().splitlines())-query_count==expected_queries,
@@ -1341,18 +1403,21 @@ class Workload:
             snapshot,doc=self.snapshot()
             if scenario=='recover':
                 check(doc['csv'].encode()==first and doc['previous_csv'].encode()==candidate
-                      and self.request('GET',FEED)[2]==first and 'retained/restored' in status['error'],
+                      and (self.request('GET',FEED)[0]==404 if first_publication else self.request('GET',FEED)[2]==first)
+                      and 'retained/restored' in status['error'],
                       'real after-commit crash conditionally restores exact stored/public baseline and history')
                 if version==2:
-                    check(doc['overlap_policy']==doc['previous_overlap_policy']==doc['required_overlap_policy']==policy
+                    check(doc['overlap_policy']==before_policy and doc['previous_overlap_policy']==doc['required_overlap_policy']==policy
                           and doc['publication_id']!=seen['proof']['publication_id'],'restore owns a fresh policy-bound identity')
+                if first_publication:check(self.request('GET',FEED)[0]==404,'successful first-publication recovery removes public feed')
             else:
                 check(snapshot['raw']==seen['winner_raw'] and self.request('GET',FEED)[2]==seen['winner_doc']['csv'].encode()
                       and 'Recovery needs attention' in status['error'],'other actor state stays byte-exact and recovery stops')
                 check(self.proxy.before_restore is None,'restore-race injection actually ran when requested')
-            check((state/'before.csv').read_bytes()==first
-                  and ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==last_good,
-                  'failed after-commit run preserves private baseline and last-good modification time')
+            check((state/'before.csv').read_bytes()==first and
+                  (not (state/'last-good.csv').exists() if first_publication else
+                   ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==last_good),
+                  'failed after-commit run preserves private baseline and last-good state')
             if version==2:
                 metadata=json.loads((state/'before-policy.json').read_text())
                 check(metadata['before_publication_id']==before['publication_id'] and metadata['before_sha256']==digest(first)
@@ -1365,6 +1430,11 @@ class Workload:
             check(len(memories)==expected_memory_records and memories[0]['oom'] is True
                   and all(value['oom'] is False and value['memory_limit']=='256M' for value in memories[1:]),
                   'only the original response exhausts memory; restores and competing feed writes run normally')
+            if first_publication:
+                expected_memory_methods=(['PUT','DELETE'] if scenario=='recover' or scenario.endswith('-restore') else ['PUT'])
+                if scenario.startswith('publisher-'):expected_memory_methods.insert(1,'PUT')
+                check([value['method'] for value in memories]==expected_memory_methods,
+                      'shutdown records include the real DELETE and each injected publisher PUT')
             if scenario=='recover':
                 normal_count=len(self.memory_observations());self.proxy.arm(None)
                 normal,normal_status=self.cli(candidate,state,overlap_policy=policy)
@@ -1373,17 +1443,24 @@ class Workload:
                       and len(observed)==1 and observed[0]['oom'] is False and observed[0]['memory_limit']=='256M'
                       and after['csv'].encode()==candidate and after['previous_csv'].encode()==first
                       and self.request('GET',FEED)[2]==candidate,'same candidate passes normally after fault removal and verified recovery')
-            print('AFTER COMMIT OOM OBSERVATION: '+json.dumps({'api_version':version,'size':size_label,'scenario':scenario,
+                if version==2:check(after['overlap_policy']==after['required_overlap_policy']==policy
+                                  and after['previous_overlap_policy']==before_policy,'normal same candidate preserves restored baseline policy history')
+            marker='FIRST PUBLICATION OOM OBSERVATION: ' if first_publication else 'AFTER COMMIT OOM OBSERVATION: '
+            print(marker+json.dumps({'api_version':version,'size':size_label,'scenario':scenario,
                 'candidate_bytes':len(candidate),'commit_sha256':seen['proof']['sha256'],
                 'commit_publication_id':seen['proof']['publication_id'],'allocated_before_fault_bytes':seen['proof']['allocated_before_fault_bytes'],
                 'peak_before_fault_bytes':seen['proof']['peak_before_fault_bytes'],'oom_limit_bytes':seen['proof']['oom_limit_bytes'],
                 'fatal_peak_allocated_bytes':seen['memory']['peak_allocated_bytes'],'actual_php_oom':True,
-                'one_shot_consumed':True,'runner_http_statuses':statuses,'failure_healthy':status['healthy'],
+                'one_shot_consumed':True,'runner_http_statuses':statuses,'runner_http_methods':methods,'failure_healthy':status['healthy'],
+                'before_row_absent':first_publication and version==1,'before_policy':before_policy,
+                'recovery_public_status':404 if first_publication and scenario=='recover' else None,
                 'query_filter_calls':expected_queries,'injected_actor_puts':seen.get('actor_puts',0),
                 'admin_policy_round_trip':scenario=='admin-restore',
                 'baseline_restored':scenario=='recover','competing_actor_preserved':scenario!='recover',
                 'same_candidate_normal_verified':scenario=='recover'}),flush=True)
         finally:
+            if observation_sink is not None:
+                observation_sink['requests']=[dict(value) for value in self.proxy.request_sizes if value['method'] in ('PUT','DELETE')]
             flag.unlink(missing_ok=True);self.proxy.after_oom=None;self.proxy.before_restore=None;self.proxy.arm(None)
 
     def close(self):
@@ -1407,7 +1484,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='geofeed-wordpress-',dir=os.environ['RUNNER_TEMP']) as directory:
         workload=Workload(Path(directory))
         try:
-            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.memory_small_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests();workload.after_commit_oom_tests()
+            workload.start();workload.race_tests();workload.publication_tests();workload.https_guard_tests();workload.memory_small_tests();workload.capacity_tests();workload.steady_capacity_tests();workload.nested_policy_tests();workload.delivery_hook_tests();workload.cache_inspection_tests();workload.after_commit_oom_tests();workload.first_publication_oom_tests()
             print('PASS: real WordPress database/auth/TLS/concurrency/recovery integration',flush=True)
         finally:workload.close()
 

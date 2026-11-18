@@ -8,6 +8,7 @@ $geofeed_test_routes = ['/wp-json/isp-geofeed-generator/v1/feed' => 1,
     '/wp-json/isp-geofeed-generator/v2/feed' => 2];
 $geofeed_test_api = $geofeed_test_routes[$_SERVER['REQUEST_URI'] ?? ''] ?? null;
 $geofeed_test_put = ($_SERVER['REQUEST_METHOD'] ?? '') === 'PUT' && $geofeed_test_api !== null;
+$geofeed_test_write = in_array($_SERVER['REQUEST_METHOD'] ?? '', ['PUT','DELETE'], true) && $geofeed_test_api !== null;
 $geofeed_test_memory = '256M';
 if ($geofeed_test_control && $geofeed_test_put && is_file($geofeed_test_control.'/memory-probe')) {
     $geofeed_test_memory = trim(file_get_contents($geofeed_test_control.'/memory-probe', false, null, 0, 32));
@@ -18,7 +19,7 @@ if ($geofeed_test_control && $geofeed_test_put && is_file($geofeed_test_control.
 ini_set('memory_limit', $geofeed_test_memory);
 define('WP_MEMORY_LIMIT', $geofeed_test_memory);
 define('WP_MAX_MEMORY_LIMIT', $geofeed_test_memory);
-if ($geofeed_test_control && $geofeed_test_put) {
+if ($geofeed_test_control && $geofeed_test_write) {
     // Register before core's fatal handler. Free a small reserve so a real OOM can
     // record fixed metadata without copying the fatal message, SQL or feed data.
     $geofeed_test_reserve = str_repeat('x', 131072);
@@ -28,7 +29,7 @@ if ($geofeed_test_control && $geofeed_test_put) {
         $oom = is_array($last) && $last['type'] === E_ERROR &&
             str_contains($last['message'], 'Allowed memory size of ');
         file_put_contents($geofeed_test_control.'/memory-observations.log', json_encode([
-            'api_version' => $geofeed_test_api, 'memory_limit' => ini_get('memory_limit'),
+            'api_version' => $geofeed_test_api, 'method' => $_SERVER['REQUEST_METHOD'], 'memory_limit' => ini_get('memory_limit'),
             'peak_allocated_bytes' => memory_get_peak_usage(true), 'oom' => $oom,
             'hard_limit_percent' => ini_get('memory_hard_limit_percent') === false ? null : ini_get('memory_hard_limit_percent')
         ])."\n", FILE_APPEND | LOCK_EX);
