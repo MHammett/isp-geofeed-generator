@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Initial offline saved-RIPE registry input preserves exact IPv4 ranges and IPv6 prefixes, verifies object identity/source, and keeps the existing reference checks without network, credential or publication access.
+
 - Isolated WordPress Unicode storage experiment compares actual write sizes, format compatibility and older-column refusal without changing the shipped plugin or selecting a new storage policy.
 
 - First-publication crash tests cover conditional DELETE recovery to an empty feed, competing publisher/admin protection, exact private empty baselines and rejection of ordinary errors as fatal-crash evidence.

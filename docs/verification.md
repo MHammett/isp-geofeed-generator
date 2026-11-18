@@ -1,5 +1,32 @@
 # Verification
 
+## Initial saved-RIPE registry input
+
+The [RIPE reader](ripe-registry-input.md) has 16 positive/negative unit methods.
+They cover exact IPv4 endpoints and IPv6 prefixes, primary-key/source agreement,
+native/remarks precedence, child scopes, unsafe JSON, API messages, dates and limits.
+The CLI control forbids configuration, credential, HTTP, DNS and output access and
+checks exact file bytes and modification times afterward. Reports retain original
+and normalized hashes without printing contact data or raw reference URLs.
+
+Three private source mutations remove key, source and API-message guards. They must
+cause 1, 4 and 3 assertion failures respectively, with zero setup errors. Intact
+controls pass before and after each mutation. Installed-wheel checks outside the
+checkout exercise dual-family coverage and a mismatched-key refusal while keeping
+publication/status/recovery files exact. Hosted evidence is recorded in
+[PR #89](https://github.com/MHammett/isp-geofeed-generator/pull/89).
+
+The broad local 369-test run also recorded two stops in unchanged Windows
+file-publication tests. An isolated temporary diagnosis reproduced a ctime-only
+identity change with equal bytes, inode and mtime. The guard stopped safely and
+remains intact; [issue #88](https://github.com/MHammett/isp-geofeed-generator/issues/88)
+tracks the unexplained workstation behavior. Do not describe that local full run
+as passing or treat a hosted pass as an explanation of this stop.
+
+No live RIPE export, complete registry hierarchy or registry ownership was measured.
+Initial support is verified against public contracts and synthetic fixtures. No
+registry, credential, publication or production state was changed.
+
 ## Private WordPress storage experiment
 
 Observed on 2026-11-18 from the successful prototype job in

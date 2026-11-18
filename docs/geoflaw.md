@@ -57,6 +57,10 @@ supplied unsigned CIDR/address-range snapshot with a CSV candidate. It keeps exa
 separate from local geography and reports live registry/provider checks as not measured.
 It does not scrape Geoflaw or fetch the references in that snapshot.
 
+Initial [saved RIPE response support](ripe-registry-input.md) accepts address-only
+REST JSON and an explicit export observation date. It avoids manual schema conversion
+without adding network access or claiming a complete live registry inventory.
+
 [Issue #70](https://github.com/MHammett/isp-geofeed-generator/issues/70) tracks a safe
 diagnostic workflow, dated findings and reference/coverage checks. It must distinguish
 findings, no finding and not measured. Any exported-input adapter needs bounds and

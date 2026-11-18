@@ -9,6 +9,11 @@ Generate and verify the candidate through the normal source, ownership and curre
 fullbogon checks first. This separate diagnostic does not repeat live allocation checks.
 Use the stable public CSV URL, not a temporary probe or a URL containing credentials.
 
+The default input is the normalized snapshot below. Initial
+[saved RIPE REST JSON support](ripe-registry-input.md) is also available with
+`--registry-format ripe-rest` and an explicit `--registry-observed-at`. It stays
+offline and uses the same exact coverage and reference rules.
+
 In Bash on Linux:
 
 ```bash
