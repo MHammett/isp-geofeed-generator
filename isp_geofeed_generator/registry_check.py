@@ -88,14 +88,10 @@ def _invalid_constant(_):
     raise ValueError('non-JSON constant')
 
 
-def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
-    if not feed_url(expected_url):
-        raise GeofeedError('Expected feed URL must be a bounded HTTPS URL without credentials; no URL was fetched')
+def _load_snapshot(data, now):
+    """Validate the bounded envelope and its own date before combining objects."""
     if not isinstance(data, bytes) or len(data) > 8_000_000:
         raise GeofeedError('Registry snapshot exceeds the supported input limit')
-    if not isinstance(csv, bytes):
-        raise GeofeedError('Registry comparison requires CSV bytes')
-    now = datetime.now(timezone.utc) if now is None else now
     try:
         source = json.loads(data, object_pairs_hook=_unique_json, parse_constant=_invalid_constant)
         if (not isinstance(source, dict) or set(source) != {'schema_version', 'observed_at', 'objects'}
@@ -109,6 +105,16 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
             raise ValueError()
     except (ValueError, TypeError, UnicodeError, RecursionError):
         raise GeofeedError('Invalid registry snapshot schema, date or duplicate key; input values are not logged') from None
+    return source, stamp
+
+
+def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
+    if not feed_url(expected_url):
+        raise GeofeedError('Expected feed URL must be a bounded HTTPS URL without credentials; no URL was fetched')
+    if not isinstance(csv, bytes):
+        raise GeofeedError('Registry comparison requires CSV bytes')
+    now = datetime.now(timezone.utc) if now is None else now
+    source, stamp = _load_snapshot(data, now)
     networks = parse_feed(csv, overlap_policy=overlap_policy)
     if len(networks) > MAX_OBJECTS:
         raise GeofeedError('Registry comparison exceeds the supported feed record limit')

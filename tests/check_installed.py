@@ -253,6 +253,46 @@ with contextlib.redirect_stderr(error),contextlib.redirect_stdout(output):assert
 assert 'matching primary key' in error.getvalue() and output.getvalue()==''
 assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
 print('PASS: installed saved-RIPE exact coverage and primary-key refusal without configuration or publication writes')
+batch_feed=root/'batch-feed.csv'
+batch_feed.write_bytes(b'11.22.33.0/24,US,US-IL,Example City,\r\n2001:4860:1234::/126,US,US-IL,Example City,\r\n')
+batch_sources=[root/'batch-v4.json',root/'batch-v6.json'];batch_objects=[]
+for kind,value in (('inetnum','11.22.33.0 - 11.22.33.255'),('inet6num','2001:4860:1234::/126')):
+    batch_objects.append({'type':kind,'source':{'id':'RIPE'},
+        'primary-key':{'attribute':[{'name':kind,'value':value}]},
+        'attributes':{'attribute':[{'name':kind,'value':value},{'name':'source','value':'RIPE'},
+                                   {'name':'geofeed','value':url},{'name':'admin-c','value':'PRIVATE-CONTACT'}]}})
+for source,value in zip(batch_sources,batch_objects):source.write_text(json.dumps({'objects':{'object':[value]}}))
+batch_args=['check-registry','--registry-format','ripe-rest','--feed',str(batch_feed),'--feed-url',url,
+            '--config',str(root/'absent.yaml')]
+for source,stamp in zip(batch_sources,('2020-01-01T00:00:00Z','2021-01-01T00:00:00Z')):
+    batch_args+=['--registry-records',str(source),'--registry-observed-at',stamp]
+batch_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+             (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(batch_args)==0
+batch_report=json.loads(output.getvalue())
+assert batch_report['snapshot_input_count']==batch_report['registry_objects']==2
+assert batch_report['coverage']['4']['this_feed']=='256' and batch_report['coverage']['6']['this_feed']=='4'
+assert batch_report['snapshot_observed_at_basis']=='oldest_supplied_input'
+assert batch_report['snapshot_observed_at']=='2020-01-01T00:00:00+00:00'
+assert [item['snapshot_sha256'] for item in batch_report['snapshot_inputs']]==[digest(p.read_bytes()) for p in batch_sources]
+assert 'PRIVATE' not in output.getvalue() and url not in output.getvalue() and 'healthy' not in batch_report
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}==batch_prior
+for duplicate in (False,True):
+    value={'objects':{'object':[batch_objects[0]]}} if duplicate else {'objects':{'object':[]},'errormessages':{'errormessage':[{'severity':'Info','text':'PRIVATE'}]}}
+    batch_sources[1].write_text(json.dumps(value))
+    source_prior=(batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)
+    output=io.StringIO();error=io.StringIO()
+    with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(batch_args)==1
+    assert output.getvalue()=='' and 'PRIVATE' not in error.getvalue()
+    assert ('unique safe IDs' if duplicate else 'Registry input 2') in error.getvalue()
+    assert (batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)==source_prior
+    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+            (batch_feed,batch_sources[0],feed,root/'state/status.json',backup)}=={key:value for key,value in batch_prior.items() if key!=str(batch_sources[1])}
+print('REGISTRY BATCH INSTALLED OBSERVATION: '+json.dumps({'input_count':2,'object_count':2,'matched_families':[4,6],
+    'oldest_date_verified':True,'input_hashes_verified':True,'api_message_refused':True,'duplicate_version_refused':True,
+    'private_files_preserved':True,'no_configuration_needed':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

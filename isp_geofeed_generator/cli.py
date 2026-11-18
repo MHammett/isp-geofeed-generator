@@ -174,9 +174,9 @@ def main(argv=None):
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
     parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Policy configuration/recovery only: exact current feed or failed candidate hash')
     parser.add_argument('--probe-cache',action='store_true',help='inspect-wordpress only: compare a fresh anonymous query URL with the canonical feed; no writes')
-    parser.add_argument('--registry-records',help='check-registry only: private registry snapshot or saved RIPE REST JSON')
+    parser.add_argument('--registry-records',action='append',help='check-registry only: repeat for each private snapshot or saved RIPE response')
     parser.add_argument('--registry-format',choices=('normalized','ripe-rest'),help='check-registry only: saved input format; default normalized')
-    parser.add_argument('--registry-observed-at',help='check-registry with ripe-rest only: actual UTC export observation date')
+    parser.add_argument('--registry-observed-at',action='append',help='ripe-rest only: one actual UTC date per --registry-records, in the same order')
     parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
     parser.add_argument('--feed-url',help='check-registry only: exact public HTTPS feed URL; never fetched')
     parser.add_argument('--reference-policy',choices=('reject','longest_prefix'),help='check-registry only: explicit CSV overlap policy; default reject')
@@ -190,9 +190,9 @@ def main(argv=None):
                     or args.probe_cache or any(value is not None for value in
                         (args.output,args.approve_location_changes,args.expected_current_sha256))):
                 raise GeofeedError('check-registry requires --registry-records, --feed and --feed-url; no other operation flags or output writes are supported')
-            from .registry_check import check_files
+            from .registry_batch import check_file_set
             stage='checking supplied registry references'
-            result=check_files(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT,
+            result=check_file_set(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT,
                                input_format=args.registry_format or 'normalized',observed_at=args.registry_observed_at)
             print(json.dumps(result))
             return 0 if result['comparison_consistent'] else 1

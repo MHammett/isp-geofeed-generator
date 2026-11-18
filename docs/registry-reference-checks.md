@@ -11,7 +11,11 @@ Use the stable public CSV URL, not a temporary probe or a URL containing credent
 
 The default input is the normalized snapshot below. Initial
 [saved RIPE REST JSON support](ripe-registry-input.md) is also available with
-`--registry-format ripe-rest` and an explicit `--registry-observed-at`. It stays
+`--registry-format ripe-rest` and an explicit `--registry-observed-at`. Repeat
+`--registry-records` for multiple files. RIPE requires one date per file in the same
+order; normalized files keep their embedded dates. See the
+[multi-file guide](ripe-registry-input.md#more-than-one-response) for combined limits,
+duplicate refusals and per-input report fields. Support stays
 offline and uses the same exact coverage and reference rules.
 
 In Bash on Linux:

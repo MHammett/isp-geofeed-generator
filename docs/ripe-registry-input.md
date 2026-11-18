@@ -65,14 +65,53 @@ JSON body. Do not remove those messages just to force a comparison.
 
 ### More than one response
 
-This version accepts exactly one `--registry-records` file. IPv4, IPv6, parent and
-child requests can produce separate files. They must first be combined into a
-reviewed address-object envelope, or into the existing normalized snapshot format;
-the tool does not merge them automatically. Retain the original responses and their
-actual observation times. Preserve all relevant references and exact scopes. Do not
-silently choose between conflicting versions of a key, discard a child reference or
-include an error reply as if it were a successful empty result. Duplicate objects
-remain refused. Multi-file import is follow-up work under #70.
+Repeat `--registry-records` for each saved response. Add one `--registry-observed-at`
+for each RIPE file, in the same order. One date is never copied to several files.
+Keep each file's actual observation time, even when the responses were collected
+on different days. All files in one command must use the chosen format.
+
+In Bash on Linux:
+
+```bash
+isp-geofeed-generator check-registry --registry-format ripe-rest --registry-records /etc/isp-geofeed-generator/ripe-v4.json --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --registry-records /etc/isp-geofeed-generator/ripe-v6.json --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed /var/lib/isp-geofeed-generator/candidate.csv --feed-url 'https://example.net/geofeed.csv'
+```
+
+In PowerShell on Windows:
+
+```powershell
+isp-geofeed-generator check-registry --registry-format ripe-rest --registry-records 'C:\ProgramData\ISP Geofeed Generator\ripe-v4.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --registry-records 'C:\ProgramData\ISP Geofeed Generator\ripe-v6.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv'
+```
+
+The first date belongs to the first records file; the second date belongs to the
+second file. Replace both date placeholders with the actual dates. A mismatch in
+the number of files and dates stops before any file is read. With normalized input,
+repeat the records option without separate date options; each file has its own date.
+
+The reader combines exact scopes and references before one coverage comparison.
+A child from a separate file can still override a parent reference. Duplicate object
+IDs stop the whole comparison, including identical copies and newer versions of the
+same RIPE key. The tool does not choose a winner or silently remove copies. Parent
+and child query results can overlap; obtain a set without repeated objects, or use a
+separately reviewed normalized snapshot. Different IDs for the same referring scope
+remain unsupported ambiguity. Crossing referring scopes remain a refusal.
+
+If any file is missing, malformed, over budget or contains API messages, no partial
+report is printed. Retain the original responses. Correct the input set and rerun
+the read-only comparison; feed, status and recovery files stay untouched.
+
+Multi-file reports include `snapshot_input_count` and `snapshot_inputs`. Each input
+has its ordinal number, original and normalized hashes, observation date, age and
+object count. Paths, contacts and raw reference URLs are not printed. The top-level
+date is the oldest input date, labeled `oldest_supplied_input`. It is not a claim that
+all files describe one instant or that the set is current or complete.
+
+For multiple files, `snapshot_sha256` and `normalized_snapshot_sha256` hash the
+combined normalized snapshot; `snapshot_sha256_scope` states that meaning.
+`source_manifest_sha256` hashes the ordered per-input metadata without the age
+fields. It stays stable when only time passes. Original hashes remain in
+`snapshot_inputs`. Single-file reports keep their existing fields and hash meanings.
+The files are read separately, not as an atomic filesystem snapshot. Each read keeps
+the existing regular-file, no-final-symlink, size and read-time identity guards.
 
 [RIPE's data model](https://docs.db.ripe.net/RIPE-Database-Structure/REST-API-Data-model/)
 describes the `objects.object` list, object type/source, primary key and named
@@ -119,7 +158,10 @@ not printed. These labels and hashes describe supplied data, not its authenticit
 
 ## Refusals and limits
 
-The saved file is limited to 8 MB and 50,000 objects. Each object has at most 200
+One command accepts up to 32 saved files. Their total original bytes and the combined
+normalized snapshot must each fit within 8 MB. The total object count is at most
+50,000, across the whole set. These are combined limits, not a fresh budget per file.
+Each object has at most 200
 attributes. Names are bounded lowercase attribute names; values must be strings
 with at most 8,192 characters and no line controls. The shared checker further
 limits remarks to 20 lines of at most 2,048 characters. Duplicate JSON keys,

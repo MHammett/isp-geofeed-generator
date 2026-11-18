@@ -1,5 +1,29 @@
 # Verification
 
+## Multiple saved registry files
+
+On 2026-11-18, the local Windows suite passed 394 tests with two POSIX-only skips.
+The 17 new methods cover separate dates, stable source hashes, raw and normalized
+byte budgets, combined object limits, duplicate versions, crossings, child scopes,
+bad responses and preserved files. A sandboxed attempt was denied temporary-file
+access and is not a test pass. The completed run used fresh disposable files outside
+that restriction. Native Windows metadata-stop and checked-recovery controls passed
+too; the intermittent cause in #88 remains unresolved.
+
+Three private mutations drop later files, stop accounting for earlier input bytes
+or remove the combined object guard. Each caused one assertion failure with zero
+setup errors. Intact controls passed before and after. The installed-package workload
+checks two separately dated RIPE responses, exact dual-family coverage, input hashes,
+API-message refusal and duplicate-version refusal while preserving candidate,
+status and recovery files. Hosted results must be read from the PR logs before
+claiming that workload passed on each platform.
+
+This remains initial, offline support. Supplied dates and files do not establish a
+complete current registry hierarchy, ownership, allocation or provider ingestion.
+No configuration, credentials, network or publication access is required. Related:
+[issue #91](https://github.com/MHammett/isp-geofeed-generator/issues/91) and
+[the multi-file guide](ripe-registry-input.md#more-than-one-response).
+
 ## Windows metadata guard diagnosis
 
 On 2026-11-18, the local Windows suite ran 377 tests in 27.723 seconds and passed,
