@@ -81,17 +81,52 @@ Handles are limited to 256 characters, link targets and contexts to 2,048 charac
 Relevant strings must be single-line. Original JSON is also checked for duplicate
 keys, non-finite numbers, invalid encoding and excessive nesting.
 
-Errors, explicit root `redacted` data, and typed truncation in root notices/remarks
-stop the comparison. Informational terms notices can remain. Free text is not parsed
+Errors and typed truncation in root notices/remarks stop the comparison.
+Informational terms notices can remain. Free text is not parsed
 to guess whether more data exists; an unflagged incomplete reply cannot be detected
 from these files alone. Do not strip an error or truncation marker to force a pass.
 
-On 2026-11-18, one bounded public RIPE NCC lookup was saved and refused because the
-reply explicitly included root redaction data. The saved response and real failure
-were retained privately. This confirms a live refusal case, not a successful live
-import or full RDAP interoperability. The guard was not relaxed. Safely evaluating
-which redacted paths affect discovery is follow-up work; legal contact redaction can
-make an otherwise useful response unsupported by this initial reader.
+### Contact redaction
+
+[RFC 9537](https://www.rfc-editor.org/rfc/rfc9537.html#section-4.2) lets servers
+describe removed or changed fields. This reader can accept those declarations only
+when every declared path stays inside the root `entities` subtree. That subtree is
+ignored by this checker. Redaction of the root, network bounds, identity, conformance,
+notices or links stops the entire comparison. Unsupported expressions stop it too.
+These are reader limits, not proof that the registry lacks geofeed support.
+
+The reader parses a small subset of
+[JSONPath](https://www.rfc-editor.org/rfc/rfc9535.html). It never runs expressions,
+resolves matches, fetches linked data or changes the saved reply. The root must be
+exactly `$.entities` or `$['entities']` (double quotes work too). Downward steps may
+use ASCII member names, quoted keys, nonnegative indices, wildcards and slices with
+nonnegative bounds and no step. Filters may compare a relative singular member/index
+path with a quoted string, such as `$.entities[?(@.handle=='EXAMPLE-1')].vcardArray[1]`.
+One pair of filter parentheses is optional. Quoted values remain literal data.
+Unions, recursive steps, root references in filters, functions, logical operators,
+escaped root aliases and unconsumed trailing expressions are refused.
+
+`pathLang` must be `jsonpath`; its default is supported. The default method is
+`removal`. This subset requires `prePath` for removal and `postPath` for `emptyValue`
+or `partialValue`. `replacementValue` can use an in-place `postPath`. When it uses
+`prePath`, this reader also requires `replacementPath`. If a replacement path is
+declared, it must pass the same scope proof. A declaration cannot have both
+`prePath` and `postPath`. Human names and reasons never decide which fields are safe.
+The reply must declare `redacted` in `rdapConformance`.
+
+Limits are 100 declarations per reply, 2,048 characters and 256 tokens per path,
+256 characters per quoted token, 64 characters per unquoted member name and six
+digits per index. Names and reasons use nonempty standard string fields, limited
+to 1,024 single-line characters each. Empty or malformed metadata is refused.
+Do not remove a declaration or change a path to force acceptance.
+
+On 2026-11-18, offline classification of an unchanged saved public RIPE NCC reply
+accepted all 12 entity-only declarations. Its original SHA-256 is
+`c619e63c5d4992ba5cfa33b0c2657435f72f53580209c3c3d44528ff71e76003`.
+The earlier reader had refused it. The original lookup time was not retained, so
+a correctly dated CLI import of that reply remains unmeasured. No new lookup was
+made for this follow-up. Classification does not establish full interoperability,
+that a path matches data, or that a server applied redaction correctly.
 
 Multiple geofeed links also stop the initial reader, including repeated URLs.
 RFC 9877 allows language alternatives; choosing among them is not implemented here.
@@ -103,8 +138,10 @@ existing shared checks. No link or later file is silently dropped.
 
 Single-file reports retain original and normalized hashes and label the source as
 `operator_supplied_rdap`. Several-file reports retain each input's hashes, dates and
-RDAP metadata. Their top-level summary counts advertised, linked and unknown-absence
-inputs. The oldest date describes the combined comparison. Original-file hashes stay
+RDAP metadata. `rdap_redaction_status` is `not_present` or `ignored_entities_only`.
+`rdap_ignored_entity_redactions` counts accepted declarations, not matched fields.
+The multi-file summary totals that count as well as advertised, linked and
+unknown-absence inputs. The oldest date describes the combined comparison. Original-file hashes stay
 in `snapshot_inputs`; the top-level snapshot hash describes combined normalized data.
 See [multi-file hash meanings](ripe-registry-input.md#more-than-one-response).
 

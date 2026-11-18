@@ -82,4 +82,5 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
         result['rdap_geofeed1_advertised_inputs'] = sum(item['rdap_geofeed1_advertised'] for item in inputs)
         result['rdap_linked_inputs'] = sum(item['rdap_link_status'] == 'link_returned' for item in inputs)
         result['rdap_absence_unknown_inputs'] = sum(item['rdap_link_status'] == 'availability_not_measured' for item in inputs)
+        result['rdap_ignored_entity_redactions'] = sum(item['rdap_ignored_entity_redactions'] for item in inputs)
     return result

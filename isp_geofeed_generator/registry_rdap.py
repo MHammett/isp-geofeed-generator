@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from .client import GeofeedError
 from .feed import digest
 from .registry_check import _invalid_constant, _unique_json, feed_url
+from .rdap_redaction import validate_redactions
 
 
 def _finite_float(value):
@@ -24,8 +25,7 @@ def _text(value, limit):
 def _complete(source):
     if 'errorCode' in source:
         raise GeofeedError('Saved RDAP is an error response; obtain a successful lookup before comparison; values are not logged')
-    if 'redacted' in source:
-        raise GeofeedError('Saved RDAP contains explicit redaction; redaction-path analysis is not supported by this reader; preserve the original reply, no comparison made')
+    redactions = validate_redactions(source)
     for key in ('notices', 'remarks'):
         messages = source.get(key, [])
         if not isinstance(messages, list) or len(messages) > 100:
@@ -38,6 +38,7 @@ def _complete(source):
                 raise ValueError()
             if kind.lower().startswith(('result set truncated', 'object truncated')):
                 raise GeofeedError('Saved RDAP reports truncation; no partial comparison made; preserve the original reply and inspect the export')
+    return redactions
 
 
 def _link(source):
@@ -82,7 +83,7 @@ def normalize_rdap(data, observed_at):
                             parse_float=_finite_float)
         if not isinstance(source, dict) or source.get('objectClassName') != 'ip network':
             raise ValueError()
-        _complete(source)
+        redactions = _complete(source)
         handle = source.get('handle')
         if not _text(handle, 256):
             raise ValueError()
@@ -104,6 +105,8 @@ def normalize_rdap(data, observed_at):
             row['geofeed'] = reference
         advertised = 'geofeed1' in declarations
         metadata = {'registry_source': 'operator_supplied_rdap', 'rdap_geofeed1_advertised': advertised,
+                    'rdap_ignored_entity_redactions': redactions,
+                    'rdap_redaction_status': 'ignored_entities_only' if redactions else 'not_present',
                     'rdap_link_status': 'link_returned' if reference is not None else
                         'not_returned_with_extension' if advertised else 'availability_not_measured'}
         normalized = json.dumps({'schema_version': 1, 'observed_at': observed_at, 'objects': [row]},

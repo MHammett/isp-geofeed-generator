@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Saved RDAP input accepts bounded, fully parsed entity-only redaction declarations. Redaction affecting discovery fields or using unsupported expressions still refuses the whole comparison. Reports count declarations without exposing contact paths.
+
 - Initial saved RDAP network input preserves exact address ranges, reads standard geofeed links and distinguishes unknown link availability without registry, credential or publication access. Shared saved-format normalization retains multi-file dates, hashes and refusal guards.
 
 - Disposable storage tests distinguish WordPress text validation from actual database-driver refusals with fixed private events, missing-evidence controls and exact temporary core restoration. Shipped storage behavior is unchanged.

@@ -1,5 +1,35 @@
 # Verification
 
+## Entity-only RDAP redaction
+
+On 2026-11-18, local Windows passed 435 tests in 18.427 seconds with two POSIX-only
+skips. Sixteen new methods cover complete path parsing, every supported method,
+replacement targets, budgets, malformed metadata, mixed later-file refusal and
+unchanged discovery bytes, source hashes and private files. Parser controls forbid
+`eval` and `exec`; CLI controls forbid configuration, credentials, DNS, HTTP and
+output writes. The first harness attempt blocked Python imports and failed to
+activate one mutation. Both errors were saved and corrected before this passing run.
+
+Private mutations remove the entity-root proof, complete-path check or all-targets
+check. They cause 11, 4 and 3 assertion failures with zero setup errors. Intact
+controls pass before and after each mutation. The installed-wheel workload also
+requires dual-family coverage, declaration counts, original input hashes, mixed
+later-file refusal with no partial report, and exact feed/status/recovery bytes
+and modification times.
+The installed-wheel workload passed locally in an isolated environment outside
+the checkout.
+
+An offline read of the unchanged saved public RIPE NCC response accepted its 12
+entity-only declarations. The original lookup time was not retained. A correctly
+dated CLI import of that real reply remains unmeasured; no substitute date or new
+lookup was used. See the [RDAP guide](rdap-registry-input.md#contact-redaction)
+and [#97](https://github.com/MHammett/isp-geofeed-generator/issues/97).
+
+This only proves declared paths stay in ignored root entities. It does not resolve
+the paths or verify server redaction, authority, ownership or provider ingestion.
+Actual hosted results belong in the dated PR evidence. PHP and real WordPress
+remain unmeasured locally by Codex.
+
 ## Initial saved RDAP network input
 
 On 2026-11-18, local Windows passed 419 tests in 24.597 seconds with two POSIX-only

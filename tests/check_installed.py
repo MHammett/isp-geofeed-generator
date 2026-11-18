@@ -333,6 +333,38 @@ assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
 print('RDAP REGISTRY INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'input_hashes_verified':True,
     'optional_media_type_accepted':True,'combined_relation_accepted':True,'link_without_extension_accepted':True,'truncation_refused':True,
     'absence_without_extension_unknown':True,'private_files_preserved':True,'no_configuration_needed':True}))
+contact_path="$.entities[?(@.handle=='PRIVATE-CONTACT')].vcardArray[1][?(@[0]=='email')]"
+for source,value in zip(batch_sources,rdap_objects):
+    value['links']=[{'rel':'geofeed','value':'https://rdap.example/ip/object','href':url}]
+    value['rdapConformance']+=['redacted']
+    value['redacted']=[{'name':{'description':'PRIVATE contact'},'prePath':contact_path}]
+    source.write_text(json.dumps(value))
+redaction_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+                 (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(rdap_args)==0
+redaction_report=json.loads(output.getvalue())
+assert redaction_report['coverage']['4']['this_feed']=='256' and redaction_report['coverage']['6']['this_feed']=='4'
+assert redaction_report['rdap_ignored_entity_redactions']==2
+assert all(item['rdap_ignored_entity_redactions']==1 and item['rdap_redaction_status']=='ignored_entities_only'
+           for item in redaction_report['snapshot_inputs'])
+assert [item['snapshot_sha256'] for item in redaction_report['snapshot_inputs']]==[digest(p.read_bytes()) for p in batch_sources]
+assert 'PRIVATE' not in output.getvalue() and contact_path not in output.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}==redaction_prior
+rdap_objects[1]['redacted'].append({'name':{'type':'Example'},'prePath':'$.links'})
+batch_sources[1].write_text(json.dumps(rdap_objects[1]))
+source_prior=(batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)
+output=io.StringIO();error=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(rdap_args)==1
+assert output.getvalue()=='' and 'Registry input 2' in error.getvalue()
+assert 'PRIVATE' not in error.getvalue() and '$.links' not in error.getvalue()
+assert (batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)==source_prior
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,batch_sources[0],feed,root/'state/status.json',backup)}=={key:value for key,value in redaction_prior.items() if key!=str(batch_sources[1])}
+print('RDAP REDACTION INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'entity_declarations':2,
+    'input_hashes_verified':True,'mixed_later_input_refused':True,'no_partial_report':True,
+    'private_files_preserved':True,'raw_paths_omitted':True,'no_configuration_needed':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)
