@@ -950,8 +950,8 @@ class Workload:
             check(all(980000<=len(body)<1000000 for body in bodies),'all steady capacity bodies near CSV limit')
             for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
                 self.reset()
-                label=f'storage-{storage_format}' if storage_format is not None else 'steady'
-                state=self.directory/f'{label}-unicode-{width}-v{version}'
+                label=f'storage-{storage_format}-{width}-v{version}' if storage_format is not None else f'steady-unicode-{width}-v{version}'
+                state=self.directory/label
                 feeds=[wrap_csv(body) if version==2 else body for body in bodies]
                 path=FEED_V2 if version==2 else FEED
                 if version==2:
@@ -1044,6 +1044,15 @@ class Workload:
         check(original_metadata['column_collation'] in ('utf8mb4_unicode_ci','utf8mb4_unicode_520_ci')
               and original_metadata['column_type']=='longtext'
               and set(original_metadata['connection'].values())=={'utf8mb4'},'known original utf8mb4 disposable storage')
+        self.environment['GEOFEED_WP_STORAGE_PROTOTYPE']='0'
+        try:
+            try:self.fixture('storage-charset',{'collation':'utf8_general_ci'})
+            except AssertionError as exc:check('Storage experiment requires disposable prototype CLI' in str(exc),
+                                               'PHP charset guard refuses at the intended isolation check')
+            else:raise AssertionError('PHP allowed charset mutation outside prototype mode')
+        finally:self.environment['GEOFEED_WP_STORAGE_PROTOTYPE']='1'
+        check(self.storage_charset()==original_metadata,'refused PHP charset action preserves exact column metadata')
+        print('STORAGE GUARD OBSERVATION: '+json.dumps({'php_outside_prototype_refused':True,'column_unchanged':True}),flush=True)
         check(self.original.count('wp_json_encode(')==4,'private prototype replaces exactly four storage encoders')
         prototype=self.original.replace('wp_json_encode(','isp_geofeed_test_json_encode(')+'''
 // Private installed-copy experiment only. Never shipped as the plugin.
@@ -1093,7 +1102,10 @@ function isp_geofeed_test_json_encode($value) {
         for character,width in (('測',3),('\U0001f600',4)):
             for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
                 convert=wrap_csv if version==2 else lambda value:value
-                first,candidate,third=[convert(value.replace(b'Example City',(character*3).encode())) for value in (A,B,C)]
+                # Keep geography and grow coverage so unrelated change guards do
+                # not stop the workload before its storage/recovery checks.
+                expanded=B.replace(b'11.22.34.0/24',b'11.22.34.0/23')
+                first,candidate,third=[convert(value.replace(b'Example City',(character*3).encode())) for value in (A,B,expanded)]
                 self.reset();self.plugin.write_text(self.original)
                 if version==2:
                     admin=WordPress(self.url,'policy_admin',self.accounts['policy_admin'])
@@ -1132,6 +1144,7 @@ function isp_geofeed_test_json_encode($value) {
               and set(legacy['connection'].values())=={'utf8mb4'},'real three-byte column with utf8mb4 connection')
         for version,policy in ((1,REJECT),(2,LONGEST_PREFIX)):
             convert=wrap_csv if version==2 else lambda value:value
+            baseline=convert(A.replace(b'Example City',('\U0001f600'*3).encode()))
             candidate=convert(B.replace(b'Example City',('\U0001f600'*3).encode()))
             self.reset();self.plugin.write_text(self.original)
             if version==2:
@@ -1139,7 +1152,7 @@ function isp_geofeed_test_json_encode($value) {
                 admin.http.opener=build_opener(NoRedirects(),HTTPSHandler(context=self.context))
                 admin.configure_policy(policy,admin.policy_state(),secrets.token_hex(16))
             state=self.directory/f'storage-legacy-v{version}'
-            check(self.cli(convert(A),state,overlap_policy=policy)[0]==0,'escaped baseline succeeds on legacy column')
+            check(self.cli(baseline,state,overlap_policy=policy)[0]==0,'escaped four-byte baseline succeeds on legacy column')
             # Migration trial: keep the existing escaped document, then try a direct
             # four-byte candidate. The real wpdb error must leave that row intact.
             before=self.snapshot()[0]['raw'];last_good=((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)
@@ -1148,14 +1161,14 @@ function isp_geofeed_test_json_encode($value) {
             writes=[v for v in self.proxy.request_sizes if v['method'] in ('PUT','DELETE')]
             check(result==1 and status['healthy'] is False and len(writes)==1 and writes[0]['origin_status']==503
                   and writes[0].get('origin_error')=='geofeed_db','direct four-byte legacy-column write really fails without retry')
-            check(self.snapshot()[0]['raw']==before and self.request('GET',FEED)[2]==convert(A)
-                  and (state/'before.csv').read_bytes()==convert(A)
+            check(self.snapshot()[0]['raw']==before and self.request('GET',FEED)[2]==baseline
+                  and (state/'before.csv').read_bytes()==baseline
                   and ((state/'last-good.csv').read_bytes(),(state/'last-good.csv').stat().st_mtime_ns)==last_good,
                   'real legacy-column refusal preserves exact stored/public/private baseline')
             self.plugin.write_text(self.original);self.proxy.arm(None)
             result,corrected=self.cli(candidate,state,overlap_policy=policy)
             check(result==0 and corrected['healthy'] is True and self.snapshot()[1]['csv'].encode()==candidate
-                  and self.snapshot()[1]['previous_csv'].encode()==convert(A) and self.request('GET',FEED)[2]==candidate,
+                  and self.snapshot()[1]['previous_csv'].encode()==baseline and self.request('GET',FEED)[2]==candidate,
                   'same four-byte candidate succeeds with original escaped format on unchanged legacy column')
             check(self.storage_charset()==legacy,'legacy-column correction did not change database charset')
             print('STORAGE LEGACY OBSERVATION: '+json.dumps({'api_version':version,'column_collation':legacy['column_collation'],

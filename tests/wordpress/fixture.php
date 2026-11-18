@@ -32,6 +32,10 @@ if ($geofeed_test_action === 'install') {
         'max_allowed_packet' => (int)$wpdb->get_var('SELECT @@max_allowed_packet')]);
 } elseif ($geofeed_test_action === 'storage-metadata' || $geofeed_test_action === 'storage-charset') {
     global $wpdb;
+    if (PHP_SAPI !== 'cli' || getenv('GITHUB_ACTIONS') !== 'true' ||
+        getenv('RUNNER_ENVIRONMENT') !== 'github-hosted' || getenv('GEOFEED_WP_STORAGE_PROTOTYPE') !== '1') {
+        throw new RuntimeException('Storage experiment requires disposable prototype CLI');
+    }
     // Only the private CLI fixture can change its disposable options column.
     if ($geofeed_test_action === 'storage-charset') {
         $collation = $geofeed_test_input['collation'] ?? '';
