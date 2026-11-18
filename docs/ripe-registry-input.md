@@ -42,6 +42,38 @@ uses the date inside that snapshot; a separate observation date is refused there
 
 ## Supported saved response
 
+### Obtain an address-only result
+
+A default RIPE search can include organisation and role objects, which this reader
+refuses. For an operator-chosen IPv4 prefix, the request shape is:
+
+```http
+GET https://rest.db.ripe.net/search.json?source=ripe&type-filter=inetnum&flags=no-referenced&flags=no-irt&flags=all-less&query-string=<URL-encoded-owned-prefix>
+```
+
+Use `type-filter=inet6num` for IPv6. `no-referenced` and `no-irt` keep related contact
+objects out. `all-less` requests parents. Request children separately with `all-more`
+instead of `all-less`. These are request shapes for the operator's chosen objects,
+not a command to scan address space. See the [RIPE query contract](https://docs.db.ripe.net/How-to-Query-the-RIPE-Database/RESTful-API-Queries/).
+
+[Claude tested these forms](https://github.com/MHammett/isp-geofeed-generator/pull/89#pullrequestreview-5961315620)
+using saved public responses for RIPE NCC's own IPv4 and IPv6 blocks. Default searches
+with contacts were refused; address-only parent results were accepted. An `all-more`
+query with no children returned an API error and was refused. A successful HTTP status
+alone is insufficient: RIPE documents that a streamed search can carry errors in its
+JSON body. Do not remove those messages just to force a comparison.
+
+### More than one response
+
+This version accepts exactly one `--registry-records` file. IPv4, IPv6, parent and
+child requests can produce separate files. They must first be combined into a
+reviewed address-object envelope, or into the existing normalized snapshot format;
+the tool does not merge them automatically. Retain the original responses and their
+actual observation times. Preserve all relevant references and exact scopes. Do not
+silently choose between conflicting versions of a key, discard a child reference or
+include an error reply as if it were a successful empty result. Duplicate objects
+remain refused. Multi-file import is follow-up work under #70.
+
 [RIPE's data model](https://docs.db.ripe.net/RIPE-Database-Structure/REST-API-Data-model/)
 describes the `objects.object` list, object type/source, primary key and named
 attribute values. A synthetic IPv4 example is:

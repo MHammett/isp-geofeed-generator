@@ -82,6 +82,15 @@ three-byte column. This separates a format compatibility limit from WordPress's
 ability to publish those characters. It is not evidence that an operator must convert
 their database to use the current tool.
 
+The measured refusal was the plugin's `geofeed_db` response. The experiment did not
+identify whether WordPress validation or the database engine refused the write.
+[Claude's review](https://github.com/MHammett/isp-geofeed-generator/pull/87#pullrequestreview-5961315076)
+notes that database behavior can depend on SQL modes and database-layer replacements.
+Do not treat this trial as proof that every database engine will reject rather than
+alter incompatible text. A shipped direct format needs an explicit column/connection
+capability check before writing. Attributing the current refusal to a fixed safe
+layer code remains optional follow-up under #80; raw SQL/errors must not be logged.
+
 Only the private CLI fixture can change the disposable column, using a fixed list of
 collations. Python refuses outside the hosted disposable environment. PHP also refuses
 outside explicit prototype mode. A real refused PHP action must leave column metadata

@@ -42,6 +42,11 @@ conditional-recovery rules.
 
 ## If it still stops
 
+An error naming changed identity fields, such as `feed changed: ctime`, is a
+[metadata guard stop](windows-metadata-guards.md). It is not a rename denial and is
+never retried. On the measured Windows build, the handle's `ctime` tracks metadata
+change time, so equal bytes and `mtime` do not establish an unchanged owner or ACL.
+
 1. Stop the schedule. Preserve private state, status, the candidate hash and recovery
    files. Record the exact failing phase and error code without credentials or CSV.
 2. Check the destination folder's Windows permissions, available space and any process

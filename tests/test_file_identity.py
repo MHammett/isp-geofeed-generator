@@ -103,7 +103,10 @@ class NativeWindowsIdentityTests(unittest.TestCase):
         original=self.kernel.GetFileAttributesW(str(path));self.assertNotEqual(original,0xffffffff)
         try:
             self.assertTrue(self.kernel.SetFileAttributesW(str(path),original ^ 1))
-        finally:self.assertTrue(self.kernel.SetFileAttributesW(str(path),original))
+            self.assertEqual(self.kernel.GetFileAttributesW(str(path)),original ^ 1)
+        finally:
+            self.assertTrue(self.kernel.SetFileAttributesW(str(path),original))
+            self.assertEqual(self.kernel.GetFileAttributesW(str(path)),original)
 
     def observe(self,path):
         with path.open('rb') as stream:info=os.fstat(stream.fileno());data=stream.read()

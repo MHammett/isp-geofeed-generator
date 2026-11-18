@@ -1,5 +1,28 @@
 # Verification
 
+## Windows metadata guard diagnosis
+
+On 2026-11-18, the local Windows suite ran 377 tests in 27.723 seconds and passed,
+with two POSIX-only skips. Eight new methods cover fixed field diagnostics, read-time
+mutation, every identity field, same-byte replacement, policy ownership and no retry.
+Two native Windows trials really changed an attribute or DACL protection while bytes,
+file ID, size and `mtime` stayed equal. Both stopped before policy replacement and
+verified explicit checked recovery. The DACL trial also verified exact restoration.
+
+Removing only `ctime` from a private module copy produced one assertion failure
+with zero setup errors. Intact controls passed before and after. The first hosted
+ACL trial failed its precondition because the changed protection had the same
+timestamp. A later fixture separates the mutation from the preceding rename by
+50 ms and still requires a measured change. This does not add any production wait,
+retry or metadata-only acceptance. Hosted evidence is recorded in
+[PR #90](https://github.com/MHammett/isp-geofeed-generator/pull/90).
+
+The [investigation guide](windows-metadata-guards.md) records native/source evidence,
+access-time controls and independent Claude measurements. The original intermittent
+actor remains unknown under #88. A clean later run does not erase that stop or prove
+a scanner harmless. No identity field, guard, scanner, global timestamp setting or
+production ACL was changed.
+
 ## Initial saved-RIPE registry input
 
 The [RIPE reader](ripe-registry-input.md) has 16 positive/negative unit methods.

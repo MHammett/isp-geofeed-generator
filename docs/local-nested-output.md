@@ -58,6 +58,10 @@ The [Windows replacement guide](windows-file-writes.md) explains the bounded ren
 retry for access/sharing denials. Persistent failures still stop, retain recovery
 material and require exact pair inspection; the retry does not invent missing policy.
 
+The [metadata guard guide](windows-metadata-guards.md) explains fixed field diagnostics
+and Windows handle timestamps. Metadata-only changes still stop immediately; they
+are not accepted just because feed bytes match.
+
 Data and sidecar cannot be replaced in one filesystem operation. The destination lock
 and exact identity checks protect cooperating writers. An interruption between writes
 leaves a mismatched pair, which stops the next run for inspection. The tool does not

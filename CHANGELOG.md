@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Local guard errors identify changed feed/policy fields without exposing values. Native Windows attribute and ACL controls verify strict metadata-only stops and checked recovery; the unexplained intermittent actor remains under investigation.
+
 - Initial offline saved-RIPE registry input preserves exact IPv4 ranges and IPv6 prefixes, verifies object identity/source, and keeps the existing reference checks without network, credential or publication access.
 
 - Isolated WordPress Unicode storage experiment compares actual write sizes, format compatibility and older-column refusal without changing the shipped plugin or selecting a new storage policy.
