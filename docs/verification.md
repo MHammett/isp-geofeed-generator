@@ -15,7 +15,10 @@ or remove the combined object guard. Each caused one assertion failure with zero
 setup errors. Intact controls passed before and after. The installed-package workload
 checks two separately dated RIPE responses, exact dual-family coverage, input hashes,
 API-message refusal and duplicate-version refusal while preserving candidate,
-status and recovery files. Hosted results must be read from the PR logs before
+status and recovery files. That installed workload passed locally in an isolated
+environment, importing installed wheels outside the checkout. Its first attempt
+failed on a test-string escaping error; the error was saved and corrected before
+the passing run. Hosted results must be read from the PR logs before
 claiming that workload passed on each platform.
 
 This remains initial, offline support. Supplied dates and files do not establish a

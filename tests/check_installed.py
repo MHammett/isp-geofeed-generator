@@ -254,7 +254,7 @@ assert 'matching primary key' in error.getvalue() and output.getvalue()==''
 assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (feed,root/'state/status.json',backup)}==prior
 print('PASS: installed saved-RIPE exact coverage and primary-key refusal without configuration or publication writes')
 batch_feed=root/'batch-feed.csv'
-batch_feed.write_bytes(b'11.22.33.0/24,US,US-IL,Example City,\r\n2001:4860:1234::/126,US,US-IL,Example City,\r\n')
+batch_feed.write_bytes(b'11.22.33.0/24,US,US-IL,Example City,\\r\\n2001:4860:1234::/126,US,US-IL,Example City,\\r\\n')
 batch_sources=[root/'batch-v4.json',root/'batch-v6.json'];batch_objects=[]
 for kind,value in (('inetnum','11.22.33.0 - 11.22.33.255'),('inet6num','2001:4860:1234::/126')):
     batch_objects.append({'type':kind,'source':{'id':'RIPE'},
