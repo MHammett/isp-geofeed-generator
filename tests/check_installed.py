@@ -365,6 +365,50 @@ assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
 print('RDAP REDACTION INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'entity_declarations':2,
     'input_hashes_verified':True,'mixed_later_input_refused':True,'no_partial_report':True,
     'private_files_preserved':True,'raw_paths_omitted':True,'no_configuration_needed':True}))
+for index,(source,value) in enumerate(zip(batch_sources,rdap_objects)):
+    value['redacted']=value['redacted'][:1]
+    value['links']=[{'rel':'geofeed','value':'https://rdap.example/ip/object','href':url,'hreflang':['EN-US','en']},
+                    {'rel':'geofeed','value':'https://rdap.example/ip/object','href':'https://other.example/feed.csv','hreflang':'fr'}]
+    if index:value['links'].reverse()
+    source.write_text(json.dumps(value))
+language_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+                (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}
+language_args=rdap_args+['--rdap-language','EN']
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(language_args)==0
+language_report=json.loads(output.getvalue())
+assert language_report['coverage']['4']['this_feed']=='256' and language_report['coverage']['6']['this_feed']=='4'
+assert language_report['rdap_requested_language']=='en' and language_report['rdap_language_selected_inputs']==2
+assert language_report['snapshot_observed_at']=='2020-01-01T00:00:00+00:00'
+assert [item['snapshot_observed_at'] for item in language_report['snapshot_inputs']]==['2020-01-01T00:00:00+00:00','2021-01-01T00:00:00+00:00']
+assert all(item['rdap_link_selection']=='exact_language' and item['rdap_geofeed_link_count']==2
+           for item in language_report['snapshot_inputs'])
+assert [item['snapshot_sha256'] for item in language_report['snapshot_inputs']]==[digest(p.read_bytes()) for p in batch_sources]
+assert 'PRIVATE' not in output.getvalue() and url not in output.getvalue() and 'other.example' not in output.getvalue()
+output=io.StringIO();error=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(rdap_args)==1
+assert output.getvalue()=='' and 'multiple geofeed links' in error.getvalue()
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(rdap_args+['--rdap-language','fr'])==1
+different_language=json.loads(output.getvalue())
+assert different_language['comparison_consistent'] is False
+assert different_language['coverage']['4']['other_feed']=='256' and different_language['coverage']['6']['other_feed']=='4'
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}==language_prior
+for item in rdap_objects[1]['links']:
+    if item['hreflang']=='fr':item['href']='http://PRIVATE.invalid/feed.csv'
+batch_sources[1].write_text(json.dumps(rdap_objects[1]))
+source_prior=(batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)
+output=io.StringIO();error=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(language_args)==1
+assert output.getvalue()=='' and 'Registry input 2' in error.getvalue() and 'PRIVATE' not in error.getvalue()
+assert (batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)==source_prior
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,batch_sources[0],feed,root/'state/status.json',backup)}=={key:value for key,value in language_prior.items() if key!=str(batch_sources[1])}
+print('RDAP LANGUAGE INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'language':'en',
+    'selected_inputs':2,'input_hashes_verified':True,'default_refused':True,'different_language_mismatch':True,
+    'unsafe_unselected_later_link_refused':True,'no_partial_report':True,'private_files_preserved':True,
+    'reference_urls_omitted':True,'no_configuration_needed':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

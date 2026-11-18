@@ -1,5 +1,32 @@
 # Verification
 
+## Explicit saved-RDAP language selection
+
+On 2026-11-18, local Windows passed 453 tests in 20.362 seconds with two POSIX-only
+skips. Eighteen new methods verify exact case-insensitive selection, string/array
+labels, link-order independence, preserved bounds and identity, explicit URL mismatch,
+unsafe unselected links, duplicate labels and later-file refusal without a partial
+report. No-match and unsupported cases cannot become a fallback. Empty links retain
+the existing unknown/absent availability result. Other formats and publication
+commands refuse the option before configuration or input access.
+
+Private mutations add prefix fallback, remove the label-ambiguity check or skip later
+links. They cause 3, 2 and 8 assertion failures with zero setup errors. Intact checks
+pass before and after. The first fault-test attempt raised a harness error after an
+expected assertion failed. The output was saved, and the test context was corrected
+before these passing controls. The installed-wheel workload requires exact
+IPv4/IPv6 coverage, dates/hashes, preserved private files, default refusal, a different
+language's URL mismatch and unsafe unselected later-link refusal.
+The installed-wheel workload passed locally in an isolated environment outside
+the checkout.
+
+Support remains initial and offline. No real multilingual operator export, server
+language behavior, registry authority or provider ingestion was measured. PHP and
+WordPress remain unmeasured locally by Codex. Actual hosted results belong in the
+dated PR evidence. Scope and recovery are in the
+[RDAP guide](rdap-registry-input.md#choosing-a-declared-language) and
+[#99](https://github.com/MHammett/isp-geofeed-generator/issues/99).
+
 ## Entity-only RDAP redaction
 
 On 2026-11-18, local Windows passed 435 tests in 18.427 seconds with two POSIX-only

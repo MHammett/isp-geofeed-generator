@@ -225,8 +225,9 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
     }
 
 
-def check_files(snapshot_path, feed_path, expected_url, *, overlap_policy=REJECT, input_format='normalized', observed_at=None):
-    from .registry_formats import INPUT_FORMATS, normalize_input
+def check_files(snapshot_path, feed_path, expected_url, *, overlap_policy=REJECT, input_format='normalized', observed_at=None, rdap_language=None):
+    from .registry_formats import INPUT_FORMATS, normalize_input, rdap_options
+    options = rdap_options(input_format, rdap_language)
     if input_format not in INPUT_FORMATS or (input_format == 'normalized' and observed_at is not None):
         raise GeofeedError('Registry format must be normalized, ripe-rest or rdap; separate dates are only supported for saved response formats')
     if input_format != 'normalized' and observed_at is None:
@@ -235,7 +236,7 @@ def check_files(snapshot_path, feed_path, expected_url, *, overlap_policy=REJECT
     feed = read_output(feed_path, 1_000_000)
     if snapshot.identity is None or feed.identity is None:
         raise GeofeedError('Registry snapshot and feed must both be existing bounded regular files')
-    data, metadata = normalize_input(snapshot.data, input_format, observed_at)
+    data, metadata = normalize_input(snapshot.data, input_format, observed_at, **options)
     result = check_snapshot(data, feed.data, expected_url, overlap_policy=overlap_policy)
     if input_format != 'normalized':
         result.update(registry_input_format=input_format, **metadata,

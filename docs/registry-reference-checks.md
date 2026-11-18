@@ -22,6 +22,8 @@ Initial [saved RDAP network support](rdap-registry-input.md) uses
 `--registry-format rdap`, with one actual observation date per saved reply. It reads
 standard geofeed links and distinguishes an absent link from unknown availability.
 It performs no registry lookup or bootstrap authority check.
+For replies with language alternatives, the RDAP guide documents the explicit
+`--rdap-language` option and its supported tag subset. It has no automatic fallback.
 
 In Bash on Linux:
 

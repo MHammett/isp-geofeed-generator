@@ -178,6 +178,7 @@ def main(argv=None):
     from .registry_formats import INPUT_FORMATS
     parser.add_argument('--registry-format',choices=INPUT_FORMATS,help='check-registry only: saved input format; default normalized')
     parser.add_argument('--registry-observed-at',action='append',help='saved response formats only: one actual UTC date per --registry-records, in the same order')
+    parser.add_argument('--rdap-language',help='saved RDAP only: exact declared geofeed language for every input; no fallback')
     parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
     parser.add_argument('--feed-url',help='check-registry only: exact public HTTPS feed URL; never fetched')
     parser.add_argument('--reference-policy',choices=('reject','longest_prefix'),help='check-registry only: explicit CSV overlap policy; default reject')
@@ -194,11 +195,12 @@ def main(argv=None):
             from .registry_batch import check_file_set
             stage='checking supplied registry references'
             result=check_file_set(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT,
-                               input_format=args.registry_format or 'normalized',observed_at=args.registry_observed_at)
+                               input_format=args.registry_format or 'normalized',observed_at=args.registry_observed_at,
+                               rdap_language=args.rdap_language)
             print(json.dumps(result))
             return 0 if result['comparison_consistent'] else 1
         if any(value is not None for value in (args.registry_records,args.feed,args.feed_url,args.reference_policy,
-                                               args.registry_format,args.registry_observed_at)):
+                                               args.registry_format,args.registry_observed_at,args.rdap_language)):
             raise GeofeedError('Registry reference flags require check-registry; no write attempted')
         if args.probe_cache and args.command!='inspect-wordpress':
             raise GeofeedError('--probe-cache requires inspect-wordpress; no write attempted')

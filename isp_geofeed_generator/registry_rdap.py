@@ -8,6 +8,7 @@ from .client import GeofeedError
 from .feed import digest
 from .registry_check import _invalid_constant, _unique_json, feed_url
 from .rdap_redaction import validate_redactions
+from .rdap_language import language_tag, select_language
 
 
 def _finite_float(value):
@@ -41,7 +42,7 @@ def _complete(source):
     return redactions
 
 
-def _link(source):
+def _link(source, rdap_language):
     links = source.get('links', [])
     if not isinstance(links, list) or len(links) > 200:
         raise ValueError()
@@ -66,18 +67,28 @@ def _link(source):
             raise ValueError()
         if 'type' in link and (not _text(link['type'], 128) or link['type'].lower() != 'application/geofeed+csv'):
             raise ValueError()
-        references.append(link['href'])
+        references.append(link)
     if len(references) > 1:
-        raise GeofeedError('Saved RDAP has multiple geofeed links; language/alternative selection is unsupported, no comparison made')
-    return references[0] if references else None
+        if rdap_language is None:
+            raise GeofeedError('Saved RDAP has multiple geofeed links; choose --rdap-language explicitly, no comparison made')
+    if rdap_language is None:
+        reference = references[0]['href'] if references else None
+    else:
+        reference = select_language(references, rdap_language)
+    return reference, {'rdap_geofeed_link_count': len(references),
+                       'rdap_requested_language': rdap_language,
+                       'rdap_link_selection': 'no_link' if reference is None else
+                           'exact_language' if rdap_language is not None else 'single_link'}
 
 
-def normalize_rdap(data, observed_at):
+def normalize_rdap(data, observed_at, *, rdap_language=None):
     """One saved lookup object becomes one exact unsigned scope and safe metadata."""
     if not isinstance(data, bytes) or len(data) > 8_000_000:
         raise GeofeedError('Saved RDAP JSON exceeds the supported input limit')
     if not isinstance(observed_at, str):
         raise GeofeedError('Saved RDAP requires its actual observation date; no registry read was made')
+    if rdap_language is not None:
+        rdap_language = language_tag(rdap_language)
     try:
         source = json.loads(data, object_pairs_hook=_unique_json, parse_constant=_invalid_constant,
                             parse_float=_finite_float)
@@ -97,14 +108,14 @@ def normalize_rdap(data, observed_at):
         if (not isinstance(declarations, list) or len(declarations) > 100
                 or any(not _text(value, 128) for value in declarations) or len(set(declarations)) != len(declarations)):
             raise ValueError()
-        reference = _link(source)
+        reference, selection = _link(source, rdap_language)
         scope = {'start': str(start), 'end': str(end)}
         identity = 'rdap:' + digest(json.dumps({'handle': handle, **scope}, sort_keys=True).encode())
         row = {'id': identity, **scope}
         if reference is not None:
             row['geofeed'] = reference
         advertised = 'geofeed1' in declarations
-        metadata = {'registry_source': 'operator_supplied_rdap', 'rdap_geofeed1_advertised': advertised,
+        metadata = {**selection, 'registry_source': 'operator_supplied_rdap', 'rdap_geofeed1_advertised': advertised,
                     'rdap_ignored_entity_redactions': redactions,
                     'rdap_redaction_status': 'ignored_entities_only' if redactions else 'not_present',
                     'rdap_link_status': 'link_returned' if reference is not None else

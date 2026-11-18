@@ -7,7 +7,7 @@ from .feed import digest
 from .local_output import read_output
 from .overlap import REJECT
 from .registry_check import MAX_OBJECTS, _load_snapshot, check_files, check_snapshot
-from .registry_formats import INPUT_FORMATS, normalize_input
+from .registry_formats import INPUT_FORMATS, normalize_input, rdap_options
 
 MAX_FILES = 32
 MAX_BYTES = 8_000_000
@@ -17,8 +17,9 @@ def _encode(value):
     return json.dumps(value, ensure_ascii=True, separators=(',', ':'), allow_nan=False).encode()
 
 
-def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, input_format='normalized', observed_at=None):
+def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, input_format='normalized', observed_at=None, rdap_language=None):
     """Every file and date participates. A refusal never becomes a partial report."""
+    options = rdap_options(input_format, rdap_language)
     if not isinstance(paths, (list, tuple)) or not 1 <= len(paths) <= MAX_FILES:
         raise GeofeedError('Registry comparison requires 1 to 32 explicitly supplied input files')
     if input_format not in INPUT_FORMATS:
@@ -35,7 +36,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
     if len(paths) == 1:
         # Preserve the existing single-file API/report, including the raw-file hash.
         return check_files(paths[0], feed_path, expected_url, overlap_policy=overlap_policy,
-                           input_format=input_format, observed_at=dates[0])
+                           input_format=input_format, observed_at=dates[0], **options)
 
     now = datetime.now(timezone.utc)
     remaining, total_objects, rows, inputs, stamps = MAX_BYTES, 0, [], [], []
@@ -45,7 +46,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
             if snapshot.identity is None:
                 raise GeofeedError('Registry input must be an existing bounded regular file')
             remaining -= len(snapshot.data)
-            data, metadata = normalize_input(snapshot.data, input_format, dates[index - 1])
+            data, metadata = normalize_input(snapshot.data, input_format, dates[index - 1], **options)
             source, stamp = _load_snapshot(data, now)
             total_objects += len(source['objects'])
             if total_objects > MAX_OBJECTS:
@@ -83,4 +84,6 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
         result['rdap_linked_inputs'] = sum(item['rdap_link_status'] == 'link_returned' for item in inputs)
         result['rdap_absence_unknown_inputs'] = sum(item['rdap_link_status'] == 'availability_not_measured' for item in inputs)
         result['rdap_ignored_entity_redactions'] = sum(item['rdap_ignored_entity_redactions'] for item in inputs)
+        result['rdap_requested_language'] = options.get('rdap_language')
+        result['rdap_language_selected_inputs'] = sum(item['rdap_link_selection'] == 'exact_language' for item in inputs)
     return result

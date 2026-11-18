@@ -55,7 +55,7 @@ Reports distinguish the saved view with these fixed values:
 
 | `rdap_link_status` | What was observed |
 | --- | --- |
-| `link_returned` | The supplied network object includes one supported geofeed link. |
+| `link_returned` | One supported geofeed link was used, with explicit selection when required. |
 | `not_returned_with_extension` | The reply declares `geofeed1` but returns no link for this object. |
 | `availability_not_measured` | Neither the declaration nor a geofeed link was returned. |
 
@@ -70,6 +70,51 @@ text remarks and administrative country values do not locate customer addresses.
 Self, parent and other URLs are never fetched. Obtain needed parent/child replies
 separately; the checker does not prove that the set contains the complete hierarchy.
 Known child references retain the shared most-specific scope rule across files.
+
+## Choosing a declared language
+
+[RFC 9877](https://www.rfc-editor.org/rfc/rfc9877.html#section-2.2) allows several
+geofeed links for language alternatives. The default still refuses several links,
+including repeated URLs. To choose a declared language, add `--rdap-language en`
+to the saved RDAP command. The same choice applies to every supplied file.
+
+For example, in Bash on Linux:
+
+```bash
+isp-geofeed-generator check-registry --registry-format rdap --rdap-language en --registry-records /etc/isp-geofeed-generator/rdap.json --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed /var/lib/isp-geofeed-generator/candidate.csv --feed-url 'https://example.net/geofeed.csv'
+```
+
+In PowerShell on Windows:
+
+```powershell
+isp-geofeed-generator check-registry --registry-format rdap --rdap-language en --registry-records 'C:\ProgramData\ISP Geofeed Generator\rdap.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv'
+```
+
+Each geofeed link must have a supported `hreflang` string or an array of 1 to 20
+tags. A requested tag must match exactly, ignoring ASCII case. `en` does not match
+`en-US`, and `en-CA` does not match `en-US`. The checker never chooses from machine
+locale, response order, a language prefix or the expected feed URL. A selected link
+pointing to another URL still produces an inconsistent comparison.
+
+The initial subset is `language[-Script][-REGION]`: 2 to 8 ASCII letters for language,
+an optional four-letter script, then an optional two-letter or three-digit region.
+Examples are `en`, `en-US`, `zh-Hant-TW` and `es-419`. Tags are bounded to 32 characters
+and never truncated. Variants, extlangs, extensions, private-use and grandfathered
+forms need further reader support. They may be valid
+[BCP 47 tags](https://www.rfc-editor.org/rfc/rfc5646.html). This reader checks shape,
+not IANA registration, aliases, actual content language or translation.
+
+Every geofeed link is checked before selection, including unselected alternatives.
+Missing or malformed labels, unsupported tags, repeated labels within or across
+links, and no exact match refuse the whole set. Repeated labels are refused even on
+unselected links. Do not edit labels, drop alternatives or change privacy settings
+to force a pass. These refusals describe reader limits or ambiguous supplied data;
+they do not establish that a platform cannot model language alternatives.
+
+With no geofeed links, the existing absent/unknown-availability result remains.
+With no language option, a single link still works without relying on its language
+metadata. The option is refused for other saved formats and publication commands.
+No link is fetched, and this does not choose the language of a published feed.
 
 ## Refusals and bounds
 
@@ -128,9 +173,9 @@ a correctly dated CLI import of that reply remains unmeasured. No new lookup was
 made for this follow-up. Classification does not establish full interoperability,
 that a path matches data, or that a server applied redaction correctly.
 
-Multiple geofeed links also stop the initial reader, including repeated URLs.
-RFC 9877 allows language alternatives; choosing among them is not implemented here.
-This is a reader limit, not invalidity of every response with several links.
+Several geofeed links require the explicit supported language choice described
+above. Without it, they still stop the comparison. An ambiguous or unsafe later
+file stops the whole command without a partial report.
 Duplicate object versions, same-scope ambiguity and crossing scopes retain the
 existing shared checks. No link or later file is silently dropped.
 
@@ -145,6 +190,12 @@ unknown-absence inputs. The oldest date describes the combined comparison. Origi
 in `snapshot_inputs`; the top-level snapshot hash describes combined normalized data.
 See [multi-file hash meanings](ripe-registry-input.md#more-than-one-response).
 
+`rdap_requested_language` is the lowercased requested tag or null.
+`rdap_geofeed_link_count` counts the original object's geofeed links.
+`rdap_link_selection` is `single_link`, `exact_language` or `no_link`. Multi-file
+reports keep those per-input fields, the common requested language and a total
+`rdap_language_selected_inputs`. These fields describe declared metadata only.
+
 Reports omit raw contacts, handles, reference URLs and input paths. Dates are supplied
 by the operator. Reads occur separately and do not form an atomic snapshot. No report
 claims publication health. Bootstrap authority, ownership, signatures, current
@@ -154,5 +205,5 @@ allocation, public retrieval and provider ingestion remain unverified. Existing
 On refusal, keep feed, status and recovery files intact. Correct the saved input set
 and rerun the read-only check. Return to the prior compatible version and its saved
 RIPE or normalized input to undo this source change. No registry or hosting migration
-is needed. Live lookup, language selection, signatures and further discovery work stay
+is needed. Live lookup, further language-tag support, signatures and discovery work stay
 open under [#70](https://github.com/MHammett/isp-geofeed-generator/issues/70).
