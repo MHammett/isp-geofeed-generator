@@ -1398,8 +1398,11 @@ class Workload:
             check(statuses==expected and methods==expected_methods and all(value['path']==path for value in puts),
                   'one failed publication and only the justified conditional restore; no blind retries')
             expected_queries=3 if scenario=='admin-restore' else 2
-            check(len((self.control/'write-sizes.log').read_text().splitlines())-query_count==expected_queries,
+            query_records=(self.control/'write-sizes.log').read_text().splitlines()[query_count:]
+            check(len(query_records)==expected_queries,
                   'only candidate plus restore or competing actor reaches the query filter')
+            if first_publication:check(query_records[0].split()[0]==('INSERT' if version==1 else 'UPDATE'),
+                                       'first feed uses actual absent-row insert or configured-policy update')
             snapshot,doc=self.snapshot()
             if scenario=='recover':
                 check(doc['csv'].encode()==first and doc['previous_csv'].encode()==candidate
@@ -1421,7 +1424,9 @@ class Workload:
             if version==2:
                 metadata=json.loads((state/'before-policy.json').read_text())
                 check(metadata['before_publication_id']==before['publication_id'] and metadata['before_sha256']==digest(first)
-                      and metadata['candidate_publication_id']==seen['proof']['publication_id'],
+                      and metadata['candidate_publication_id']==seen['proof']['publication_id']
+                      and metadata['before_policy']==before_policy and metadata['before_required_policy']==policy
+                      and metadata['candidate_policy']==policy and metadata['candidate_sha256']==digest(candidate),
                       'private recovery metadata binds original baseline and failed candidate owner')
             check(len(proof_path.read_text().splitlines())-proof_count==1 and not flag.exists(),
                   'restore and competing writes do not fire the consumed fault again')
@@ -1444,7 +1449,9 @@ class Workload:
                       and after['csv'].encode()==candidate and after['previous_csv'].encode()==first
                       and self.request('GET',FEED)[2]==candidate,'same candidate passes normally after fault removal and verified recovery')
                 if version==2:check(after['overlap_policy']==after['required_overlap_policy']==policy
-                                  and after['previous_overlap_policy']==before_policy,'normal same candidate preserves restored baseline policy history')
+                                  and after['previous_overlap_policy']==before_policy
+                                  and after['publication_id'] not in (doc['publication_id'],seen['proof']['publication_id']),
+                                  'normal same candidate owns a new identity and preserves restored baseline policy history')
             marker='FIRST PUBLICATION OOM OBSERVATION: ' if first_publication else 'AFTER COMMIT OOM OBSERVATION: '
             print(marker+json.dumps({'api_version':version,'size':size_label,'scenario':scenario,
                 'candidate_bytes':len(candidate),'commit_sha256':seen['proof']['sha256'],
@@ -1454,6 +1461,7 @@ class Workload:
                 'one_shot_consumed':True,'runner_http_statuses':statuses,'runner_http_methods':methods,'failure_healthy':status['healthy'],
                 'before_row_absent':first_publication and version==1,'before_policy':before_policy,
                 'recovery_public_status':404 if first_publication and scenario=='recover' else None,
+                'first_write_verb':query_records[0].split()[0],'last_good_absent_after_failure':first_publication,
                 'query_filter_calls':expected_queries,'injected_actor_puts':seen.get('actor_puts',0),
                 'admin_policy_round_trip':scenario=='admin-restore',
                 'baseline_restored':scenario=='recover','competing_actor_preserved':scenario!='recover',

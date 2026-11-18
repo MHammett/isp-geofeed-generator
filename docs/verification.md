@@ -1,5 +1,28 @@
 # Verification
 
+## First-publication crashes and conditional DELETE
+
+Observed on 2026-11-18 from [hosted run 44330999200](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44330999200)
+at `b920e40`. All eight jobs passed, including five Python jobs running 353 tests.
+The new workload passed eight genuine first-publication OOM cases on both APIs.
+Two recovered their own candidate through DELETE, verified public HTTP 404 and then
+published the same candidate normally. Six preserved competing publisher/admin state.
+Three of those blocked stale DELETEs with HTTP 409. The v2 administrator round trip
+returned bytes and policy to the same values but changed the owner ID.
+
+The separate disabled-allocator control committed, returned an ordinary HTTP 503,
+recovered through DELETE and recorded no OOM. It failed the intended crash assertion.
+The intact fixture was restored before the eight genuine crashes. Failed first runs
+kept exact empty private baselines and did not create a last-good file. Only the original
+request exhausted memory; DELETEs and competing feed writes ran normally at `256M`.
+
+V1 began without a row; v2 began with the administrator's empty policy row. V2 recovery
+restored empty `reject` content while retaining the required `longest_prefix` setting
+and keeping the failed candidate in history. See the [workload and measured outcomes](wordpress-integration.md#first-publication-crash-workload).
+All ten earlier changed-feed crash cases and their negative control also passed.
+These small first-feed cases do not establish near-limit first-feed capacity, hard-kill
+recovery, whole-host memory or managed-host/CDN behavior. No production code changed.
+
 ## Real after-commit PHP crashes and owner protection
 
 Observed on 2026-11-17 from [hosted run 44174167353](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44174167353)
@@ -24,7 +47,8 @@ credential, installed-range and external-validator workloads also passed.
 
 See [the exact outcomes and scope](wordpress-integration.md#measured-after-commit-crash-and-ownership-outcomes).
 V1 races protect competing changed bytes; v2 also tests same-byte owner changes. No
-production plugin, publisher or storage code changed. First-publication OOM, hard
+production plugin, publisher or storage code changed. First-publication OOM was
+unmeasured at that head; the later workload above covers small first feeds. Hard
 process kills, total host capacity and managed-host/CDN behavior remain unmeasured.
 
 ## Finite PHP memory and actual exhaustion

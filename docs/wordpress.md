@@ -183,6 +183,14 @@ when recovery is unsafe. Verified restoration does not turn the failed run healt
 a deliberate later publication must pass its own checks. Do not infer stored state
 from an HTTP status alone or blindly repeat a failed write.
 
+A [separate first-publication trial](wordpress-integration.md#first-publication-crash-workload)
+checks recovery when no feed existed before the failed save. Safe conditional DELETE
+returns the public route to HTTP 404 and keeps the failed candidate in stored history.
+Another publisher or administrator can block that DELETE; the runner then stops for
+attention and preserves their state. Failed first runs keep an empty private baseline
+and do not create a last-good file. Verify the empty stored/public state before a
+deliberate new publication; inspect any competing owner before taking recovery action.
+
 An optional [post-commit delivery action](wordpress-delivery-hooks.md) lets a separate
 local plugin request a narrow cache purge. It runs only after changed feed writes and
 does not replace public verification. A callback failure can return HTTP 503 after the

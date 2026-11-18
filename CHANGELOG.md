@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- First-publication crash tests cover conditional DELETE recovery to an empty feed, competing publisher/admin protection, exact private empty baselines and rejection of ordinary errors as fatal-crash evidence.
+
 - Real after-commit PHP exhaustion tests verify one-shot crash ordering, conditional recovery, competing publisher/admin protection before inspection and restore, and normal same-candidate publication after recovery. A disabled-allocator control must fail crash verification.
 
 - Disposable WordPress tests use finite PHP memory, prove small-feed success and real large-feed exhaustion at a lower budget, verify preserved baseline/history, and require the same candidate to succeed after a measured correction. Peak allocation and configured limits are reported separately.

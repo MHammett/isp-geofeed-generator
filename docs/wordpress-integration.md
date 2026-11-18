@@ -412,9 +412,9 @@ exception cannot pass as a real memory crash, and the checkout is never mutated 
 control.
 
 Controls and interception callbacks are removed in `finally` and on close. These are
-changed-publication tests on the disposable loopback stack. First-publication exhaustion,
-hard process/kernel kills, whole-host capacity and managed-host/CDN behavior remain
-separate from this evidence.
+changed-publication tests on the disposable loopback stack. The separate first-publication
+workload below covers recovery to an empty feed. Hard process/kernel kills, whole-host
+capacity and managed-host/CDN behavior remain separate from this evidence.
 
 ### Measured after-commit crash and ownership outcomes
 
@@ -451,8 +451,63 @@ Each failure cycle made two geofeed query-filter calls: the candidate plus its r
 or the competing actor. The admin round-trip case made three because the administrator
 made two real policy changes. The three stale restores were refused before another
 geofeed write query. These counts do not measure raw driver retries. No restore or
-competing feed request had a second OOM record. First-publication crashes, hard kills,
-total host memory and the actual managed-host/CDN path remain unmeasured.
+competing feed request had a second OOM record. First-publication crashes were unmeasured
+at that revision; the separate workload below adds that coverage. Hard kills, total host
+memory and the actual managed-host/CDN path remain unmeasured.
+
+### First-publication crash workload
+
+Issue [#85](https://github.com/MHammett/isp-geofeed-generator/issues/85) tracks the
+empty-baseline path. A first publication cannot recover by uploading an old feed.
+It must conditionally DELETE only its own failed candidate. The public route then
+returns HTTP 404. The empty document retains the failed candidate in history; this
+does not remove all database evidence of the attempt.
+
+The v1 trial starts with no document row. Its first feed write must be an actual
+INSERT. The v2 trial starts with an administrator-configured empty policy row, since
+nested publication requires that opt-in. Its first feed write is an UPDATE. In v2,
+the empty baseline uses `reject` while the required policy is `longest_prefix`.
+Recovery must restore that exact pair and the failed candidate's history, with a
+new owner ID. Treating both policies as interchangeable would miss this case.
+
+Eight small-feed cases reuse the bounded, consumed fault and independent pre-response
+snapshot above. Two recover through real DELETE requests, keep the run unhealthy,
+verify public HTTP 404 and then publish the same candidate in a deliberate normal
+run. Six protect a publisher or administrator before inspection or just before DELETE.
+The administrator round trip restores the same bytes and policy with a new owner ID;
+that ID must still block the stale DELETE. v1 tests changed competing bytes because
+it has no owner ID.
+
+Each failed first run must leave an exact empty private `before.csv` and no
+`last-good.csv`. V2 also checks the original empty baseline's owner, both policies
+and the failed candidate's owner in private recovery metadata. The shutdown logger
+records feed DELETEs as well as PUTs, so the test verifies that recovery runs at the
+normal `256M` setting without another OOM. Lower-memory before-commit controls still
+apply only to PUTs.
+
+A separate disabled-allocator control starts with the empty v2 baseline. It must
+commit, consume the flag, return an ordinary HTTP 503, safely DELETE its candidate
+and fail the real-crash assertion. It must record no OOM. The exact installed fixture
+is restored before the eight genuine crashes. This keeps an ordinary callback failure
+from passing as a first-publication fatal crash.
+
+On 2026-11-18, [hosted run 44330999200](https://github.com/MHammett/isp-geofeed-generator/actions/runs/44330999200)
+at `b920e40` passed all eight jobs and all eight first-publication cases. The two
+recoveries used runner methods `PUT, DELETE` with origin statuses `500, 200` and
+verified public HTTP 404. Both then verified the same candidate normally. Three
+competing actors won before inspection, so no DELETE was sent (`500` only). Three
+won just before DELETE, which received origin HTTP 409 (`500, 409`). Each winner's
+raw stored document and public bytes stayed exact. All failed runs remained unhealthy.
+
+The ordinary-error control returned `503, 200` for `PUT, DELETE`, recorded no OOM,
+returned public HTTP 404 and failed the intended real-crash assertion. The eight
+genuine crashes each measured 44,040,192 bytes allocated before the fault, lowered
+the limit to 60,817,408 bytes and recorded that same fatal peak. These small synthetic
+requests and artificial thresholds are timing/failure evidence, not host sizing.
+
+No publisher, plugin or storage behavior changes for these checks. They cover small
+first publications on the disposable loopback stack. Near-limit first publications,
+hard process kills, whole-host capacity and managed-host/CDN paths remain unmeasured.
 
 ## Version-2 policy workload
 
