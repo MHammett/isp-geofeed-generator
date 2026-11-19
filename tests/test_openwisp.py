@@ -234,8 +234,11 @@ class OpenWISPTests(unittest.TestCase):
             config['inputs']['infra']['source']['allow_initial'] = True
             self.assertEqual(run(good), 0)
             before = (root/'feed.csv').read_bytes(); stamp = (root/'feed.csv').stat().st_mtime_ns
+            recovery = root/'state/before.csv'
+            recovery_before = (recovery.read_bytes(), recovery.stat().st_mtime_ns)
             self.assertEqual(run(good), 0)
             self.assertEqual((root/'feed.csv').stat().st_mtime_ns, stamp)
+            self.assertEqual((recovery.read_bytes(), recovery.stat().st_mtime_ns), recovery_before)
             backup = root/'state/private-backup'; backup.write_bytes(b'PRIVATE backup')
             for bad in ({**row(V6, PREFIXES[1]), 'organization': OTHER}, {},
                         {**row(V6, PREFIXES[1]), 'subnet': 'PRIVATE'},
@@ -244,4 +247,5 @@ class OpenWISPTests(unittest.TestCase):
                 self.assertEqual((root/'feed.csv').read_bytes(), before)
                 self.assertEqual((root/'feed.csv').stat().st_mtime_ns, stamp)
                 self.assertEqual(backup.read_bytes(), b'PRIVATE backup')
+                self.assertEqual((recovery.read_bytes(), recovery.stat().st_mtime_ns), recovery_before)
                 self.assertFalse(json.loads((root/'state/status.json').read_text())['data']['healthy'])

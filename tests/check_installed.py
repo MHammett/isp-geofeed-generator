@@ -551,14 +551,15 @@ owconfig['inputs']['ipam']['source']['allow_initial']=True
 assert owrun(owrows)==(0,owids)
 assert [str(n) for n in parse_feed(owfeed.read_bytes())]==owprefixes
 owbackup.write_bytes(b'PRIVATE backup')
-owbefore={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}
+owfiles=(owfeed,owbackup,root/'openwisp-state/before.csv')
+owbefore={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}
 assert owrun(owrows)==(0,owids)
-assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}==owbefore
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}==owbefore
 for change in ({'id':oworg},{'organization':None},{'organization':owids[0]},
                {'subnet':'2001:4860:1234::1/126'},{'subnet':'2001:4860:1234::%PRIVATE/126'},
                {'subnet':'PRIVATE'}):
     assert owrun([owrows[0],{**owrows[1],**change}])[0]==1
-    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}==owbefore
+    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}==owbefore
     assert not json.loads((root/'openwisp-state/status.json').read_text())['data']['healthy']
 print('OPENWISP INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'selected_gets_only':True,
     'initial_opt_in_required':True,'identity_refused':True,'organization_refused':True,
