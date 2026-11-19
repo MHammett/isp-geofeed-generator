@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Initial BlueCat BAM RESTful v2 input reads selected IPv4/IPv6 networks with configuration and family checks, explicit private geography and secure existing-token references. The public 9.6 profile remains initial pending operator testing; native location and session lifecycle gaps are documented.
+
 - Offline registry comparisons can read complete RDAP capture folders, verify their local consistency and use their original dates and language choices. UTC fractional seconds are accepted and preserved in raw and combined checks. Capture files remain unauthenticated evidence; no network or publication action is added.
 
 - Initial explicit RDAP capture preserves one planned public response and actual observation metadata in a new restricted folder before parsing. Redirects, retries, unsafe or partial replies and uncovered query scope are refused without publication changes.

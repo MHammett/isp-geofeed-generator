@@ -672,6 +672,45 @@ print('CAPTURE INPUT INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'rece
     'raw_fractional_dates_accepted':True,'every_input_used':True,'late_hash_refused':True,'date_override_refused':True,
     'no_partial_report':True,'private_files_preserved':True,'no_configuration_or_network':True,
     'authenticity_unmeasured':True}))
+assert SOURCES['bluecat_bam'].initial
+bam_prefixes=['11.22.33.0/24','2001:4860:123a::/126']
+bam_rows=[{'id':1001,'type':'IPv4Network','range':bam_prefixes[0],'configuration':{'id':101}},
+          {'id':1002,'type':'IPv6Network','range':'2001:4860:123A::/126','configuration':{'id':101}}]
+bam_config={'inputs':{'ipam':{'source':{'type':'bluecat_bam','configuration_id':101,'network_ids':[1001,1002]},
+    'url':'https://bam.example/api/v2',
+    'credentials':{'BLUECAT_BAM_USERNAME':'env:EXT_BAM_USER','BLUECAT_BAM_API_TOKEN':'env:EXT_BAM_TOKEN'},
+    'site_locations':{'network:'+str(rid):{'country':'US','region':'US-IL','city':'Reviewed City'} for rid in (1001,1002)}}},
+    'allowed_prefixes':bam_prefixes,'bogons':bogons,'state_dir':str(root/'bam-state'),
+    'publish':{'type':'file','path':str(root/'bam-feed.csv')}}
+bam_path=root/'bam.yaml';bam_feed=root/'bam-feed.csv'
+def bam_run(rows):
+    bam_path.write_text(yaml.safe_dump(bam_config));calls=[];replies=iter(rows)
+    def request(url,**kwargs):
+        assert url=='https://bam.example/api/v2/networks/'+str((1001,1002)[len(calls)])
+        assert kwargs['method']=='GET' and set(kwargs)=={'headers','method'}
+        assert kwargs['headers']=={'Authorization':'Basic cmVhZGVyOnN5bnRoZXRpYy10b2tlbg==','Accept':'application/hal+json'}
+        calls.append(url);return next(replies)
+    output,error=io.StringIO(),io.StringIO()
+    with patch.dict('os.environ',{'EXT_BAM_USER':'reader','EXT_BAM_TOKEN':'synthetic-token'}), \\
+         patch('isp_geofeed_generator.bluecat_bam.JsonHTTP.request',side_effect=request), \\
+         contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):status=main(['publish','--config',str(bam_path)])
+    assert 'synthetic-token' not in output.getvalue()+error.getvalue()
+    return status,len(calls)
+assert bam_run(bam_rows)[0]==1 and not bam_feed.exists()
+bam_config['inputs']['ipam']['source']['allow_initial']=True
+assert bam_run(bam_rows)==(0,2)
+assert [str(net) for net in parse_feed(bam_feed.read_bytes())]==bam_prefixes
+bam_files=(bam_feed,root/'bam-state/before.csv')
+bam_before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in bam_files}
+assert bam_run(bam_rows)==(0,2)
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in bam_files}==bam_before
+for change in ({'id':9999},{'configuration':{'id':202}},{'range':'2001:4860:123A::1/126'}):
+    assert bam_run([bam_rows[0],{**bam_rows[1],**change}])[0]==1
+    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in bam_files}==bam_before
+    assert not json.loads((root/'bam-state/status.json').read_text())['data']['healthy']
+print('BLUECAT BAM INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'uppercase_ipv6_exact':True,
+    'selected_gets_only':True,'initial_opt_in_required':True,'late_identity_configuration_boundary_refused':True,
+    'unchanged_not_rewritten':True,'recovery_preserved':True,'token_not_reported':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

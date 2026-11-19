@@ -22,6 +22,12 @@ are recorded below; they do not prove that private documentation or an API is ab
 
 ## IPAM leads
 
+On 2026-11-19, the public 9.6 Fields, Resources and Basic-authentication pages
+established the narrower [initial selected-network reader](bluecat-bam.md), tracked
+in [#114](https://github.com/MHammett/isp-geofeed-generator/issues/114). It uses
+configured geography and an externally supplied current token. It does not claim
+full OpenAPI coverage, native effective locations or automatic session renewal.
+
 | Product and API family/version | Verified read contract | Geography, access and next step |
 | --- | --- | --- |
 | [Infoblox NIOS WAPI 2.13.6](https://docs.infoblox.com/download/attachments/15433773/Infoblox%20NIOS%20WAPI%209.x%20Reference%20Guide.pdf) | Public manual defines `network` and `ipv6network`, `_ref`, CIDR `network`, `network_view`, extensible attributes and token-based result paging. HTTPS Basic and certificate auth are documented; users need API rights. | Candidate for initial network reads with explicit geolocation attributes. A network view is an address namespace, not a facility. Instance read rights and populated attributes still need operator tests. Keep this NIOS contract separate from Infoblox cloud APIs. |

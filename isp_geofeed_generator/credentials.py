@@ -8,6 +8,7 @@ from .client import GeofeedError
 
 NAMES = frozenset({"SONAR_API_TOKEN", "NETBOX_API_TOKEN", "WP_APP_PASSWORD",
                    "OPENWISP_API_TOKEN",
+                   "BLUECAT_BAM_USERNAME", "BLUECAT_BAM_API_TOKEN",
                    "WP_POLICY_ADMIN_APP_PASSWORD",
                    "BILLMAX_API_KEY", "BILLMAX_USERNAME", "BILLMAX_PASSWORD",
                    "INFOBLOX_NIOS_USERNAME", "INFOBLOX_NIOS_PASSWORD",

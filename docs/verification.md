@@ -1,5 +1,27 @@
 # Verification
 
+## Initial BlueCat BAM network profile
+
+On 2026-11-19, the local Windows full suite passed 543 tests in 40.472 seconds
+with two POSIX-only skips. Twelve new adapter tests cover selected IPv4/IPv6 GETs,
+the documented uppercase IPv6 form, exact numeric/configuration/family checks,
+scoped credentials, token denial, missing selections and unchanged feed/recovery
+files on late failure. Shared allocation, bogon and overlap guards are exercised.
+Private identity, configuration and family guard removals each cause one assertion
+failure with zero errors; intact controls pass before and after.
+
+The installed CLI workload passed outside the checkout. It verifies exact dual-stack
+coverage, selected GETs and Basic username/API-token auth, initial opt-in, no rewrite
+on an unchanged run, and preservation of actual recovery bytes/timestamps after
+late ID, configuration or boundary failures. The token is not reported.
+
+This is a public 9.6 Fields/Resources/Basic-authentication example profile, not full
+OpenAPI conformance or a live BlueCat test. Native location capability is positively
+documented, but the effective-location API join is not implemented here. Existing
+tokens must be provisioned and renewed outside the adapter. These limits are tracked
+in #115 and #116 and are separate from instance setup or platform capability.
+See [BlueCat setup and recovery](bluecat-bam.md). Hosted evidence is recorded in the PR.
+
 ## Capture folders and exact receipt dates
 
 On 2026-11-19, a saved-RDAP workload using a capture-shaped microsecond timestamp

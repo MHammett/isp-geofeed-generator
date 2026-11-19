@@ -35,6 +35,7 @@ data is LGPL-2.1 with [upstream notices](THIRD_PARTY_NOTICES.md).
 | BillMax Core v1 | Initial selected IPv4 AP networks and native POP expansion; schema/fixture checks; not live-tested |
 | Infoblox NIOS WAPI 2.13.6 | Initial IPv4/IPv6 networks with declared geography attributes; fixture checks; not live-tested |
 | [OpenWISP IPAM 1.3.1](docs/openwisp.md) | Initial selected IPv4/IPv6 subnets in one organization, with explicit location settings; fixture checks; not live-tested |
+| [BlueCat BAM RESTful v2](docs/bluecat-bam.md) | Initial 9.6 selected IPv4/IPv6 network profile, configured geography and externally managed API token; not live-tested |
 
 [The platform matrix](docs/platforms.md) separates platform capability, instance setup and adapter verification.
 For a failed source read, see [record-level troubleshooting](docs/source-errors.md).
