@@ -187,6 +187,30 @@ class RdapLanguageTests(unittest.TestCase):
             for value in ('PRIVATE',URL,OTHER,str(reply)):self.assertNotIn(value,output.getvalue())
             self.assertEqual({p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()},before)
 
+    def test_mixed_multilingual_and_unlabeled_single_link_files_refuse_as_a_whole(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);feed=root/'feed.csv';feed.write_bytes(CSV)
+            paths=[root/'parent.json',root/'child.json']
+            paths[0].write_bytes(saved(network(links=alternatives())))
+            paths[1].write_bytes(saved(network(handle='CHILD',endAddress='11.22.33.127',links=[link(OTHER)])))
+            (root/'status.json').write_bytes(b'failed status');(root/'before.csv').write_bytes(b'baseline')
+            before={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()}
+            common=['check-registry','--registry-format','rdap','--feed',str(feed),'--feed-url',URL]
+            records=[['--registry-records',str(path),'--registry-observed-at',STAMP] for path in paths]
+            output=io.StringIO();error=io.StringIO()
+            with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):
+                self.assertEqual(main(common+records[0]+records[1]+['--rdap-language','en']),1)
+            self.assertEqual(output.getvalue(),'');self.assertIn('Registry input 2',error.getvalue())
+            self.assertIn('hreflang labels',error.getvalue())
+            # Separate reports are possible, but neither is the combined hierarchy.
+            output=io.StringIO()
+            with contextlib.redirect_stdout(output):self.assertEqual(main(common+records[0]+['--rdap-language','en']),0)
+            self.assertEqual(json.loads(output.getvalue())['coverage']['4']['this_feed'],'256')
+            output=io.StringIO()
+            with contextlib.redirect_stdout(output):self.assertEqual(main(common+records[1]),1)
+            self.assertEqual(json.loads(output.getvalue())['coverage']['4']['other_feed'],'128')
+            self.assertEqual({p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()},before)
+
     def test_language_option_cannot_reach_other_formats_or_publication(self):
         with patch('isp_geofeed_generator.cli.load_config',side_effect=AssertionError('config read')), \
              patch.object(registry_check,'read_output',side_effect=AssertionError('input read')), \

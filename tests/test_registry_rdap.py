@@ -135,6 +135,26 @@ class RdapRegistryTests(unittest.TestCase):
             if 'redacted' in changes:self.assertIn('not supported by this reader',str(caught.exception))
             if 'errorCode' in changes:self.assertIn('error response',str(caught.exception))
 
+    def test_policy_truncation_with_a_returned_link_refuses_the_whole_set(self):
+        # Sanitized NIC.br shape from Claude's #96 review. Keep the valid link.
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);feed=root/'feed.csv';feed.write_bytes(CSV)
+            paths=[root/'one.json',root/'two.json']
+            paths[0].write_bytes(saved(network()))
+            paths[1].write_bytes(saved(network(handle='SECOND',startAddress='11.22.34.0',endAddress='11.22.34.255',
+                remarks=[{'type':'object truncated due to server policy','description':['PRIVATE data removed by policy']}])) )
+            (root/'status.json').write_bytes(b'failed status');(root/'before.csv').write_bytes(b'baseline')
+            before={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()}
+            self.assertTrue(registry_batch.check_file_set(paths[:1],feed,URL,input_format='rdap',observed_at=[STAMP])['comparison_consistent'])
+            args=['check-registry','--registry-format','rdap','--feed',str(feed),'--feed-url',URL]
+            for path in paths:args+=['--registry-records',str(path),'--registry-observed-at',STAMP]
+            output=io.StringIO();error=io.StringIO()
+            with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):self.assertEqual(main(args),1)
+            self.assertEqual(output.getvalue(),'');self.assertIn('Registry input 2',error.getvalue())
+            self.assertIn('reports truncation',error.getvalue());self.assertNotIn('PRIVATE',error.getvalue())
+            self.assertEqual(error.getvalue().count('no partial comparison made'),1)
+            self.assertEqual({p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()},before)
+
     def test_unsafe_or_unsupported_geofeed_links_are_not_dropped(self):
         for changes in ({'value':None},{'value':'https://user:PRIVATE@rdap.example/ip/1'},
                         {'value':'https://rdap.example:PRIVATE/ip/1'},{'href':'http://example.net/feed.csv'},

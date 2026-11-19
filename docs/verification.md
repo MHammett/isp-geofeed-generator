@@ -1,5 +1,28 @@
 # Verification
 
+## Recovered RDAP review requests
+
+On 2026-11-19, the full local Windows run passed 484 tests in 19.643 seconds with
+two POSIX-only skips. The two added methods retain a valid geofeed link plus a root
+server-policy truncation remark, and a set mixing labeled alternatives with an
+unlabeled single link. Both refuse the whole set without changing private files.
+The policy-shape test first exposed duplicated refusal wording (two copies where one
+was expected). The wrapper now emits that phrase once; the refusal itself is unchanged.
+
+The guide chooses continued refusal for the NIC.br shape reported in Claude's #96
+review. A returned link shows capability but cannot establish that truncation hid no
+other discovery data. The #100 limit is also explicit: separate commands are possible,
+but their results do not provide combined cross-file parent/child precedence. The
+current language option still requires declared labels on every returned link.
+
+The [review ledger](review-followup.md) records recovered #96, #98 and #100 feedback,
+Claude's independent #102 grammar oracle and older historical reviews. These reviews
+do not cover the later bootstrap planner and do not authorize a merge. Review audits
+now compare all submitted IDs with that ledger rather than using later comment times
+as cutoffs. The updated installed workload includes both refusal shapes and exact
+private-file preservation and passed locally outside the checkout. Final hosted
+evidence belongs in the PR's dated record.
+
 ## Saved-IANA RDAP planning
 
 On 2026-11-19, local Windows passed 482 tests in 26.216 seconds with two POSIX-only
@@ -15,7 +38,7 @@ The installed wheel passed outside the checkout in an isolated environment. It c
 both families, nested overrides, original hashes and date sources, explicit unmeasured
 fields, mixed-service refusal and an unsupported endpoint. Feed/status/recovery bytes
 and modification times stay exact. The first installed attempt did not start its
-workload: Windows refused its 36,041-character inline command with WinError 206.
+workload: Windows refused the oversized inline command with WinError 206.
 The saved error and measured command length identified the cause. The harness now
 runs the same code from a disposable script file outside the checkout, with PYTHONPATH
 removed. The corrected workload passed. This changes no runtime file-write guard.

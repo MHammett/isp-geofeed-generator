@@ -2,10 +2,31 @@
 
 ## Latest review coverage
 
-Observed from Claude Code's GitHub reviews submitted through 2026-11-18, including
-the review at `9262442`. Coverage is limited to the work listed
+Observed from Claude Code's GitHub reviews submitted through 2026-11-19, including
+the quoted-string review at `7568499`. Coverage is limited to the work listed
 below. BillMax and NIOS now have independent source/contract reviews; neither has a live
 tenant/grid test. These reviews are not approval to merge.
+
+Three RDAP reviews submitted on 2026-11-18 fell between an audit and the author's
+later final comments. Those comment times were incorrectly reused as audit cutoffs.
+The recovered reviews retain their original dates below. Follow-up audits now compare
+all submitted review IDs with this ledger across open and closed PRs, with pagination,
+instead of dropping reviews by time. Older records are also added with their original
+scope; recording them now does not extend their coverage to later code.
+
+| New or recovered review | Supporting evidence reported | Limits and action |
+| --- | --- | --- |
+| [#96 saved RDAP](https://github.com/MHammett/isp-geofeed-generator/pull/96#pullrequestreview-5966652162) | Checked source and RFC 9877, both nine-job runs at `24cfb0e`, a 453-test stack run and public registry replies; no defects found | NIC.br returned a geofeed link with policy truncation. Keep the refusal: the returned link does not prove a complete view. A sanitized link-plus-policy-remark control and explicit guide limit are added. Duplicate refusal wording is removed. No operator ownership or untruncated NIC.br view verified |
+| [#98 contact redaction](https://github.com/MHammett/isp-geofeed-generator/pull/98#pullrequestreview-5966652631) | Checked both nine-job runs, a 453-test stack run, 14 public RIPE replies and 25 path probes; scope/truncation/family mutations failed assertions; no defects found | Error/media mutations also produced test errors and are not pure assertion controls. This review predates the quoted-string defect and fix. The NIC.br truncation limit still applies |
+| [#100 language choice](https://github.com/MHammett/isp-geofeed-generator/pull/100#pullrequestreview-5966653130) | Reran 453 Windows tests, checked both nine-job runs and tested language copies of a real response; exact choice changes coverage; no defects found | The real response's truncation was removed only in the reviewer's local copies, so those are not accepted unmodified live imports. Mixed labeled alternatives and unlabeled singletons remain refused; separate commands lose combined parent/child precedence. That limit and its regression are now explicit. The at-least-one-match mutation was equivalent under unique-label checks |
+| [#102 quoted strings](https://github.com/MHammett/isp-geofeed-generator/pull/102#pullrequestreview-5976819514) | Reran 464 Windows tests and checked both nine-job runs; an independent RFC-grammar oracle found zero mismatches in 1.2 million cases; the parent produced 100,298 mismatches in 300,000 cases; three additional mutations caused 15, 15 and 7 failures; no defects found | DEL was excluded because the reader deliberately refuses it. Removing one redundant bound was equivalent and passed the oracle. This verifies quoted-string rules at `7568499`, not the later bootstrap planner. No merge approval was given |
+| [#37 initial fixes](https://github.com/MHammett/isp-geofeed-generator/pull/37#pullrequestreview-5913179976) | 106-test Windows run, five hosted jobs, live fullbogon lists and direct location/auth probes verified five fixes; no new extension/field/bogon defects found | One POSIX skip; no local PHP or live Powercode/gaiia/phpIPAM/older-NetBox tenant test; installed-wheel steps were not reviewed in depth |
+| [#39 Sonar IPv6](https://github.com/MHammett/isp-geofeed-generator/pull/39#pullrequestreview-5913225109) | 122-test Windows run, five hosted jobs and read-only Sonar schema introspection verified subnet/controller fields; no defects found | One POSIX skip; the inspected instance had no IPv6 subnets, so positive populated-instance publication remains unmeasured |
+| [#40 input union](https://github.com/MHammett/isp-geofeed-generator/pull/40#pullrequestreview-5913433163) | 143-test Windows run at the later base, the 136-test hosted head and credential/union/overlap review; no defects found | One POSIX skip; live combined generation/publication was not measured. Coverage applies to those reviewed revisions |
+| [#41 publication/phpIPAM](https://github.com/MHammett/isp-geofeed-generator/pull/41#pullrequestreview-5913433297) | 143-test Windows run, hosted PHP results and direct probes confirmed first-write race, token-lifetime and configured-location fixes; no defects found | One POSIX skip; local PHP and live WordPress/phpIPAM were not measured at that review |
+| [#90 Windows identity](https://github.com/MHammett/isp-geofeed-generator/pull/90#pullrequestreview-5962181748) | Reran 377 Windows tests with native attribute/ACL observations, checked both hosted runs and source; replacing ctime with zero caused four failures; no defects found | Two POSIX skips. Strict metadata stops and checked recovery remain intact; the outside actor is still unknown under #88. No OS trace or global setting change was authorized |
+
+## Previously recorded coverage
 
 | Review | Supporting evidence reported | Limits still recorded |
 | --- | --- | --- |

@@ -486,6 +486,37 @@ for index in (0,1):
 print('RDAP BOOTSTRAP INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'longest_prefix_verified':True,
     'hashes_verified':True,'date_sources_verified':True,'straddling_refused':True,'unknown_endpoint_refused':True,
     'unmeasured_fields_present':True,'no_partial_report':True,'private_files_preserved':True,'no_configuration_needed':True}))
+for source,value in zip(batch_sources,rdap_objects):
+    value.pop('redacted',None)
+    value['links']=[{'rel':'geofeed','value':'https://rdap.example/ip/object','href':url}]
+    source.write_text(json.dumps(value))
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(rdap_args)==0
+assert json.loads(output.getvalue())['comparison_consistent'] is True
+rdap_objects[1]['remarks']=[{'type':'object truncated due to server policy','description':['PRIVATE policy data removed']}]
+batch_sources[1].write_text(json.dumps(rdap_objects[1]))
+review_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+              (*batch_sources,batch_feed,feed,root/'state/status.json',backup)}
+output=io.StringIO();error=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(rdap_args)==1
+assert output.getvalue()=='' and 'Registry input 2' in error.getvalue() and 'reports truncation' in error.getvalue()
+assert error.getvalue().count('no partial comparison made')==1 and 'PRIVATE' not in error.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (*batch_sources,batch_feed,feed,root/'state/status.json',backup)}==review_prior
+rdap_objects[1].pop('remarks')
+rdap_objects[0]['links']=[{'rel':'geofeed','value':'https://rdap.example/ip/object','href':url,'hreflang':'en'},
+                        {'rel':'geofeed','value':'https://rdap.example/ip/object','href':'https://other.example/feed.csv','hreflang':'fr'}]
+for source,value in zip(batch_sources,rdap_objects):source.write_text(json.dumps(value))
+review_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+              (*batch_sources,batch_feed,feed,root/'state/status.json',backup)}
+output=io.StringIO();error=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(language_args)==1
+assert output.getvalue()=='' and 'Registry input 2' in error.getvalue() and 'hreflang labels' in error.getvalue()
+assert 'PRIVATE' not in error.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (*batch_sources,batch_feed,feed,root/'state/status.json',backup)}==review_prior
+print('RDAP REVIEW INSTALLED OBSERVATION: '+json.dumps({'policy_truncation_refused':True,'returned_link_preserved':True,
+    'mixed_unlabeled_set_refused':True,'refusal_phrase_once':True,'no_partial_report':True,'private_files_preserved':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

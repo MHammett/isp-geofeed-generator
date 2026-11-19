@@ -60,7 +60,10 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
                            'snapshot_observed_at_source': 'operator_supplied',
                            'registry_objects': len(source['objects']), **metadata})
         except GeofeedError as exc:
-            raise GeofeedError(f'Registry input {index}: {exc}; no partial comparison made') from None
+            message = str(exc)
+            if 'no partial comparison made' not in message:
+                message += '; no partial comparison made'
+            raise GeofeedError(f'Registry input {index}: {message}') from None
 
     data = _encode({'schema_version': 1, 'observed_at': min(stamps).isoformat(timespec='seconds'), 'objects': rows})
     if len(data) > MAX_BYTES:

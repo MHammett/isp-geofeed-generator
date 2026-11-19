@@ -119,6 +119,17 @@ With no language option, a single link still works without relying on its langua
 metadata. The option is refused for other saved formats and publication commands.
 No link is fetched, and this does not choose the language of a published feed.
 
+A set mixing labeled alternatives with a single unlabeled geofeed link cannot be
+checked in one command today. With the option, the unlabeled link is refused; without
+it, several links are refused. Separate commands can inspect each supported subset,
+but they lose the combined parent/child reference precedence across those subsets.
+Do not sum their coverage counts or treat separate consistent reports as one combined
+result. Keep the original records; do not invent labels or drop a child to force a pass.
+The current option requires declared language metadata on every link. Supporting
+unlabeled singletons would need a separate selection status and summary counts;
+those are not implemented. [Claude's #100 review](https://github.com/MHammett/isp-geofeed-generator/pull/100#pullrequestreview-5966653130)
+identified this usability limit.
+
 ## Refusals and bounds
 
 One command accepts at most 32 files. RDAP initially supports one network object per
@@ -133,6 +144,15 @@ Errors and typed truncation in root notices/remarks stop the comparison.
 Informational terms notices can remain. Free text is not parsed
 to guess whether more data exists; an unflagged incomplete reply cannot be detected
 from these files alone. Do not strip an error or truncation marker to force a pass.
+
+The truncation refusal also applies when one valid geofeed link was returned.
+In a [2026-11-18 review](https://github.com/MHammett/isp-geofeed-generator/pull/96#pullrequestreview-5966652162),
+Claude reported a NIC.br reply for `200.160.0.0/20`, reached through LACNIC's redirect,
+with a supported geofeed link and a root `object truncated due to server policy` remark.
+The reader keeps refusing that shape. A returned link is positive evidence that the
+server can supply geofeed links, but it does not prove a second alternative or other
+discovery data was not removed. This is a documented reader limit, not platform
+incapability or an operator setup error. No privacy setting change is requested.
 
 ### Contact redaction
 
