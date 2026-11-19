@@ -550,6 +550,8 @@ assert owrun(owrows)[0]==1 and not owfeed.exists()
 owconfig['inputs']['ipam']['source']['allow_initial']=True
 assert owrun(owrows)==(0,owids)
 assert [str(n) for n in parse_feed(owfeed.read_bytes())]==owprefixes
+owstatus=json.loads((root/'openwisp-state/status.json').read_text())['data']
+assert {r['mapping_source'] for r in owstatus['pools']}=={'configuration'}
 owbackup.write_bytes(b'PRIVATE backup')
 owfiles=(owfeed,owbackup,root/'openwisp-state/before.csv')
 owbefore={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}
@@ -564,7 +566,7 @@ for change in ({'id':oworg},{'organization':None},{'organization':owids[0]},
 print('OPENWISP INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'selected_gets_only':True,
     'initial_opt_in_required':True,'identity_refused':True,'organization_refused':True,
     'invalid_boundaries_refused':True,'unchanged_feed_not_rewritten':True,
-    'private_files_preserved':True,'secrets_not_reported':True}))
+    'private_files_preserved':True,'secrets_not_reported':True,'configured_mapping_reported':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

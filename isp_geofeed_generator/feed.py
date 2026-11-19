@@ -139,7 +139,7 @@ def build_records(snapshot, config, fields=COARSE_FIELDS):
             entries.append((net, loc, pid))
         report.append({"pool_id": pid, "site_id": sid, "result": "mapped", "prefixes": len(nets),
                        "cidrs": [str(net) for net in nets],
-                       "mapping_source": "configuration" if pid in mappings else "native_scope"})
+                       "mapping_source": "configuration" if pid in mappings or pool.get('site_id_source') == 'configuration' else "native_scope"})
     if not entries:
         raise GeofeedError("No public mapped prefixes; refusing an empty feed")
     entries.sort(key=lambda e: (e[0].version, int(e[0].network_address), e[0].prefixlen))

@@ -66,7 +66,8 @@ class OpenWISP:
             identifier = 'subnet:' + rid
             pools.append({'id': identifier, 'source_id': rid, 'source_kind': 'subnet',
                 'name': 'OpenWISP ' + identifier, 'ip_range': str(network),
-                'subnet': {'subnet': str(network)}, 'site_id': identifier})
+                'subnet': {'subnet': str(network)}, 'site_id': identifier,
+                'site_id_source': 'configuration'})
             # This is a configuration slot, not a claimed native facility.
             sites.append({'id': identifier, 'name': 'Configured OpenWISP subnet location',
                           'addresses': [{'id': identifier}]})

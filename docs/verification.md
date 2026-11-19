@@ -6,8 +6,9 @@ On 2026-11-19, 13 targeted Windows tests passed. They cover exact IPv4/IPv6
 subnet detail reads, explicit location and coordinate settings, scoped credentials,
 organization and identity refusal, malformed boundaries, required input union with
 NetBox, and preservation of feed bytes and timestamps on failure or an unchanged run.
-Private copies with tenant, identity and canonical-boundary guards removed produced
-6, 3 and 3 assertion failures, respectively, with zero test errors. Intact positive
+Private copies with tenant, identity, canonical-boundary and location-provenance
+checks removed or mislabeled produced 6, 3, 3 and 1 assertion failures, respectively,
+with zero test errors. Intact positive
 and negative controls passed before and after each copy. The first calibration
 attempt also exposed test-harness errors; those were corrected before these counts.
 
@@ -15,7 +16,8 @@ The installed-wheel workload passed outside the checkout, with both IP families,
 only selected GET routes, initial-support opt-in, refusal cases, exact private
 file preservation and no token or unselected response data in reports.
 
-The local full suite ran 497 tests in 20.759 seconds. It did **not** pass: one
+Before the later report-provenance correction, the local full suite ran 497 tests
+in 20.759 seconds. It did **not** pass: one
 failure and eight errors, with two POSIX skips. Logs show ctime changes during
 existing nested publication and registry reads. Two native mutation controls
 stopped before their planned mutation, so those controls were not measured in that

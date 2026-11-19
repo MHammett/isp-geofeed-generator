@@ -38,7 +38,8 @@ address hierarchy, not a shared geolocation.
 
 Select only subnets whose **entire range** belongs at the intended coarse location.
 Supply `site_locations` for each synthetic `subnet:<uuid>` slot. These are private
-generator settings, not facility records created or read in OpenWISP. Reuse the
+generator settings, not facility records created or read in OpenWISP. The report
+labels these mappings as `configuration`, not `native_scope`. Reuse the
 same reviewed geography when several subnets belong at one facility. Do not map a
 large aggregate to one town when its children serve several towns. Explicitly
 select the appropriate smaller subnets instead.

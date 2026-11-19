@@ -50,6 +50,13 @@ The example file must contain the normalized `pools` and `sites` model. Generate
 first. Both example adapters default to initial support, so publication remains blocked until
 you explicitly opt in to the tested source and target. These flags do not certify an extension.
 
+For a synthetic location slot supplied by private configuration, a normalized pool
+may set `site_id_source: configuration`. The report then labels that mapping as
+configured. Without this optional metadata, an adapter-supplied `site_id` retains
+the existing `native_scope` label. Explicit `pool_sites` mappings always report
+configuration. This metadata changes the report only; it grants no access and skips
+no location, ownership or publication checks. OpenWISP uses it for per-subnet slots.
+
 ## Extension contract
 
 Use the supported `isp_geofeed_generator.sdk` imports. The adapter API version is `1`.

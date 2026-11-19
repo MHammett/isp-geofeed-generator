@@ -61,6 +61,7 @@ class OpenWISPTests(unittest.TestCase):
         self.assertIn('not complete instance inventory', snapshot['selection_scope'])
         self.assertIn('no native facility join claimed', snapshot['site_resolution'])
         self.assertEqual(len(report), 2)
+        self.assertEqual({r['mapping_source'] for r in report}, {'configuration'})
 
     def test_missing_wrong_or_global_organization_refuses_before_more_reads(self):
         for org in (None, OTHER, {}, False, ORG.upper()):
@@ -165,6 +166,8 @@ class OpenWISPTests(unittest.TestCase):
         records, report = combine_inputs(results, config, frozenset({'country', 'region', 'city'}))
         self.assertEqual([r['prefix'] for r in records], PREFIXES)
         self.assertEqual({r['input'] for r in report}, {'customers', 'infra'})
+        self.assertEqual({r['mapping_source'] for r in report if r['input'] == 'customers'}, {'configuration'})
+        self.assertEqual({r['mapping_source'] for r in report if r['input'] == 'infra'}, {'native_scope'})
         # A bad required input cannot yield the other input's standalone feed.
         bad, _ = self.source([{**row(V6, PREFIXES[1]), 'organization': OTHER}], [V6])
         with patch('isp_geofeed_generator.adapters.OpenWISP', return_value=bad), self.assertRaisesRegex(GeofeedError, 'customers'):
@@ -191,7 +194,9 @@ class OpenWISPTests(unittest.TestCase):
             ('identity', "row.get('id') != rid", 'False',
              'test_detail_identity_envelope_and_late_failure_never_return_partial_inventory'),
             ('canonical-boundaries', 'strict=True', 'strict=False',
-             'test_noncanonical_invalid_or_missing_boundaries_do_not_echo_response_data')]
+             'test_noncanonical_invalid_or_missing_boundaries_do_not_echo_response_data'),
+            ('location-provenance', "'site_id_source': 'configuration'", "'site_id_source': 'native_scope'",
+             'test_exact_dual_stack_selected_details_and_private_field_projection')]
         def run(method):
             result = unittest.TestResult(); OpenWISPTests(method).run(result); return result
         positive = 'test_exact_dual_stack_selected_details_and_private_field_projection'
