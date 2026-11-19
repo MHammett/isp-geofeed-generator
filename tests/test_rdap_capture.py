@@ -290,12 +290,18 @@ class CaptureTests(unittest.TestCase):
                 import ctypes as c
                 from ctypes import wintypes as w
                 api=c.WinDLL('advapi32',use_last_error=True);kernel=c.WinDLL('kernel32',use_last_error=True)
-                api.GetNamedSecurityInfoW.argtypes=[w.LPCWSTR,c.c_int,w.DWORD,c.c_void_p,c.c_void_p,c.c_void_p,c.c_void_p,c.POINTER(c.c_void_p)]
+                api.GetNamedSecurityInfoW.argtypes=[w.LPCWSTR,c.c_int,w.DWORD,c.c_void_p,c.c_void_p,c.POINTER(c.c_void_p),c.c_void_p,c.POINTER(c.c_void_p)]
                 api.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes=[c.c_void_p,w.DWORD,w.DWORD,c.POINTER(c.c_void_p),c.c_void_p]
+                api.GetAce.argtypes=[c.c_void_p,w.DWORD,c.POINTER(c.c_void_p)]
+                api.ConvertSidToStringSidW.argtypes=[c.c_void_p,c.POINTER(c.c_void_p)]
+                class Header(c.Structure):
+                    _fields_=[('type',w.BYTE),('flags',w.BYTE),('size',w.WORD)]
+                class Allowed(c.Structure):
+                    _fields_=[('header',Header),('mask',w.DWORD),('sid_start',w.DWORD)]
                 kernel.LocalFree.argtypes=[c.c_void_p]
-                descriptor,text=c.c_void_p(),c.c_void_p()
+                descriptor,text,dacl=c.c_void_p(),c.c_void_p(),c.c_void_p()
                 try:
-                    self.assertEqual(api.GetNamedSecurityInfoW(str(path),1,4,None,None,None,None,c.byref(descriptor)),0)
+                    self.assertEqual(api.GetNamedSecurityInfoW(str(path),1,4,None,None,c.byref(dacl),None,c.byref(descriptor)),0)
                     self.assertTrue(api.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,1,4,c.byref(text),None))
                     value=c.wstring_at(text)
                     if is_directory:self.assertTrue(value.startswith('D:P'))
@@ -303,15 +309,24 @@ class CaptureTests(unittest.TestCase):
                     entries=[ace.split(';') for ace in re.findall(r'\(([^)]+)\)',value)]
                     self.assertEqual(len(entries),2)
                     self.assertTrue(all(ace[0]=='A' and ace[2]=='FA' for ace in entries))
-                    trustees={ace[5] for ace in entries}
-                    self.assertIn('SY',trustees)
+                    # SDDL may display a user as LA instead of its full SID.
+                    # Read each binary ACE and ask Windows for canonical notation.
+                    trustees=set()
+                    for index in range(len(entries)):
+                        ace,sid_text=c.c_void_p(),c.c_void_p()
+                        self.assertTrue(api.GetAce(dacl,index,c.byref(ace)))
+                        try:
+                            self.assertTrue(api.ConvertSidToStringSidW(c.c_void_p(ace.value+Allowed.sid_start.offset),c.byref(sid_text)))
+                            trustees.add(c.wstring_at(sid_text))
+                        finally:
+                            if sid_text:kernel.LocalFree(sid_text)
                     import csv,subprocess
                     account=list(csv.reader(subprocess.check_output([str(Path(os.environ['SystemRoot'])/'System32/whoami.exe'),
                         '/user','/fo','csv','/nh']).decode(errors='replace').splitlines()))
                     self.assertEqual(len(account),1);self.assertEqual(len(account[0]),2)
                     user=account[0][1]
                     self.assertTrue(user.startswith('S-1-'))
-                    self.assertTrue(trustees=={'SY', 'SY' if user=='S-1-5-18' else user},
+                    self.assertTrue(trustees=={'S-1-5-18',user},
                                     'DACL trustees must be current user and SYSTEM only')
                 finally:
                     if text:kernel.LocalFree(text)
@@ -322,7 +337,8 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaises(AssertionError):verify(unsafe,True)
         self.assertEqual(file.read_bytes(),b'PRIVATE')
         print('RDAP CAPTURE PERMISSION OBSERVATION: '+json.dumps({'platform':os.name,
-            'restricted_directory':True,'restricted_file':True,'unsafe_control_refused':True}))
+            'restricted_directory':True,'restricted_file':True,'unsafe_control_refused':True,
+            'canonical_sid_comparison':os.name=='nt'}))
 
     def test_private_guard_removals_fail_assertions_with_intact_controls(self):
         text=Path(module.__file__).read_text()

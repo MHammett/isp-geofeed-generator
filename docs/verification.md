@@ -17,6 +17,13 @@ before and after. Native Windows reads verify the protected directory DACL and t
 allowed trustees on both the directory and a real file. An ordinary inherited-DACL
 control fails the check. The test uses the actual account SID, including cloud
 identities; its initial local-account-only test assumption was corrected.
+The first hosted Windows jobs failed the test's textual SDDL trustee comparison.
+Windows can represent trustees using aliases instead of full SID strings. The test
+now reads binary ACEs with `GetAce` and converts their SID values through
+`ConvertSidToStringSidW` before comparing the exact current-user/SYSTEM set. The
+protected-DACL, two-ACE, allow-only and full-control requirements stay unchanged.
+See [Microsoft's SID representation rules](https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings).
+This changes the test, not capture permissions. Final hosted results belong in the PR.
 
 The installed workload passes outside the checkout with both families, original
 bytes/dates/hashes, repeated-destination refusal with no second request, malformed
