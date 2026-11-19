@@ -67,7 +67,8 @@ object, duplicate-ID, crossing-scope, feed-size and exact-reference rules still 
 ## Read the result correctly
 
 Each input reports its original body hash, all-member manifest hash, consumed bytes,
-exact receipt date and recorded language. Fractional UTC seconds are preserved. The
+exact receipt date and recorded language. The instant is preserved to the microsecond;
+timestamp text is normalized (for example, `.617Z` becomes `.617000+00:00`). The
 combined date is the oldest receipt, including fractional seconds. Date provenance
 is `capture_receipt_unverified`; no file modification time is used.
 

@@ -1,5 +1,20 @@
 # Verification
 
+## Receipt date completion regression
+
+On 2026-11-19, Claude's review of #113 found that the correct receipt-observation
+equality guard lacked a direct regression. A new test changes only the observed
+instant to one microsecond before completion. All request times remain ordered,
+and the changed instant is valid UTC between response receipt and completion.
+The intact reader refuses it and accepts the restored receipt with its exact date.
+
+Removing only the equality clause in a private module makes this test fail one
+assertion with zero errors. Intact positive and negative controls pass before and
+after. All 18 capture-import methods pass. The full Windows run passed 544 tests
+in 35.641 seconds with two POSIX-only skips. Runtime code is unchanged. The guide
+now distinguishes microsecond instant preservation from normalized timestamp text.
+Hosted results are recorded on the follow-up PR; no new public capture was made.
+
 ## Initial BlueCat BAM network profile
 
 On 2026-11-19, the local Windows full suite passed 543 tests in 40.472 seconds

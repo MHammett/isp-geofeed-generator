@@ -121,6 +121,23 @@ class RegistryCaptureTests(unittest.TestCase):
                 self.check([folder],**changes)
             reader.assert_not_called()
 
+    def test_receipt_observation_must_equal_completion_even_when_other_dates_are_ordered(self):
+        folder,stamp=self.make_capture();path=folder/'receipt.json';saved=path.read_bytes()
+        self.assertEqual(self.check([folder])['snapshot_observed_at'],stamp)
+        receipt=json.loads(saved)
+        receipt['response_observed_at']='2026-11-18T12:00:00.123455+00:00'
+        # This valid past UTC instant lies between receipt and completion. The
+        # ordered request times are unchanged, so only the equality guard refuses it.
+        self.assertLess(datetime.fromisoformat(receipt['response_received_at']),
+                        datetime.fromisoformat(receipt['response_observed_at']))
+        self.assertLess(datetime.fromisoformat(receipt['response_observed_at']),
+                        datetime.fromisoformat(receipt['request_completed_at']))
+        path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(GeofeedError,'complete, consistent'):
+            self.check([folder])
+        path.write_bytes(saved)
+        self.assertEqual(self.check([folder])['snapshot_observed_at'],stamp)
+
     def test_strict_parser_runs_again_even_when_hashes_and_acceptance_are_rewritten(self):
         from isp_geofeed_generator.feed import digest
         folder,_=self.make_capture();body=folder/'response.body';receipt=folder/'receipt.json'
@@ -229,7 +246,9 @@ class RegistryCaptureTests(unittest.TestCase):
 
     def test_private_guard_removals_cause_assertion_failures(self):
         text=Path(registry_capture.__file__).read_text()
-        controls=[('body-hash',"or receipt['saved_sha256']!=digest(body)",'or False',
+        controls=[('receipt-completion',"or observed!=times[-1]",'or False',
+                   'test_receipt_observation_must_equal_completion_even_when_other_dates_are_ordered'),
+                  ('body-hash',"or receipt['saved_sha256']!=digest(body)",'or False',
                    'test_transport_flags_hashes_counts_and_lookup_url_are_not_trusted'),
                   ('whole-scope',"if (requested.version!=start.version or int(requested.network_address)<int(start)\n                or int(requested.broadcast_address)>int(end)):",'if False:',
                    'test_strict_parser_runs_again_even_when_hashes_and_acceptance_are_rewritten'),
