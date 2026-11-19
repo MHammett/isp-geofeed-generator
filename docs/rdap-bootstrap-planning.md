@@ -8,6 +8,8 @@ fetch a feed, publish, or change status and recovery files. Support is initial.
 This helps choose where a later lookup belongs. A registry's location does not locate
 customer addresses. A plan also does not establish ownership, current allocation,
 server availability, geofeed support or provider ingestion.
+The separate [capture command](rdap-capture.md) can make one explicit lookup and
+preserve its original bytes and observation receipt. Planning itself remains offline.
 The IANA entry point may redirect or refer a later lookup to another service. This
 planner neither follows nor verifies that handoff. A planned URL does not make a
 later policy-truncated reply usable by the saved-RDAP checker.

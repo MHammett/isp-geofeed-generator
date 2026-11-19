@@ -567,6 +567,65 @@ print('OPENWISP INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'selected_
     'initial_opt_in_required':True,'identity_refused':True,'organization_refused':True,
     'invalid_boundaries_refused':True,'unchanged_feed_not_rewritten':True,
     'private_files_preserved':True,'secrets_not_reported':True,'configured_mapping_reported':True}))
+from datetime import datetime,timezone
+from email.message import Message
+from isp_geofeed_generator.credentials import CredentialStore
+from isp_geofeed_generator import rdap_capture
+import hashlib
+capture_date=datetime.now(timezone.utc).isoformat()
+capture_source=root/'capture-bootstrap.json'
+capture_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}
+class CapturedReply(io.BytesIO):
+    def __init__(self,body):
+        super().__init__(body);self.headers=Message()
+        self.headers['Content-Type']='application/rdap+json';self.headers['Content-Length']=str(len(body))
+    def getcode(self):return 200
+for index,(prefix,first,last) in enumerate([
+    ('11.22.33.0/24','11.22.33.0','11.22.33.255'),
+    ('2001:4860:1234::/126','2001:4860:1234::','2001:4860:1234::3')]):
+    capture_source.write_text(json.dumps({'version':'1.0','publication':'2026-01-01T00:00:00Z',
+        'services':[[[prefix],['https://rdap.arin.net/registry/']]]}))
+    captured_body=json.dumps({'objectClassName':'ip network','handle':'PRIVATE HANDLE',
+        'startAddress':first,'endAddress':last,'ipVersion':'v'+str(4 if index==0 else 6),
+        'links':[{'rel':'geofeed','value':'https://rdap.example/ip/object','href':'https://feed.example/geofeed.csv'}]}).encode()
+    capture_dest=root/('rdap-capture-'+str(index))
+    capture_args=['capture-rdap','--config',str(root/'missing.yaml'),'--bootstrap-records',str(capture_source),
+        '--bootstrap-observed-at',capture_date,'--rdap-prefix',prefix,'--rdap-capture-dir',str(capture_dest)]
+    output,error=io.StringIO(),io.StringIO()
+    with patch.object(rdap_capture,'opener') as transport, \\
+         patch('isp_geofeed_generator.cli.load_config',side_effect=AssertionError('configuration read')), \\
+         patch.object(CredentialStore,'get',side_effect=AssertionError('credential read')), \\
+         contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):
+        transport.return_value.open.return_value=CapturedReply(captured_body)
+        assert main(capture_args)==0
+        assert main(capture_args)==1
+        assert transport.return_value.open.call_count==1
+        request=transport.return_value.open.call_args.args[0]
+        assert request.full_url=='https://rdap.arin.net/registry/ip/'+prefix and request.get_method()=='GET'
+    capture_report=json.loads(output.getvalue())
+    assert capture_report['registry_source']=='captured_rdap'
+    receipt=json.loads((capture_dest/'receipt.json').read_text())
+    assert (capture_dest/'response.body').read_bytes()==captured_body
+    assert receipt['saved_sha256']==capture_report['response_sha256']==hashlib.sha256(captured_body).hexdigest()
+    assert receipt['response_observed_at']==capture_report['response_observed_at']
+    assert receipt['body_complete'] and receipt['validation']=='not_measured'
+    assert json.loads((capture_dest/'validation.json').read_text())['validation']=='accepted'
+    assert 'PRIVATE' not in output.getvalue()+error.getvalue() and 'healthy' not in capture_report
+    assert capture_report['provider_ingestion']==capture_report['feed_comparison']=='not_measured'
+    failed_dest=root/('rdap-refused-'+str(index));capture_args[-1]=str(failed_dest)
+    output,error=io.StringIO(),io.StringIO()
+    with patch.object(rdap_capture,'opener') as transport, \\
+         contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):
+        transport.return_value.open.return_value=CapturedReply(b'PRIVATE not JSON')
+        assert main(capture_args)==1 and output.getvalue()==''
+        assert transport.return_value.open.call_count==1
+    assert (failed_dest/'response.body').read_bytes()==b'PRIVATE not JSON'
+    assert json.loads((failed_dest/'validation.json').read_text())['validation']=='refused'
+    assert 'PRIVATE' not in error.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}==capture_prior
+print('RDAP CAPTURE INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'originals_and_dates_verified':True,
+    'hashes_verified':True,'no_repeat_request':True,'invalid_reply_preserved':True,'no_partial_report':True,
+    'private_files_preserved':True,'no_configuration_or_credentials':True,'unmeasured_fields_present':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

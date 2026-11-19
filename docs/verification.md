@@ -1,5 +1,47 @@
 # Verification
 
+## Targeted RDAP capture
+
+On 2026-11-19, the local full Windows suite passed 513 tests in 30.858 seconds
+with two POSIX skips. Sixteen capture methods cover both families, evidence saved
+before parsing, exact observation dates/hashes, no overwrite or resume, failed HTTP
+statuses, real HTTPError bodies, timeouts, partial reads, media/encoding/length/body
+bounds, explicit languages, strict parser refusals and whole-prefix containment.
+They also verify that config, credentials and publication writes are not used.
+
+The real loopback redirect test records one blocked entry request and zero target
+hits. Its unsafe redirect-handler control reaches the target once. Private copies
+with the HTTP-status, whole-prefix and preserve-before-parse guards removed each
+produce one assertion failure and zero test errors, with intact controls passing
+before and after. Native Windows reads verify the protected directory DACL and two
+allowed trustees on both the directory and a real file. An ordinary inherited-DACL
+control fails the check. The test uses the actual account SID, including cloud
+identities; its initial local-account-only test assumption was corrected.
+
+The installed workload passes outside the checkout with both families, original
+bytes/dates/hashes, repeated-destination refusal with no second request, malformed
+reply retention, no partial stdout report and preserved unrelated private files.
+Its first attempt found a missing test-workload `hashlib` import; the corrected
+workload passed. Hosted Windows/POSIX evidence is recorded separately in the PR.
+
+Exactly two public GETs were made, without proxies, redirects, retries or feed
+requests. Existing saved IANA originals from the earlier bootstrap check were used:
+
+| Query | Completion time (UTC) | HTTP | Saved bytes | SHA-256 |
+| --- | --- | --- | --- | --- |
+| RIPE `193.0.6.0/24` | 2026-11-19 16:39:05.440640 | 200 | 16,985 | `c619e63c5d4992ba5cfa33b0c2657435f72f53580209c3c3d44528ff71e76003` |
+| ARIN `2001:4860:4860::8888/128` | 2026-11-19 16:39:59.699344 | 200 | 7,904 | `8edfe7ccf6d9fa0dbcf12835386684b99f3d5930ada9568301331f7b7e9252bc` |
+
+Both originals were accepted and cover their full requested prefixes. RIPE returned
+12 supported entity-only redaction declarations and no geofeed link with the
+extension advertised. ARIN returned no geofeed link without advertising the extension,
+so availability remains unmeasured. No raw contact payload was put in the repository.
+Independent PowerShell ACL reads also verified both live evidence folders and all
+their files grant access only to the current user and SYSTEM. Original-body hashes
+were read back and matched the immutable receipts. These captures do not prove
+ownership, most-specific authority, feed consistency or ingestion. See
+[capture setup, limits and recovery](rdap-capture.md).
+
 ## OpenWISP selected subnets
 
 On 2026-11-19, 13 targeted Windows tests passed. They cover exact IPv4/IPv6

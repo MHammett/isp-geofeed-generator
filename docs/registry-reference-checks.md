@@ -28,6 +28,9 @@ For replies with language alternatives, the RDAP guide documents the explicit
 The separate [saved-IANA planner](rdap-bootstrap-planning.md) selects a whole-prefix
 RDAP lookup URL without contacting it. It does not authenticate the bootstrap file
 or turn a comparison into proof of authority.
+For one explicit live read, [capture-rdap](rdap-capture.md) saves an original reply
+and actual observation receipt in a new restricted folder. It does not run this
+comparison, follow referrals, fetch a feed or change publication state.
 
 In Bash on Linux:
 
