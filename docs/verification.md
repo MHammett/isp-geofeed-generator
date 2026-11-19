@@ -1,5 +1,23 @@
 # Verification
 
+## Policy retry measurement scope
+
+On 2026-11-19, a private control injected one error-32 journal replacement denial
+while the original policy test's global sleep spy was active. The original test
+failed exactly `3 != 2`, with one assertion failure and zero test errors. This
+proves a separate retry can pollute that measurement. It does not identify the
+actor behind Claude's observed run or any ctime change in #88.
+
+The test now observes delays within each `bound_output.atomic_write` call and
+requires exactly two 0.05-second policy delays and three policy attempts using one
+prepared temporary file. A new control injects the separate journal denial and
+requires an observed non-policy delay as well. It checks the final pair and exact
+unchanged history. The targeted Windows run passed ten tests, including the native
+denial/release workload. No production code, retry codes, limits, delays, identity
+guards or recovery behavior changed. Full hosted evidence belongs in the PR.
+See [#109](https://github.com/MHammett/isp-geofeed-generator/issues/109) and the
+[independent review ledger](review-followup.md).
+
 ## Targeted RDAP capture
 
 On 2026-11-19, the local full Windows suite passed 513 tests in 30.858 seconds

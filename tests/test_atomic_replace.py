@@ -114,27 +114,51 @@ class AtomicReplaceTests(unittest.TestCase):
         replace.assert_not_called();sleep.assert_not_called();guard.assert_called_once()
         self.assertEqual(self.target.read_bytes(),b'old');self.assert_clean()
 
-    def test_transient_policy_replacement_finishes_valid_pair_and_noop_preserves_history(self):
+    def check_policy_replacement_and_history(self, *, separate_retry=False):
         target=self.root/'nested.csv';state=self.root/'state'
         first=render_csv([PARENT],overlap_policy=LONGEST_PREFIX)
         second=render_csv([PARENT,CHILD],overlap_policy=LONGEST_PREFIX)
         publish.publish_file(target,first,state,overlap_policy=LONGEST_PREFIX)
         policy=bound_output.policy_path(target);original_replace=os.replace;calls=[]
+        original_atomic=bound_output.atomic_write;active=[];delays={};injected=[]
+        journal=state/'local-transaction.json'
+        def atomic(path,*args,**kwargs):
+            active.append(Path(path))
+            try:return original_atomic(path,*args,**kwargs)
+            finally:active.pop()
+        def pause(delay):
+            delays.setdefault(active[-1] if active else None,[]).append(delay)
         def replace(source,destination):
             if Path(destination)==policy:
                 calls.append(source)
                 if len(calls)<3:raise denied(5)
+            elif separate_retry and Path(destination)==journal and not injected:
+                injected.append(32);raise denied(32)
             return original_replace(source,destination)
         with patch.object(publish,'_WINDOWS_REPLACE',True),patch.object(publish.os,'replace',side_effect=replace), \
-             patch.object(publish.time,'sleep') as sleep:
+             patch.object(bound_output,'atomic_write',side_effect=atomic), \
+             patch.object(publish.time,'sleep',side_effect=pause):
             result=publish.publish_file(target,second,state,overlap_policy=LONGEST_PREFIX,max_relocated_fraction=1)
         self.assertTrue(result['changed']);self.assertEqual(len(calls),3)
-        self.assertEqual(len(set(calls)),1);self.assertEqual(sleep.call_count,2)
+        self.assertEqual(len(set(calls)),1);self.assertEqual(delays.get(policy),[0.05,0.05])
+        if separate_retry:
+            self.assertEqual(injected,[32]);self.assertGreaterEqual(len(delays.get(journal,[])),1)
         stamps={p:(p.read_bytes(),p.stat().st_mtime_ns) for p in (target,policy,*state.iterdir())}
         with patch.object(publish.os,'replace') as replace:
             self.assertFalse(publish.publish_file(target,second,state,overlap_policy=LONGEST_PREFIX)['changed'])
         replace.assert_not_called()
         self.assertEqual({p:(p.read_bytes(),p.stat().st_mtime_ns) for p in stamps},stamps)
+        if separate_retry:
+            print('POLICY RETRY SCOPE OBSERVATION: '+json.dumps({'injected_policy_denials':2,
+                'policy_attempts':len(calls),'policy_sleeps':delays[policy],
+                'injected_nonpolicy_denials':len(injected),'nonpolicy_sleeps':len(delays.get(journal,[])),
+                'pair_verified':True,'noop_history_preserved':True}))
+
+    def test_transient_policy_replacement_finishes_valid_pair_and_noop_preserves_history(self):
+        self.check_policy_replacement_and_history()
+
+    def test_nonpolicy_retry_does_not_pollute_policy_delay_measurement(self):
+        self.check_policy_replacement_and_history(separate_retry=True)
 
     def test_persistent_policy_denial_retains_baseline_and_requires_checked_recovery(self):
         target=self.root/'nested.csv';state=self.root/'state'
