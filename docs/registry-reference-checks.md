@@ -25,6 +25,10 @@ It performs no registry lookup or bootstrap authority check.
 For replies with language alternatives, the RDAP guide documents the explicit
 `--rdap-language` option and its supported tag subset. It has no automatic fallback.
 
+The separate [saved-IANA planner](rdap-bootstrap-planning.md) selects a whole-prefix
+RDAP lookup URL without contacting it. It does not authenticate the bootstrap file
+or turn a comparison into proof of authority.
+
 In Bash on Linux:
 
 ```bash

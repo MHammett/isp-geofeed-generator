@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Initial offline RDAP lookup planning uses saved IANA address bootstrap data, whole-prefix longest matching and an explicit HTTPS RIR profile. Gaps and split-service scopes refuse planning; source authenticity, live reads and ownership remain unmeasured.
+
+- Installed-wheel checks run from a disposable script file to avoid Windows command-line length limits as the workload grows.
+
 - RDAP redaction paths now reject invalid quote escapes and unpaired Unicode surrogates while retaining valid Unicode, entity-scope checks and whole-set refusal without changing discovery bytes.
 
 - Saved RDAP checks can explicitly choose a uniquely declared geofeed language from validated alternatives. Exact matching has no locale, prefix, URL or order fallback. Ambiguous labels and unsafe unselected links still refuse the whole comparison.

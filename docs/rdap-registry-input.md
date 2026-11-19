@@ -13,6 +13,9 @@ This diagnostic does not repeat live allocation checks or verify the saved file'
 
 Save one top-level `ip network` reply per file. Replace each date placeholder with
 the actual UTC observation time for that reply, not a registration event date.
+The optional [saved-IANA planner](rdap-bootstrap-planning.md) can identify a service
+before a lookup. It makes no request. Keep its bootstrap download date separate
+from the later RDAP response observation date.
 
 In Bash on Linux:
 

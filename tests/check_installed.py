@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 code = '''from pathlib import Path
 import sys
@@ -445,9 +446,53 @@ for kind,token in (('opposite_quote','"PRIVATE'+chr(92)+chr(39)+'"'),
 print('RDAP STRING INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'valid_pair_accepted':True,
     'language_selection_preserved':True,'input_hashes_verified':True,'lexical_refusals':refusals,
     'no_partial_report':True,'private_files_preserved':True,'raw_paths_omitted':True,'no_configuration_needed':True}))
+arin='https://rdap.arin.net/registry/';ripe='https://rdap.db.ripe.net/'
+bootstrap_sources=[root/'bootstrap-v4.json',root/'bootstrap-v6.json']
+bootstrap_objects=[{'version':'1.0','publication':'2019-06-07T19:00:02Z','description':'PRIVATE ignored',
+    'services':[[['11.0.0.0/8'],[arin,arin.replace('https://','http://')]],[[ '11.22.33.0/24'],[ripe]]]},
+    {'version':'1.0','publication':'2019-06-07T19:00:02Z','description':'PRIVATE ignored',
+     'services':[[['2001:4800::/23'],[ripe]],[[ '2001:4860:1234::/48'],[arin]]]}]
+for source,value in zip(bootstrap_sources,bootstrap_objects):source.write_text(json.dumps(value))
+bootstrap_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+                 (*bootstrap_sources,*batch_sources,batch_feed,feed,root/'state/status.json',backup)}
+for source,prefix,base in zip(bootstrap_sources,('11.22.33.0/24','2001:4860:1234::/48'),(ripe,arin)):
+    output=io.StringIO()
+    args=['plan-rdap','--bootstrap-records',str(source),'--bootstrap-observed-at','2020-01-01T00:00:00Z',
+          '--rdap-prefix',prefix,'--config',str(root/'absent.yaml')]
+    with contextlib.redirect_stdout(output):assert main(args)==0
+    report=json.loads(output.getvalue())
+    assert report['rdap_lookup_url']==base+'ip/'+prefix and report['bootstrap_sha256']==digest(source.read_bytes())
+    assert report['bootstrap_observed_at_source']=='operator_supplied' and report['bootstrap_observed_at']=='2020-01-01T00:00:00+00:00'
+    assert report['planning_only'] is True and report['bootstrap_match']=='single_service_for_entire_prefix'
+    assert 'PRIVATE' not in output.getvalue() and str(source) not in output.getvalue() and 'healthy' not in report
+    assert all(report[key]=='not_measured' for key in ('bootstrap_authenticity','live_registry_read',
+        'ownership_validation','current_allocation_validation','signature_validation','public_retrieval','provider_ingestion'))
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (*bootstrap_sources,*batch_sources,batch_feed,feed,root/'state/status.json',backup)}==bootstrap_prior
+for index in (0,1):
+    if index==0:bootstrap_objects[index]['services'][1][0]=['11.22.33.128/25']
+    else:bootstrap_objects[index]['services'][1][1]=['https://PRIVATE.invalid/']
+    bootstrap_sources[index].write_text(json.dumps(bootstrap_objects[index]))
+    prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+           (*bootstrap_sources,*batch_sources,batch_feed,feed,root/'state/status.json',backup)}
+    output=io.StringIO();error=io.StringIO()
+    args=['plan-rdap','--bootstrap-records',str(bootstrap_sources[index]),'--bootstrap-observed-at','2020-01-01T00:00:00Z',
+          '--rdap-prefix',('11.22.33.0/24','2001:4860:1234::/48')[index]]
+    with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(args)==1
+    assert output.getvalue()=='' and 'PRIVATE' not in error.getvalue()
+    assert ('multiple bootstrap services' if index==0 else 'initial RIR profile') in error.getvalue()
+    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+            (*bootstrap_sources,*batch_sources,batch_feed,feed,root/'state/status.json',backup)}==prior
+print('RDAP BOOTSTRAP INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'longest_prefix_verified':True,
+    'hashes_verified':True,'date_sources_verified':True,'straddling_refused':True,'unknown_endpoint_refused':True,
+    'unmeasured_fields_present':True,'no_partial_report':True,'private_files_preserved':True,'no_configuration_needed':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)
     environment.pop('PYTHONPATH', None)
-    subprocess.run([sys.executable, '-c', code], cwd=directory, env=environment, check=True)
+    # A source file avoids Windows' command-line limit as this workload grows.
+    script = Path(directory)/'installed_workload.py'
+    with script.open('x', encoding='utf-8') as stream:
+        stream.write(code)
+    subprocess.run([sys.executable, str(script)], cwd=directory, env=environment, check=True)
     subprocess.run([sys.executable, '-m', 'isp_geofeed_generator', '--help'], cwd=directory, env=environment, check=True, stdout=subprocess.DEVNULL)

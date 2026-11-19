@@ -166,7 +166,7 @@ def publication_run(directory, credentials, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read the selected IPAM source and publish validated IP geolocation data")
-    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy", "inspect-wordpress", "check-registry"))
+    parser.add_argument("command", choices=("discover", "generate", "publish", "recover-local", "recover-wordpress", "configure-wordpress-policy", "inspect-wordpress", "check-registry", "plan-rdap"))
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", help="Private discovery JSON or generated output candidate")
     parser.add_argument("--assignment-candidates", action="store_true", help="Discover observed pool use on site equipment; does not choose a host")
@@ -182,11 +182,27 @@ def main(argv=None):
     parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
     parser.add_argument('--feed-url',help='check-registry only: exact public HTTPS feed URL; never fetched')
     parser.add_argument('--reference-policy',choices=('reject','longest_prefix'),help='check-registry only: explicit CSV overlap policy; default reject')
+    parser.add_argument('--bootstrap-records',help='plan-rdap only: saved IANA address bootstrap file; no network access')
+    parser.add_argument('--bootstrap-observed-at',help='plan-rdap only: actual UTC observation date of the saved bootstrap')
+    parser.add_argument('--rdap-prefix',help='plan-rdap only: one explicit canonical public IPv4 or IPv6 CIDR')
     args = parser.parse_args(argv)
     directory = None
     stage = "reading configuration"
     credentials = CredentialStore()
     try:
+        if args.command=='plan-rdap':
+            if (not all((args.bootstrap_records,args.bootstrap_observed_at,args.rdap_prefix))
+                    or args.assignment_candidates or args.controller_candidates or args.probe_cache
+                    or any(value is not None for value in (args.output,args.approve_location_changes,
+                        args.expected_current_sha256,args.registry_records,args.registry_format,
+                        args.registry_observed_at,args.rdap_language,args.feed,args.feed_url,args.reference_policy))):
+                raise GeofeedError('plan-rdap requires bootstrap records, their observation date and a prefix; other operation flags are refused')
+            from .rdap_bootstrap import plan_file
+            stage='planning an RDAP lookup from supplied bootstrap data'
+            print(json.dumps(plan_file(args.bootstrap_records,args.rdap_prefix,args.bootstrap_observed_at)))
+            return 0
+        if any(value is not None for value in (args.bootstrap_records,args.bootstrap_observed_at,args.rdap_prefix)):
+            raise GeofeedError('Bootstrap planning flags require plan-rdap; no input read or write attempted')
         if args.command=='check-registry':
             if (not all((args.registry_records,args.feed,args.feed_url)) or args.assignment_candidates or args.controller_candidates
                     or args.probe_cache or any(value is not None for value in

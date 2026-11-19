@@ -1,5 +1,38 @@
 # Verification
 
+## Saved-IANA RDAP planning
+
+On 2026-11-19, local Windows passed 482 tests in 26.216 seconds with two POSIX-only
+skips. Eighteen new methods cover both families, nested and shadowed routes, exact
+whole-prefix coverage, gaps, duplicate scopes, HTTPS profiles, dates, budgets and
+preserved files. An independent per-address model checked 200 small cases: 115
+matched single-service plans and 85 expected refusals. Production uses boundaries,
+not address enumeration. Private service-profile, longest-prefix and whole-prefix
+mutations cause 7, 4 and 2 assertion failures with zero errors. Valid plans and intact
+refusal checks pass before and after each mutation.
+
+The installed wheel passed outside the checkout in an isolated environment. It checks
+both families, nested overrides, original hashes and date sources, explicit unmeasured
+fields, mixed-service refusal and an unsupported endpoint. Feed/status/recovery bytes
+and modification times stay exact. The first installed attempt did not start its
+workload: Windows refused its 36,041-character inline command with WinError 206.
+The saved error and measured command length identified the cause. The harness now
+runs the same code from a disposable script file outside the checkout, with PYTHONPATH
+removed. The corrected workload passed. This changes no runtime file-write guard.
+
+One bounded unauthenticated GET of each official public IANA address file returned
+HTTP 200 on 2026-11-19 at 14:16:08 UTC. Exact bytes, observation times and hashes were
+saved before parsing. The 5,629-byte IPv4 file held 221 prefixes; the 1,476-byte IPv6
+file held 34. The planner accepted both and retained their original hashes. No RIR
+or feed request was made. This proves two current source reads and offline plans;
+it does not prove operator ownership, RIR behavior or ingestion. Supplied-file reports
+still mark bootstrap authenticity and live registry reads as not measured.
+
+See the [planning guide](rdap-bootstrap-planning.md) and
+[#103](https://github.com/MHammett/isp-geofeed-generator/issues/103). Actual hosted
+workloads belong in dated PR evidence. PHP and real WordPress were not measured
+locally by Codex.
+
 ## RDAP quoted-string validation
 
 On 2026-11-19, three new refusal methods exposed 64 assertion failures before the
