@@ -33,6 +33,10 @@ and actual observation receipt in a new restricted folder. It does not run this
 comparison, follow referrals, fetch a feed or change publication state.
 To compare those saved folders without copying dates, use the
 [offline capture input](rdap-capture-input.md) with `--registry-format rdap-capture`.
+Optional `--observatory-review PATH` attaches [dated manual Geoflaw notes](geoflaw.md)
+under a separate report field. These are operator-entered notes, not a native export.
+Their findings do not change the local verdict or exit code and cannot approve a
+publication. Invalid notes refuse the whole report.
 
 In Bash on Linux:
 

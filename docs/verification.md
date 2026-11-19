@@ -1,5 +1,26 @@
 # Verification
 
+## Dated manual observatory review input
+
+On 2026-11-19, ten targeted methods passed for optional operator-entered Geoflaw
+notes in offline registry reports. They check exact URLs, separate dated dataset
+states, closed JSON, size/file guards, secret-free errors, no partial report and
+command isolation. A reported finding leaves a passing local comparison unchanged;
+no external status can clear a failed local comparison. No healthy verdict is added.
+
+Private URL and dataset-date guard removals each cause one assertion failure and
+zero errors. Intact positive and negative controls pass before and after. The full
+Windows suite passed 554 tests in 37.168 seconds with two POSIX-only skips.
+The installed CLI workload passed outside the checkout with the existing dual-stack
+capture inputs, retaining their bytes and timestamps. A bad notes file refuses the
+whole report. No network or credential read is needed. The first installed test
+attempt exposed a missing test import; the corrected workload passed.
+
+This is the project's own manual-notes schema, not a verified Geoflaw export or API.
+No dashboard snapshot was downloaded, scraped or authenticated. Dataset completeness,
+current public content, candidate match, authority and ingestion remain unmeasured.
+Hosted evidence is recorded on the PR. The wider #70 work remains open.
+
 ## Receipt date completion regression
 
 On 2026-11-19, Claude's review of #113 found that the correct receipt-observation

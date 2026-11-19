@@ -40,7 +40,7 @@ for name in ('LICENSE.txt','COPYRIGHT.txt','sources.json'):
 print('PASS: installed ISO data, integrity checks and third-party notices')
 from isp_geofeed_generator._effective import compare_effective
 from isp_geofeed_generator.feed import parse_feed
-from isp_geofeed_generator.client import GeofeedError
+from isp_geofeed_generator.client import GeofeedError, JsonHTTP
 parent={'prefix':'11.22.33.0/24','location':{'country':'US','region':'US-IL','city':'A'}}
 child={'prefix':'11.22.33.0/25','location':{'country':'US','region':'US-IL','city':'B'}}
 change=compare_effective([parent],[child,parent])[4]
@@ -711,6 +711,37 @@ for change in ({'id':9999},{'configuration':{'id':202}},{'range':'2001:4860:123A
 print('BLUECAT BAM INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'uppercase_ipv6_exact':True,
     'selected_gets_only':True,'initial_opt_in_required':True,'late_identity_configuration_boundary_refused':True,
     'unchanged_not_rewritten':True,'recovery_preserved':True,'token_not_reported':True}))
+
+# Operator-entered observatory notes are a separate, non-gating diagnostic input.
+review_path=root/'observatory-review.json'
+manual_review={'schema_version':1,'source':'geoflaw','feed_url':'https://feed.example/geofeed.csv',
+    'reviewed_at':'2026-11-19T00:00:00Z','datasets':{
+        'reference':{'status':'finding','observed_on':'2026-11-11'},
+        'retrieval':{'status':'no_finding','observed_on':'2026-11-11'},
+        'content':{'status':'not_measured','observed_on':None},
+        'coverage':{'status':'finding','observed_on':'2026-11-04'}}}
+review_path.write_text(json.dumps(manual_review))
+review_args=capture_check_args+['--observatory-review',str(review_path)]
+review_files=[review_path,*capture_files]
+review_before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in review_files}
+output=io.StringIO()
+with patch.object(JsonHTTP,'request',side_effect=AssertionError('network read')), patch.object(CredentialStore,'get',side_effect=AssertionError('credential read')), contextlib.redirect_stdout(output):
+    assert main(review_args)==0
+review_report=json.loads(output.getvalue());notes=review_report['external_observatory_review']
+assert review_report['comparison_consistent'] and not notes['publication_gate']
+assert notes['datasets']['reference']['status']=='finding' and notes['datasets']['retrieval']['status']=='no_finding'
+assert notes['datasets']['content']['dataset_observed_on'] is None and notes['datasets']['coverage']['dataset_observed_on']=='2026-11-04'
+assert notes['review_authenticity']==notes['current_public_feed']==notes['provider_ingestion']=='not_measured'
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in review_files}==review_before
+review_path.write_text(json.dumps({**manual_review,'feed_url':'https://PRIVATE.example/wrong.csv'}))
+output=io.StringIO();errors=io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(errors):assert main(review_args)==1
+assert output.getvalue()=='' and 'PRIVATE' not in errors.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in review_files if p!=review_path}=={k:v for k,v in review_before.items() if k!=str(review_path)}
+print('OBSERVATORY REVIEW INSTALLED OBSERVATION: '+json.dumps({'manual_states_separate':True,
+    'dataset_dates_preserved':True,'finding_does_not_change_local_verdict':True,
+    'bad_review_no_partial_report':True,'original_files_preserved':True,
+    'no_network_or_credentials':True,'authority_and_ingestion_unmeasured':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

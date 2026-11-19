@@ -50,7 +50,69 @@ those references. That discovery step is separate from longest-prefix
 locations inside a feed. A different referenced URL does not itself prove different
 ownership. Registry administrative geography must not replace the operator's pool location.
 
-## Planned integration
+## Save a dated manual review
+
+`check-registry --observatory-review PATH` can attach an operator-entered review to
+its JSON report. This is our own version-1 notes format, **not** a Geoflaw export,
+API adapter or new observation of its data. The dashboard is not fetched. Existing
+commands behave the same when the flag is absent.
+
+The report keeps external notes under `external_observatory_review`. A reported
+external finding does not change `comparison_consistent` or the local check's exit
+code. A local failure still fails. Invalid notes refuse the whole command with no
+partial JSON report. The flag is refused for publication, recovery and live capture.
+
+Keep the notes outside the checkout. Example to fill in after a manual review:
+
+```json
+{
+  "schema_version": 1,
+  "source": "geoflaw",
+  "feed_url": "https://example.net/geofeed.csv",
+  "reviewed_at": "REPLACE_WITH_ACTUAL_UTC_REVIEW_TIME",
+  "datasets": {
+    "reference": {"status": "not_measured", "observed_on": null},
+    "retrieval": {"status": "not_measured", "observed_on": null},
+    "content": {"status": "not_measured", "observed_on": null},
+    "coverage": {"status": "not_measured", "observed_on": null}
+  }
+}
+```
+
+Use the exact public feed URL from the registry check. Set `reviewed_at` from a clock
+when reviewing the dashboard, in UTC with a `Z` or `+00:00` suffix. Up to six fractional
+digits are supported. The supplied text is retained. It cannot be a future instant.
+
+Record each dataset separately:
+
+| Status | Use and required dataset date |
+| --- | --- |
+| `finding` | You saw a relevant finding. Record that dataset's actual `YYYY-MM-DD` date. |
+| `no_finding` | You reviewed that dataset for the feed and relevant prefixes and found no applicable finding. Record its actual date. This is not a health verdict. |
+| `not_measured` | You did not verify that dataset, its date or the applicable search scope. Leave `observed_on` as JSON `null`. |
+
+A missing search result alone does not establish that the feed was measured. Use
+`not_measured` when that is unclear. Never substitute today's review date for an older
+dataset date. All four datasets must be explicit; a dataset date after the review day
+is refused. Ages use whole calendar days because the dataset date has no clock time.
+Unknown fields, free-text notes, other sources and duplicate JSON keys are refused.
+Keep private follow-up details in your own records. The input is limited to 16 KiB
+and must be a regular file accepted by the existing guarded local reader.
+
+For example, in PowerShell on Windows:
+
+```powershell
+isp-geofeed-generator check-registry --registry-records 'C:\ProgramData\ISP Geofeed Generator\registry.json' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv' --observatory-review 'C:\ProgramData\ISP Geofeed Generator\observatory-review.json'
+```
+
+The report includes the notes file's SHA-256 and review age. Editable notes do not
+authenticate a dashboard observation. Dataset completeness, current public content,
+candidate content match, registry authority and provider ingestion remain
+`not_measured`. These notes cannot approve a publication, suppress a local guard or
+prove that the dashboard examined this exact candidate. To undo use of this feature,
+omit the optional flag. No feed or recovery history is changed.
+
+## Other integration work
 
 The initial [offline registry checker](registry-reference-checks.md) now compares a
 supplied unsigned CIDR/address-range snapshot with a CSV candidate. It keeps exact discovery coverage

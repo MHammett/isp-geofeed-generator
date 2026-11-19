@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Offline registry reports can include bounded, dated manual Geoflaw review notes. External findings stay separate from the local verdict and do not gate publication. No dashboard fetching or native export format is added.
+
 - Initial BlueCat BAM RESTful v2 input reads selected IPv4/IPv6 networks with configuration and family checks, explicit private geography and secure existing-token references. The public 9.6 profile remains initial pending operator testing; native location and session lifecycle gaps are documented.
 
 - Offline registry comparisons can read complete RDAP capture folders, verify their local consistency and use their original dates and language choices. UTC fractional seconds are accepted and preserved in raw and combined checks. Capture files remain unauthenticated evidence; no network or publication action is added.

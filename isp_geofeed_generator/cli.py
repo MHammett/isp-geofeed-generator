@@ -177,6 +177,7 @@ def main(argv=None):
     parser.add_argument('--registry-records',action='append',help='check-registry only: repeat for each snapshot, saved response or capture directory')
     from .registry_formats import INPUT_FORMATS
     parser.add_argument('--registry-format',choices=INPUT_FORMATS,help='check-registry only: saved input format; default normalized')
+    parser.add_argument('--observatory-review',help='check-registry only: bounded operator-entered Geoflaw review; never fetched')
     parser.add_argument('--registry-observed-at',action='append',help='raw saved responses only: one actual UTC date per input; capture directories use receipts')
     parser.add_argument('--rdap-language',help='saved/captured RDAP only: exact declared geofeed language for every input; no fallback')
     parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
@@ -199,7 +200,7 @@ def main(argv=None):
                     or args.assignment_candidates or args.controller_candidates or args.probe_cache
                     or any(value is not None for value in (args.output,args.approve_location_changes,
                         args.expected_current_sha256,args.registry_records,args.registry_format,
-                        args.registry_observed_at,args.feed,args.feed_url,args.reference_policy))):
+                        args.registry_observed_at,args.feed,args.feed_url,args.reference_policy,args.observatory_review))):
                 raise GeofeedError('RDAP planning/capture requires bootstrap records, their observation date and a prefix; capture also needs a new capture directory, other operation flags are refused')
             if capturing:
                 from .rdap_capture import capture
@@ -223,10 +224,13 @@ def main(argv=None):
             result=check_file_set(args.registry_records,args.feed,args.feed_url,overlap_policy=args.reference_policy or REJECT,
                                input_format=args.registry_format or 'normalized',observed_at=args.registry_observed_at,
                                rdap_language=args.rdap_language)
+            if args.observatory_review is not None:
+                from .observatory_review import read_review
+                result['external_observatory_review']=read_review(args.observatory_review,args.feed_url)
             print(json.dumps(result))
             return 0 if result['comparison_consistent'] else 1
         if any(value is not None for value in (args.registry_records,args.feed,args.feed_url,args.reference_policy,
-                                               args.registry_format,args.registry_observed_at,args.rdap_language)):
+                                               args.registry_format,args.registry_observed_at,args.rdap_language,args.observatory_review)):
             raise GeofeedError('Registry reference flags require check-registry; no write attempted')
         if args.probe_cache and args.command!='inspect-wordpress':
             raise GeofeedError('--probe-cache requires inspect-wordpress; no write attempted')

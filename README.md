@@ -7,6 +7,8 @@ See [provider workflows](docs/geoip-providers.md) for URL registration, correcti
 registry discovery. Provider submission adapters remain planned work.
 Use [offline registry-reference checks](docs/registry-reference-checks.md) to compare a
 candidate with supplied unsigned CIDR or exact address-range registry records. Live discovery remains separate.
+Optional [dated manual Geoflaw notes](docs/geoflaw.md#save-a-dated-manual-review) stay
+separate from the local comparison and cannot approve publication.
 The [saved-IANA planner](docs/rdap-bootstrap-planning.md) can select a whole-prefix
 RDAP lookup URL without making a request or claiming ownership.
 The separate [initial RDAP capture command](docs/rdap-capture.md) preserves one
