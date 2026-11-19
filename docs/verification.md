@@ -1,5 +1,32 @@
 # Verification
 
+## RDAP quoted-string validation
+
+On 2026-11-19, three new refusal methods exposed 64 assertion failures before the
+fix, with no setup errors. They cover quote-specific escapes and raw, lone, reversed
+or malformed surrogate sequences in member names and filter constants. Those cases
+stayed in root entities; the observed defect did not bypass that scope boundary.
+
+After the fix, local Windows passed 464 tests in 25.925 seconds with two POSIX-only
+skips. Eleven new methods also cover valid BMP/supplementary characters, paired
+escapes, independent double-quoted JSON codec/scalar checks, opaque constants,
+unchanged discovery bytes, all path roles, existing budgets and whole-set CLI refusal.
+Private guard removals cause 4, 16 and 44 assertion failures with zero errors. Valid
+Unicode controls and intact refusal checks pass before and after each mutation.
+
+The installed wheel passed outside the checkout in an isolated environment. It
+accepts valid paired escapes with language selection and exact IPv4/IPv6 coverage,
+then refuses three malformed later replacement paths without a partial report.
+Original hashes and feed/status/recovery bytes and modification times remain exact.
+The unchanged saved public RIPE NCC reply's 12 declarations still pass offline
+classification. Its lookup time was not retained, so a correctly dated real-data CLI
+import remains unmeasured. No new registry lookup was made.
+
+The [RDAP guide](rdap-registry-input.md#contact-redaction) and
+[#101](https://github.com/MHammett/isp-geofeed-generator/issues/101) record scope and
+recovery. This is author verification. Actual hosted results belong in dated PR
+evidence; PHP and real WordPress were not measured locally by Codex.
+
 ## Explicit saved-RDAP language selection
 
 On 2026-11-18, local Windows passed 453 tests in 20.362 seconds with two POSIX-only

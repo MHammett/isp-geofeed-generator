@@ -3,10 +3,41 @@ import re
 
 from .client import GeofeedError
 
+# The lexer finds token boundaries; _quoted enforces quote style and scalar rules.
 _TOKEN = re.compile(r'''(?P<string>"(?:[^"\\\x00-\x1f]|\\(?:["'\\/bfnrt]|u[0-9a-fA-F]{4}))*"|'(?:[^'\\\x00-\x1f]|\\(?:["'\\/bfnrt]|u[0-9a-fA-F]{4}))*')|(?P<name>[A-Za-z_][A-Za-z0-9_]{0,63})|(?P<number>0|[1-9][0-9]{0,5})|(?P<equal>==)|(?P<symbol>[$@.\[\]()*?:])''')
 MAX_REDACTIONS = 100
 MAX_PATH = 2048
 MAX_TOKENS = 256
+
+
+def _quoted(value):
+    """Check quoted-token scalars and escapes without decoding or evaluating it."""
+    quote, position, end = value[0], 1, len(value) - 1
+    while position < end:
+        codepoint = ord(value[position])
+        if 0xD800 <= codepoint <= 0xDFFF:
+            raise ValueError()
+        if value[position] != '\\':
+            position += 1
+            continue
+        position += 1
+        escape = value[position]
+        if escape == 'u':
+            unit = int(value[position + 1:position + 5], 16)
+            position += 5
+            if 0xD800 <= unit <= 0xDBFF:
+                if value[position:position + 2] != '\\u' or position + 6 > end:
+                    raise ValueError()
+                low = int(value[position + 2:position + 6], 16)
+                if not 0xDC00 <= low <= 0xDFFF:
+                    raise ValueError()
+                position += 6
+            elif 0xDC00 <= unit <= 0xDFFF:
+                raise ValueError()
+        else:
+            if escape not in (quote, '\\', '/', 'b', 'f', 'n', 'r', 't'):
+                raise ValueError()
+            position += 1
 
 
 class _Path:
@@ -23,8 +54,10 @@ class _Path:
             if match is None or len(tokens) >= MAX_TOKENS:
                 raise ValueError()
             token = (match.lastgroup, match.group(), match.start(), match.end())
-            if token[0] == 'string' and len(token[1]) > 256:
-                raise ValueError()
+            if token[0] == 'string':
+                if len(token[1]) > 256:
+                    raise ValueError()
+                _quoted(token[1])
             tokens.append(token)
             offset = match.end()
         self.tokens, self.position = tokens, 0

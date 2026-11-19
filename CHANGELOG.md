@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- RDAP redaction paths now reject invalid quote escapes and unpaired Unicode surrogates while retaining valid Unicode, entity-scope checks and whole-set refusal without changing discovery bytes.
+
 - Saved RDAP checks can explicitly choose a uniquely declared geofeed language from validated alternatives. Exact matching has no locale, prefix, URL or order fallback. Ambiguous labels and unsafe unselected links still refuse the whole comparison.
 
 - Saved RDAP input accepts bounded, fully parsed entity-only redaction declarations. Redaction affecting discovery fields or using unsupported expressions still refuses the whole comparison. Reports count declarations without exposing contact paths.

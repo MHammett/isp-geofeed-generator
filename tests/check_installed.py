@@ -409,6 +409,42 @@ print('RDAP LANGUAGE INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,
     'selected_inputs':2,'input_hashes_verified':True,'default_refused':True,'different_language_mismatch':True,
     'unsafe_unselected_later_link_refused':True,'no_partial_report':True,'private_files_preserved':True,
     'reference_urls_omitted':True,'no_configuration_needed':True}))
+literal='"PRIVATE'+chr(92)+'uD83D'+chr(92)+'uDE00"'
+valid_path='$.entities[?(@.handle=='+literal+')]'
+for source,value in zip(batch_sources,rdap_objects):
+    for item in value['links']:
+        if item['hreflang']=='fr':item['href']='https://other.example/feed.csv'
+    value['redacted']=[{'name':{'description':'PRIVATE logical field'},'prePath':valid_path}]
+    source.write_text(json.dumps(value))
+string_prior={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+              (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(language_args)==0
+string_report=json.loads(output.getvalue())
+assert string_report['coverage']['4']['this_feed']=='256' and string_report['coverage']['6']['this_feed']=='4'
+assert string_report['rdap_ignored_entity_redactions']==2 and string_report['rdap_language_selected_inputs']==2
+assert [item['snapshot_sha256'] for item in string_report['snapshot_inputs']]==[digest(p.read_bytes()) for p in batch_sources]
+assert 'PRIVATE' not in output.getvalue() and valid_path not in output.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+        (batch_feed,*batch_sources,feed,root/'state/status.json',backup)}==string_prior
+refusals=[]
+for kind,token in (('opposite_quote','"PRIVATE'+chr(92)+chr(39)+'"'),
+                   ('escaped_surrogate','"PRIVATE'+chr(92)+'uD800"'),
+                   ('raw_surrogate','"PRIVATE'+chr(0xD800)+'"')):
+    rdap_objects[1]['redacted']=[{'name':{'description':'PRIVATE logical field'},'prePath':valid_path,
+        'method':'replacementValue','replacementPath':'$.entities['+token+']'}]
+    batch_sources[1].write_text(json.dumps(rdap_objects[1]))
+    source_prior=(batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)
+    output=io.StringIO();error=io.StringIO()
+    with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(language_args)==1
+    assert output.getvalue()=='' and 'Registry input 2' in error.getvalue() and 'PRIVATE' not in error.getvalue()
+    assert (batch_sources[1].read_bytes(),batch_sources[1].stat().st_mtime_ns)==source_prior
+    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
+            (batch_feed,batch_sources[0],feed,root/'state/status.json',backup)}=={key:value for key,value in string_prior.items() if key!=str(batch_sources[1])}
+    refusals.append(kind)
+print('RDAP STRING INSTALLED OBSERVATION: '+json.dumps({'matched_families':[4,6],'valid_pair_accepted':True,
+    'language_selection_preserved':True,'input_hashes_verified':True,'lexical_refusals':refusals,
+    'no_partial_report':True,'private_files_preserved':True,'raw_paths_omitted':True,'no_configuration_needed':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

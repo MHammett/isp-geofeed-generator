@@ -151,6 +151,20 @@ One pair of filter parentheses is optional. Quoted values remain literal data.
 Unions, recursive steps, root references in filters, functions, logical operators,
 escaped root aliases and unconsumed trailing expressions are refused.
 
+Quoted tokens also follow the quote and Unicode-scalar rules in
+[RFC 9535 section 2.3.1.1](https://www.rfc-editor.org/rfc/rfc9535.html#section-2.3.1.1).
+Only the enclosing quote can use its quote escape; the opposite quote can appear
+literally. Raw surrogate code points are refused. Escaped high surrogates need an
+adjacent escaped low surrogate; lone or malformed pairs are refused. Valid paired
+escapes and raw supplementary characters still work. This checks syntax without
+decoding keys, evaluating expressions or accepting escaped root aliases.
+
+The first parser accepted those malformed quoted forms. A 2026-11-19 offline probe
+and new tests reproduced that defect. The entity-boundary proof still held in those
+cases. The reader now refuses the malformed strings, including in filter constants
+and replacement paths. Correct the export at its source; do not strip declarations
+to force a pass. This is our parser fix, not an operator setup requirement.
+
 `pathLang` must be `jsonpath`; its default is supported. The default method is
 `removal`. This subset requires `prePath` for removal and `postPath` for `emptyValue`
 or `partialValue`. `replacementValue` can use an in-place `postPath`. When it uses
