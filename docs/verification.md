@@ -30,6 +30,12 @@ ARIN's retained `2026-11-19T16:39:59.699344+00:00` and
 All originals and modification times were unchanged. Total evidence sizes were
 24,697 and 11,514 bytes. Both sets passed internal consistency and strict reader
 checks; neither gains authenticity, authority, ownership or ingestion proof.
+After Claude's #108/#110 reviews, the final local full run passed 531 tests in
+29.229 seconds with two POSIX skips. The optional transport-test cleanup now raises
+a fixed assertion if parsing is reached before transport validation. Dedicated
+media/encoding and Content-Length guard removals each cause one assertion failure
+with zero errors, instead of the reviewer's mock-return errors. These changes touch
+tests and guidance; capture transport and permission behavior remain unchanged.
 Hosted results are recorded separately in the PR. See
 [capture-folder input](rdap-capture-input.md),
 [#111](https://github.com/MHammett/isp-geofeed-generator/issues/111) and

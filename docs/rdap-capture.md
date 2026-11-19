@@ -18,6 +18,15 @@ TLS certificate and hostname validation remain enabled. Redirects and response l
 are never followed. A redirect is saved and refused, even when it points to another
 valid registry. This is an initial capture-profile limit, not a platform defect.
 
+For a concrete observed case, Claude's
+[#108 review](https://github.com/MHammett/isp-geofeed-generator/pull/108#pullrequestreview-5980171400)
+records one lookup of `200.160.0.0/20` on 2026-11-19. LACNIC returned HTTP 307
+to NIC.br. The capture was saved and refused without following it. A separately
+saved NIC.br reply must still pass the strict truncation rules; the earlier #96
+policy-truncated response was refused even though it returned a link. These are
+limits of the observed path and this reader, not proof that every Brazilian prefix
+behaves the same way or that an operator's instance is misconfigured.
+
 The request asks for `application/rdap+json` and identity encoding. A usable response
 needs HTTP 200, that media type, no compressed encoding, a complete bounded body,
 and a network covering the entire requested prefix. A larger containing object is

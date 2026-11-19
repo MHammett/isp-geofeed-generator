@@ -178,7 +178,7 @@ class CaptureTests(unittest.TestCase):
         for index, kwargs in enumerate(({'media':'text/html'}, {'encoding':'gzip'}, {'length':'99999'},
                                         {'length':'-1'}, {'length':'1'*100}, {'length':'\u0661'})):
             self.dest = self.root/('bad'+str(index))
-            with patch.object(module,'normalize_rdap') as parser, self.assertRaises(GeofeedError):
+            with patch.object(module,'normalize_rdap',side_effect=AssertionError('parser reached before transport validation')) as parser, self.assertRaises(GeofeedError):
                 self.capture(Response(b'PRIVATE body',**kwargs))
             parser.assert_not_called()
         self.dest = self.root/'oversize'
@@ -347,7 +347,11 @@ class CaptureTests(unittest.TestCase):
                   ('whole-prefix',"if (requested.version != start.version or int(requested.network_address) < int(start)\n                    or int(requested.broadcast_address) > int(end)):",'if False:',
                    'test_invalid_truncated_redacted_and_wrong_scope_replies_remain_preserved'),
                   ('preserve-before-parse',"    save('receipt.json', receipt)","    # Receipt intentionally omitted in this private control.",
-                   'test_dual_family_originals_dates_and_receipt_exist_before_parser')]
+                   'test_dual_family_originals_dates_and_receipt_exist_before_parser'),
+                  ('media-profile',"elif not receipt['rdap_media_type'] or not receipt['identity_encoding']:",'elif False:',
+                   'test_media_encoding_lengths_and_body_budget_refuse_before_parser'),
+                  ('content-length','if length is not None and length != len(body):','if False:',
+                   'test_media_encoding_lengths_and_body_budget_refuse_before_parser')]
         def run(method):
             result=unittest.TestResult();CaptureTests(method).run(result);return result
         positive='test_dual_family_originals_dates_and_receipt_exist_before_parser'
@@ -357,7 +361,7 @@ class CaptureTests(unittest.TestCase):
             private=types.ModuleType('isp_geofeed_generator._private_capture_control');private.__package__='isp_geofeed_generator'
             exec(compile(text.replace(find,replacement),'<private capture control>','exec'),private.__dict__)
             private.opener=lambda:module.opener()
-            if name=='preserve-before-parse':private.normalize_rdap=lambda *a,**kw:module.normalize_rdap(*a,**kw)
+            private.normalize_rdap=lambda *a,**kw:module.normalize_rdap(*a,**kw)
             with patch.object(module,'capture',private.capture):result=run(method)
             self.assertEqual(result.errors,[]);self.assertGreater(len(result.failures),0)
             self.assertTrue(run(positive).wasSuccessful());self.assertTrue(run(method).wasSuccessful())
