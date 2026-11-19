@@ -93,6 +93,9 @@ Replace every placeholder and add the normal current fullbogon configuration. On
 Windows, use Windows Credential Manager references from the security guide instead
 of `systemd:`. Named inputs use their own URL and credential references. Legacy
 single-source configs use `BLUECAT_BAM_URL` and the same two credential names.
+This initial profile accepts printable ASCII username/token values without spaces;
+the username cannot contain a colon. Other account-name forms need an adapter
+extension. This limit does not mean those accounts are invalid in BlueCat.
 
 Run `discover`, `generate` and `validate` before setting `allow_initial: true` for
 publication. The normal allocation, bogon, overlap, withdrawal and relocation
