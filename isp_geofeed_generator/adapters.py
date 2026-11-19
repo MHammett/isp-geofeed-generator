@@ -10,6 +10,7 @@ from .powercode import Powercode
 from .gaiia import Gaiia
 from .billmax import BillMax, validate_settings as validate_billmax
 from .infoblox_nios import InfobloxNIOS, validate_settings as validate_nios
+from .openwisp import OpenWISP, validate_settings as validate_openwisp
 from .publish import WordPress, publish_file, publish_wordpress
 from .locations import LOCATION_FIELDS
 from .credentials import InputCredentialStore
@@ -99,6 +100,8 @@ class RecordFileTarget:
 # Factories read only the credentials needed by that adapter. No configuration
 # value is treated as an import path, executable command or arbitrary plugin.
 SOURCES = {
+    "openwisp": SourceAdapter(lambda s, c: OpenWISP(source_url(c, 'OPENWISP_URL'), c.get('OPENWISP_API_TOKEN'), s),
+        initial=True, settings=frozenset({'organization_id', 'subnet_ids'}), validate=validate_openwisp),
     "infoblox_nios": SourceAdapter(lambda s, c: InfobloxNIOS(source_url(c, 'INFOBLOX_NIOS_URL'), c.get('INFOBLOX_NIOS_USERNAME'), c.get('INFOBLOX_NIOS_PASSWORD'), s),
         initial=True, settings=frozenset({'network_refs', 'location_fields'}), validate=validate_nios),
     "billmax": SourceAdapter(billmax_source, initial=True, settings=frozenset({'ap_ids', 'auth_mode'}), validate=validate_billmax),

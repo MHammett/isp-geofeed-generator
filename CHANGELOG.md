@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Initial OpenWISP IPAM selected-subnet input reads exact IPv4/IPv6 CIDRs with tenant and identity checks. Locations are explicit private settings; no native facility join is inferred. Missing or invalid required records refuse the whole feed. Operator testing and contributions are welcome.
+
 - Initial offline RDAP lookup planning uses saved IANA address bootstrap data, whole-prefix longest matching and an explicit HTTPS RIR profile. Gaps and split-service scopes refuse planning; source authenticity, live reads and ownership remain unmeasured.
 
 - Installed-wheel checks run from a disposable script file to avoid Windows command-line length limits as the workload grows.

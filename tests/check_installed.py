@@ -517,6 +517,52 @@ assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in
         (*batch_sources,batch_feed,feed,root/'state/status.json',backup)}==review_prior
 print('RDAP REVIEW INSTALLED OBSERVATION: '+json.dumps({'policy_truncation_refused':True,'returned_link_preserved':True,
     'mixed_unlabeled_set_refused':True,'refusal_phrase_once':True,'no_partial_report':True,'private_files_preserved':True}))
+from unittest.mock import patch
+assert SOURCES['openwisp'].initial
+oworg='ab000000-0000-4000-8000-000000000001'
+owids=['ab000000-0000-4000-8000-000000000004','ab000000-0000-4000-8000-000000000006']
+owprefixes=['11.22.33.0/24','2001:4860:1234::/126']
+owrows=[{'id':rid,'organization':oworg,'subnet':prefix,'description':'PRIVATE secret'}
+        for rid,prefix in zip(owids,owprefixes)]
+owconfig={'inputs':{'ipam':{'source':{'type':'openwisp','organization_id':oworg,'subnet_ids':owids},
+    'url':'https://openwisp.example/mount','credentials':{'OPENWISP_API_TOKEN':'env:EXT_OPENWISP_TOKEN'},
+    'site_locations':{'subnet:'+rid:{'country':'US','region':'US-IL','city':'Reviewed City'} for rid in owids}}},
+    'allowed_prefixes':owprefixes,'bogons':bogons,'state_dir':str(root/'openwisp-state'),
+    'publish':{'type':'file','path':str(root/'openwisp-feed.csv')}}
+owpath=root/'openwisp.yaml';owfeed=root/'openwisp-feed.csv';owbackup=root/'openwisp-private-backup'
+def owrun(rows):
+    owpath.write_text(yaml.safe_dump(owconfig))
+    calls=[];replies=iter(rows)
+    def request(url,**kwargs):
+        rid=owids[len(calls)]
+        assert url=='https://openwisp.example/mount/api/v1/ipam/subnet/'+rid+'/'
+        assert kwargs=={'headers':{'Authorization':'Bearer synthetic-openwisp-token'},'method':'GET'}
+        calls.append(rid);return next(replies)
+    output=io.StringIO();error=io.StringIO()
+    with patch.dict('os.environ',{'EXT_OPENWISP_TOKEN':'synthetic-openwisp-token'}), \\
+         patch('isp_geofeed_generator.openwisp.JsonHTTP.request',side_effect=request), \\
+         contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):
+        status=main(['publish','--config',str(owpath)])
+    assert 'PRIVATE' not in output.getvalue()+error.getvalue()
+    assert 'synthetic-openwisp-token' not in output.getvalue()+error.getvalue()
+    return status,calls
+assert owrun(owrows)[0]==1 and not owfeed.exists()
+owconfig['inputs']['ipam']['source']['allow_initial']=True
+assert owrun(owrows)==(0,owids)
+assert [str(n) for n in parse_feed(owfeed.read_bytes())]==owprefixes
+owbackup.write_bytes(b'PRIVATE backup')
+owbefore={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}
+assert owrun(owrows)==(0,owids)
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}==owbefore
+for change in ({'id':oworg},{'organization':None},{'organization':owids[0]},
+               {'subnet':'2001:4860:1234::1/126'},{'subnet':'PRIVATE'}):
+    assert owrun([owrows[0],{**owrows[1],**change}])[0]==1
+    assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}==owbefore
+    assert not json.loads((root/'openwisp-state/status.json').read_text())['data']['healthy']
+print('OPENWISP INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'selected_gets_only':True,
+    'initial_opt_in_required':True,'identity_refused':True,'organization_refused':True,
+    'invalid_boundaries_refused':True,'unchanged_feed_not_rewritten':True,
+    'private_files_preserved':True,'secrets_not_reported':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)
