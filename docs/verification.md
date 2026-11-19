@@ -1,5 +1,40 @@
 # Verification
 
+## Capture folders and exact receipt dates
+
+On 2026-11-19, a saved-RDAP workload using a capture-shaped microsecond timestamp
+failed with the existing schema/date error. The producer wrote fractional seconds
+but the comparison reader accepted only whole seconds. The reader now accepts up
+to six fractional UTC digits and retains them in single and combined reports.
+Naive, non-UTC, future and over-precision dates still refuse.
+
+The local Windows full suite passed 531 tests in 46.847 seconds with two POSIX
+skips. Seventeen new methods cover capture-date import, both families, recorded
+language, oldest-date selection, every member's byte budget, missing/partial/refused
+evidence, changed files, hashes, scope and replanning, and immutable unrelated files.
+The parser runs again even when a test rewrites both body hashes and acceptance
+flags. Private body-hash, whole-query-scope and stable-read guard removals each
+cause one assertion failure and zero errors; intact controls pass before and after.
+
+The installed workload passed outside the checkout. It uses two captures, verifies
+their exact receipt dates and original body hashes, refuses a date override and a
+bad later hash with no partial report, preserves private files, and confirms that
+the raw saved-RDAP route accepts the same fractional dates. No config, credential
+or network read is needed for import.
+
+The two original real captures from the earlier run were also read offline with
+no new network requests. RIPE's receipt retained `2026-11-19T16:39:05.440640+00:00`
+and SHA-256 `c619e63c5d4992ba5cfa33b0c2657435f72f53580209c3c3d44528ff71e76003`.
+ARIN's retained `2026-11-19T16:39:59.699344+00:00` and
+`8edfe7ccf6d9fa0dbcf12835386684b99f3d5930ada9568301331f7b7e9252bc`.
+All originals and modification times were unchanged. Total evidence sizes were
+24,697 and 11,514 bytes. Both sets passed internal consistency and strict reader
+checks; neither gains authenticity, authority, ownership or ingestion proof.
+Hosted results are recorded separately in the PR. See
+[capture-folder input](rdap-capture-input.md),
+[#111](https://github.com/MHammett/isp-geofeed-generator/issues/111) and
+[#112](https://github.com/MHammett/isp-geofeed-generator/issues/112).
+
 ## Policy retry measurement scope
 
 On 2026-11-19, a private control injected one error-32 journal replacement denial

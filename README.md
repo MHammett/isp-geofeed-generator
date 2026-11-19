@@ -11,6 +11,8 @@ The [saved-IANA planner](docs/rdap-bootstrap-planning.md) can select a whole-pre
 RDAP lookup URL without making a request or claiming ownership.
 The separate [initial RDAP capture command](docs/rdap-capture.md) preserves one
 explicit public lookup and its observation receipt in a new restricted folder.
+The [capture-folder input](docs/rdap-capture-input.md) checks that saved evidence
+offline and uses its recorded date without a manual override.
 
 This is an independent community project. Contributions are welcome.
 Built-in source adapters are read-only.

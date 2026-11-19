@@ -23,9 +23,12 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
     if not isinstance(paths, (list, tuple)) or not 1 <= len(paths) <= MAX_FILES:
         raise GeofeedError('Registry comparison requires 1 to 32 explicitly supplied input files')
     if input_format not in INPUT_FORMATS:
-        raise GeofeedError('Registry input format must be normalized, ripe-rest or rdap')
-    if input_format == 'normalized':
+        raise GeofeedError('Registry input format must be normalized, ripe-rest, rdap or rdap-capture')
+    captured=input_format=='rdap-capture'
+    if input_format == 'normalized' or captured:
         if observed_at is not None:
+            if captured:
+                raise GeofeedError('RDAP capture inputs use their receipt dates; a separate observation date is refused')
             raise GeofeedError('Normalized registry inputs use their embedded dates; a separate observation date is refused')
         dates = [None] * len(paths)
     else:
@@ -33,7 +36,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
                 or any(not isinstance(stamp, str) for stamp in observed_at)):
             raise GeofeedError('Saved registry inputs require one --registry-observed-at per --registry-records, in the same order')
         dates = observed_at
-    if len(paths) == 1:
+    if len(paths) == 1 and not captured:
         # Preserve the existing single-file API/report, including the raw-file hash.
         return check_files(paths[0], feed_path, expected_url, overlap_policy=overlap_policy,
                            input_format=input_format, observed_at=dates[0], **options)
@@ -42,20 +45,26 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
     remaining, total_objects, rows, inputs, stamps = MAX_BYTES, 0, [], [], []
     for index, path in enumerate(paths, 1):
         try:
-            snapshot = read_output(path, remaining)
-            if snapshot.identity is None:
-                raise GeofeedError('Registry input must be an existing bounded regular file')
-            remaining -= len(snapshot.data)
-            data, metadata = normalize_input(snapshot.data, input_format, dates[index - 1], **options)
+            if captured:
+                from .registry_capture import read_capture
+                data,metadata,snapshot_hash,used=read_capture(path,remaining,now=now)
+                remaining-=used
+            else:
+                snapshot = read_output(path, remaining)
+                if snapshot.identity is None:
+                    raise GeofeedError('Registry input must be an existing bounded regular file')
+                remaining -= len(snapshot.data)
+                snapshot_hash=digest(snapshot.data)
+                data, metadata = normalize_input(snapshot.data, input_format, dates[index - 1], **options)
             source, stamp = _load_snapshot(data, now)
             total_objects += len(source['objects'])
             if total_objects > MAX_OBJECTS:
                 raise GeofeedError('Combined registry inputs exceed the supported object limit')
             rows.extend(source['objects'])
             stamps.append(stamp)
-            inputs.append({'input': index, 'snapshot_sha256': digest(snapshot.data),
+            inputs.append({'input': index, 'snapshot_sha256': snapshot_hash,
                            'normalized_snapshot_sha256': digest(data),
-                           'snapshot_observed_at': stamp.isoformat(timespec='seconds'),
+                           'snapshot_observed_at': stamp.isoformat(),
                            'snapshot_age_seconds': int((now - stamp).total_seconds()),
                            'snapshot_observed_at_source': 'operator_supplied',
                            'registry_objects': len(source['objects']), **metadata})
@@ -65,7 +74,7 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
                 message += '; no partial comparison made'
             raise GeofeedError(f'Registry input {index}: {message}') from None
 
-    data = _encode({'schema_version': 1, 'observed_at': min(stamps).isoformat(timespec='seconds'), 'objects': rows})
+    data = _encode({'schema_version': 1, 'observed_at': min(stamps).isoformat(), 'objects': rows})
     if len(data) > MAX_BYTES:
         raise GeofeedError('Combined normalized registry inputs exceed the supported byte limit')
     feed = read_output(feed_path, 1_000_000)
@@ -78,15 +87,20 @@ def check_file_set(paths, feed_path, expected_url, *, overlap_policy=REJECT, inp
                   normalized_snapshot_sha256=digest(data), snapshot_sha256_scope='combined_normalized_snapshot',
                   source_manifest_sha256=digest(_encode([{key: value for key, value in item.items()
                                                          if key != 'snapshot_age_seconds'} for item in inputs])),
-                  snapshot_observed_at_basis='oldest_supplied_input',
-                  snapshot_observed_at_source='operator_supplied')
+                  snapshot_observed_at_basis='oldest_capture_receipt' if captured else 'oldest_supplied_input',
+                  snapshot_observed_at_source='capture_receipt_unverified' if captured else 'operator_supplied')
+    if captured:
+        result.update(capture_integrity='internally_consistent',capture_authenticity='not_measured',
+                      registry_authority='not_measured',bootstrap_authenticity='not_measured')
     if input_format != 'normalized':
         result['registry_source'] = inputs[0]['registry_source']
-    if input_format == 'rdap':
+    if input_format == 'rdap' or captured:
         result['rdap_geofeed1_advertised_inputs'] = sum(item['rdap_geofeed1_advertised'] for item in inputs)
         result['rdap_linked_inputs'] = sum(item['rdap_link_status'] == 'link_returned' for item in inputs)
         result['rdap_absence_unknown_inputs'] = sum(item['rdap_link_status'] == 'availability_not_measured' for item in inputs)
         result['rdap_ignored_entity_redactions'] = sum(item['rdap_ignored_entity_redactions'] for item in inputs)
         result['rdap_requested_language'] = options.get('rdap_language')
+        if captured:
+            result['rdap_language_choice_source']='per_capture_intent'
         result['rdap_language_selected_inputs'] = sum(item['rdap_link_selection'] == 'exact_language' for item in inputs)
     return result

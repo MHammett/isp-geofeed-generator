@@ -4,6 +4,9 @@ The offline checker can read saved RDAP IP-network lookup replies. This adds ano
 discovery format to [registry checks](registry-reference-checks.md). It does not
 contact a registry, follow links, read credentials, change a record or publish a feed.
 Support is initial. Contributions and sanitized operator export feedback are welcome.
+Accepted capture folders can also be read through the
+[capture input](rdap-capture-input.md), which checks the saved receipt and uses its
+date automatically. This raw-file format still supports separately supplied replies.
 
 Keep original replies private because they can contain contact data. Generate and
 verify the candidate using the normal ownership and current fullbogon guards first.
@@ -33,6 +36,8 @@ Use one records/date pair for one reply. Repeated files use dates in the same ar
 order. Missing dates or a count mismatch are refused. Invalid and future dates are
 refused too. All inputs in a command use the selected format; mixed-format sets are
 not implemented. Default normalized input and existing RIPE commands still work.
+UTC dates can include one to six fractional second digits. Both single-file and
+combined reports retain that precision, including timestamps produced by capture.
 
 ## Scope and link rules
 

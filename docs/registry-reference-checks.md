@@ -31,6 +31,8 @@ or turn a comparison into proof of authority.
 For one explicit live read, [capture-rdap](rdap-capture.md) saves an original reply
 and actual observation receipt in a new restricted folder. It does not run this
 comparison, follow referrals, fetch a feed or change publication state.
+To compare those saved folders without copying dates, use the
+[offline capture input](rdap-capture-input.md) with `--registry-format rdap-capture`.
 
 In Bash on Linux:
 
@@ -53,7 +55,8 @@ JSON through your shell into a separate private report if needed. `--config` is 
 
 Supply normalized JSON with exactly `schema_version`, `observed_at` and `objects`.
 `schema_version` is integer `1`. `observed_at` is the export's actual UTC observation
-time, in `YYYY-MM-DDTHH:MM:SSZ` or `+00:00` form. Future dates are refused. The report
+time, in `YYYY-MM-DDTHH:MM:SSZ` or `+00:00` form, optionally with one to six fractional
+second digits before the UTC suffix. Future dates are refused. The report
 keeps the supplied date and age; it does not assume an old export reflects current state.
 
 Each object has:

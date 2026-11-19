@@ -28,7 +28,8 @@ In PowerShell on Windows:
 isp-geofeed-generator check-registry --registry-format ripe-rest --registry-records 'C:\ProgramData\ISP Geofeed Generator\ripe-response.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv'
 ```
 
-The date accepts UTC seconds with `Z` or `+00:00`. Future dates are refused. Do not
+The date accepts UTC seconds with `Z` or `+00:00`, optionally with one to six
+fractional digits. That precision is retained. Future dates are refused. Do not
 substitute an object's `last-modified` value, a file's modification time or the time
 you ran this command for the actual export observation time. The report labels the
 date as operator supplied; it does not verify it. As with normalized snapshots,

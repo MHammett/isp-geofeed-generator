@@ -174,10 +174,10 @@ def main(argv=None):
     parser.add_argument('--approve-location-changes', metavar='SHA256', help='Publish only: approve location changes for this exact reviewed candidate hash')
     parser.add_argument('--expected-current-sha256',metavar='SHA256',help='Policy configuration/recovery only: exact current feed or failed candidate hash')
     parser.add_argument('--probe-cache',action='store_true',help='inspect-wordpress only: compare a fresh anonymous query URL with the canonical feed; no writes')
-    parser.add_argument('--registry-records',action='append',help='check-registry only: repeat for each private snapshot or saved registry response')
+    parser.add_argument('--registry-records',action='append',help='check-registry only: repeat for each snapshot, saved response or capture directory')
     from .registry_formats import INPUT_FORMATS
     parser.add_argument('--registry-format',choices=INPUT_FORMATS,help='check-registry only: saved input format; default normalized')
-    parser.add_argument('--registry-observed-at',action='append',help='saved response formats only: one actual UTC date per --registry-records, in the same order')
+    parser.add_argument('--registry-observed-at',action='append',help='raw saved responses only: one actual UTC date per input; capture directories use receipts')
     parser.add_argument('--rdap-language',help='saved/captured RDAP only: exact declared geofeed language for every input; no fallback')
     parser.add_argument('--feed',help='check-registry only: existing local RFC 8805 CSV candidate')
     parser.add_argument('--feed-url',help='check-registry only: exact public HTTPS feed URL; never fetched')

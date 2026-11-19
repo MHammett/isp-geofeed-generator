@@ -98,7 +98,7 @@ def _load_snapshot(data, now):
                 or type(source['schema_version']) is not int or source['schema_version'] != 1
                 or not isinstance(source['objects'], list) or len(source['objects']) > MAX_OBJECTS
                 or not isinstance(source['observed_at'], str)
-                or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:Z|\+00:00)', source['observed_at'])):
+                or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)', source['observed_at'])):
             raise ValueError()
         stamp = datetime.fromisoformat(source['observed_at'].replace('Z', '+00:00'))
         if stamp > now:
@@ -213,7 +213,7 @@ def check_snapshot(data, csv, expected_url, *, overlap_policy=REJECT, now=None):
         'inspection_only': True, 'comparison_consistent': consistent, 'registry_input_format': 'normalized',
         'scope': 'supplied_unsigned_range_snapshot' if formats['address_range'] else 'supplied_unsigned_cidr_snapshot',
         'registry_scope_formats': formats, 'observed_at': now.isoformat(timespec='seconds'),
-        'snapshot_observed_at': stamp.isoformat(timespec='seconds'), 'snapshot_age_seconds': int((now - stamp).total_seconds()),
+        'snapshot_observed_at': stamp.isoformat(), 'snapshot_age_seconds': int((now - stamp).total_seconds()),
         'live_registry_read': 'not_measured', 'ownership_validation': 'not_measured',
         'signature_validation': 'not_measured',
         'current_allocation_validation': 'not_measured', 'public_retrieval': 'not_measured', 'provider_ingestion': 'not_measured',

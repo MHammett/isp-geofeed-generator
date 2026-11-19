@@ -626,6 +626,52 @@ assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in owfiles}==capture_
 print('RDAP CAPTURE INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'originals_and_dates_verified':True,
     'hashes_verified':True,'no_repeat_request':True,'invalid_reply_preserved':True,'no_partial_report':True,
     'private_files_preserved':True,'no_configuration_or_credentials':True,'unmeasured_fields_present':True}))
+capture_inputs=[root/'rdap-capture-0',root/'rdap-capture-1']
+capture_csv=root/'capture-candidate.csv'
+capture_csv.write_bytes(b'11.22.33.0/24,US,US-IL,Example City,\\r\\n2001:4860:1234::/126,US,US-IL,Example City,\\r\\n')
+capture_files=[capture_csv,*owfiles,*(p for folder in capture_inputs for p in folder.iterdir())]
+capture_before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in capture_files}
+capture_check_args=['check-registry','--config',str(root/'missing.yaml'),'--registry-format','rdap-capture',
+    '--feed',str(capture_csv),'--feed-url','https://feed.example/geofeed.csv']
+for folder in capture_inputs:capture_check_args+=['--registry-records',str(folder)]
+output,error=io.StringIO(),io.StringIO()
+with patch('isp_geofeed_generator.cli.load_config',side_effect=AssertionError('config read')), \\
+     patch.object(CredentialStore,'get',side_effect=AssertionError('credential read')), \\
+     patch.object(rdap_capture,'opener',side_effect=AssertionError('network read')), \\
+     contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):
+    assert main(capture_check_args)==0
+capture_check_report=json.loads(output.getvalue())
+assert capture_check_report['comparison_consistent'] and capture_check_report['snapshot_input_count']==2
+assert capture_check_report['coverage']['4']['this_feed']=='256' and capture_check_report['coverage']['6']['this_feed']=='4'
+capture_dates=[json.loads((p/'receipt.json').read_text())['response_observed_at'] for p in capture_inputs]
+assert [row['capture_response_observed_at'] for row in capture_check_report['snapshot_inputs']]==capture_dates
+assert capture_check_report['snapshot_observed_at']==min(capture_dates)
+assert capture_check_report['capture_authenticity']=='not_measured'
+assert all(row['capture_integrity']=='internally_consistent' for row in capture_check_report['snapshot_inputs'])
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in capture_files}==capture_before
+assert 'PRIVATE' not in output.getvalue()+error.getvalue()
+output,error=io.StringIO(),io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):
+    assert main(capture_check_args+['--registry-observed-at',capture_dates[0]])==1
+assert output.getvalue()==''
+late_receipt=capture_inputs[1]/'receipt.json';late_original=late_receipt.read_bytes()
+late_value=json.loads(late_original);late_value['saved_sha256']='0'*64
+late_receipt.write_text(json.dumps(late_value))
+capture_bad_before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in capture_files}
+output,error=io.StringIO(),io.StringIO()
+with contextlib.redirect_stdout(output),contextlib.redirect_stderr(error):assert main(capture_check_args)==1
+assert output.getvalue()=='' and 'Registry input 2' in error.getvalue() and 'no partial comparison' in error.getvalue()
+assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in capture_files}==capture_bad_before
+late_receipt.write_bytes(late_original)
+raw_date_args=['check-registry','--registry-format','rdap','--feed',str(capture_csv),'--feed-url','https://feed.example/geofeed.csv']
+for folder,stamp in zip(capture_inputs,capture_dates):raw_date_args+=['--registry-records',str(folder/'response.body'),'--registry-observed-at',stamp]
+output=io.StringIO()
+with contextlib.redirect_stdout(output):assert main(raw_date_args)==0
+assert json.loads(output.getvalue())['snapshot_observed_at']==min(capture_dates)
+print('CAPTURE INPUT INSTALLED OBSERVATION: '+json.dumps({'families':[4,6],'receipt_dates_preserved':True,
+    'raw_fractional_dates_accepted':True,'every_input_used':True,'late_hash_refused':True,'date_override_refused':True,
+    'no_partial_report':True,'private_files_preserved':True,'no_configuration_or_network':True,
+    'authenticity_unmeasured':True}))
 '''
 with tempfile.TemporaryDirectory() as directory:
     environment = dict(os.environ)

@@ -94,6 +94,10 @@ with the exact `response_observed_at` from the receipt. Use the normal local can
 and exact public feed URL. [The comparison guide](registry-reference-checks.md)
 explains its scope, dates and multi-file limits. It is a separate operation; capture
 success does not mean the references match a feed.
+The [capture-folder input](rdap-capture-input.md) is the simpler handoff: use
+`--registry-format rdap-capture` and the folder path. It checks the saved evidence
+and uses the exact receipt date automatically. Both routes accept up to six
+fractional UTC second digits; the timestamp is not rounded to make it parse.
 
 On refusal, stdout is empty and the command exits with failure. Inspect the saved
 receipt and validation code privately. Original bytes are retained even when the

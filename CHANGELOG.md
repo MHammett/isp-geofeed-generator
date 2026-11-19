@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Offline registry comparisons can read complete RDAP capture folders, verify their local consistency and use their original dates and language choices. UTC fractional seconds are accepted and preserved in raw and combined checks. Capture files remain unauthenticated evidence; no network or publication action is added.
+
 - Initial explicit RDAP capture preserves one planned public response and actual observation metadata in a new restricted folder before parsing. Redirects, retries, unsafe or partial replies and uncovered query scope are refused without publication changes.
 
 - Initial OpenWISP IPAM selected-subnet input reads exact IPv4/IPv6 CIDRs with tenant and identity checks. Locations are explicit private settings; no native facility join is inferred. Missing or invalid required records refuse the whole feed. Operator testing and contributions are welcome.
