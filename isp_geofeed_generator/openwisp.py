@@ -55,7 +55,8 @@ class OpenWISP:
                 raise GeofeedError(f'OpenWISP subnet {rid} does not match the configured organization; no partial inventory accepted')
             try:
                 value = row['subnet']
-                if not isinstance(value, str) or not 3 <= len(value) <= 64 or '/' not in value:
+                if (not isinstance(value, str) or not 3 <= len(value) <= 64
+                        or '/' not in value or '%' in value):
                     raise ValueError()
                 network = ipaddress.ip_network(value, strict=True)
                 if str(network) != value:

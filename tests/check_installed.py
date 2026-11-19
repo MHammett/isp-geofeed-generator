@@ -555,7 +555,8 @@ owbefore={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup
 assert owrun(owrows)==(0,owids)
 assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}==owbefore
 for change in ({'id':oworg},{'organization':None},{'organization':owids[0]},
-               {'subnet':'2001:4860:1234::1/126'},{'subnet':'PRIVATE'}):
+               {'subnet':'2001:4860:1234::1/126'},{'subnet':'2001:4860:1234::%PRIVATE/126'},
+               {'subnet':'PRIVATE'}):
     assert owrun([owrows[0],{**owrows[1],**change}])[0]==1
     assert {str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in (owfeed,owbackup)}==owbefore
     assert not json.loads((root/'openwisp-state/status.json').read_text())['data']['healthy']

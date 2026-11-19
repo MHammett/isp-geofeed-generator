@@ -83,7 +83,8 @@ class OpenWISPTests(unittest.TestCase):
 
     def test_noncanonical_invalid_or_missing_boundaries_do_not_echo_response_data(self):
         for value in (None, True, {}, 'PRIVATE', '11.22.33.1/24', '11.22.33.0',
-                      '2001:4860:1234:0000::/126', '2001:4860:1234::1/126', '1'*65):
+                      '2001:4860:1234:0000::/126', '2001:4860:1234::1/126',
+                      '2001:4860:1234::%PRIVATE/126', '1'*65):
             source, _ = self.source([{**row(), 'subnet': value}], [V4])
             with self.subTest(value=value):
                 with self.assertRaisesRegex(GeofeedError, 'boundaries') as error:
@@ -244,4 +245,3 @@ class OpenWISPTests(unittest.TestCase):
                 self.assertEqual((root/'feed.csv').stat().st_mtime_ns, stamp)
                 self.assertEqual(backup.read_bytes(), b'PRIVATE backup')
                 self.assertFalse(json.loads((root/'state/status.json').read_text())['data']['healthy'])
-

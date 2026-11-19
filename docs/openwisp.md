@@ -21,7 +21,7 @@ Checked on 2026-11-19:
 
 The reader needs a JSON object with `id`, `organization` and `subnet` strings.
 The first two must match the selected subnet UUID and configured organization UUID.
-The CIDR must be canonical with no host bits, expansion or normalization needed.
+The CIDR must be canonical with no host bits, zone identifiers, expansion or normalization needed.
 Unknown fields are discarded. Names, descriptions, parent records and response
 links are neither used for location nor followed.
 
