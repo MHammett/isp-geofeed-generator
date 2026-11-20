@@ -1,0 +1,17 @@
+# For an instance that does not use native phpIPAM locations.
+# Fictional IDs and documentation space: replace before publishing.
+state_dir: state
+source:
+  type: phpipam
+  app_id: geofeed
+  subnet_ids: ["101"]
+  location_mode: configured
+  facility_ids: [facility-1]
+  allow_initial: false
+credentials:
+  PHPIPAM_API_TOKEN: systemd:PHPIPAM_API_TOKEN
+allowed_prefixes: [192.0.2.0/24]
+pool_sites: {"subnet:101": facility-1}
+site_locations:
+  facility-1: {country: US, region: US-IL, city: Example City}
+publish: {type: file, path: output/geofeed.csv}

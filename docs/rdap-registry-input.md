@@ -1,0 +1,251 @@
+# Saved RDAP network input, initial support
+
+The offline checker can read saved RDAP IP-network lookup replies. This adds another
+discovery format to [registry checks](registry-reference-checks.md). It does not
+contact a registry, follow links, read credentials, change a record or publish a feed.
+Support is initial. Contributions and sanitized operator export feedback are welcome.
+Accepted capture folders can also be read through the
+[capture input](rdap-capture-input.md), which checks the saved receipt and uses its
+date automatically. This raw-file format still supports separately supplied replies.
+
+Keep original replies private because they can contain contact data. Generate and
+verify the candidate using the normal ownership and current fullbogon guards first.
+This diagnostic does not repeat live allocation checks or verify the saved file's origin.
+
+## Run a comparison
+
+Save one top-level `ip network` reply per file. Replace each date placeholder with
+the actual UTC observation time for that reply, not a registration event date.
+The optional [saved-IANA planner](rdap-bootstrap-planning.md) can identify a service
+before a lookup. It makes no request. Keep its bootstrap download date separate
+from the later RDAP response observation date.
+
+In Bash on Linux:
+
+```bash
+isp-geofeed-generator check-registry --registry-format rdap --registry-records /etc/isp-geofeed-generator/rdap-v4.json --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --registry-records /etc/isp-geofeed-generator/rdap-v6.json --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed /var/lib/isp-geofeed-generator/candidate.csv --feed-url 'https://example.net/geofeed.csv'
+```
+
+In PowerShell on Windows:
+
+```powershell
+isp-geofeed-generator check-registry --registry-format rdap --registry-records 'C:\ProgramData\ISP Geofeed Generator\rdap-v4.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --registry-records 'C:\ProgramData\ISP Geofeed Generator\rdap-v6.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv'
+```
+
+Use one records/date pair for one reply. Repeated files use dates in the same argument
+order. Missing dates or a count mismatch are refused. Invalid and future dates are
+refused too. All inputs in a command use the selected format; mixed-format sets are
+not implemented. Default normalized input and existing RIPE commands still work.
+UTC dates can include one to six fractional second digits. Both single-file and
+combined reports retain that precision, including timestamps produced by capture.
+
+## Scope and link rules
+
+[RFC 9083](https://www.rfc-editor.org/rfc/rfc9083.html#section-5.4) defines the network
+object and its address bounds. The reader requires `objectClassName` of `ip network`,
+a bounded handle, `startAddress`, `endAddress` and a matching `ipVersion`. It keeps
+inclusive endpoints without rounding them to a CIDR. Valid IPv6 spellings become
+canonical address text without changing their numeric bounds. Safe IDs hash the
+handle and exact range; raw handles are not printed.
+
+[RFC 9877](https://www.rfc-editor.org/rfc/rfc9877.html#section-2) defines the geofeed
+link and `geofeed1` declaration. A root `links` entry containing the `geofeed` relation
+token supplies the reference, including a space-separated relation list. It needs
+an HTTPS `href` and a `value` context. This reader accepts
+bounded HTTP/HTTPS contexts without credentials. The recommended `type` field may
+be absent. If present, the initial reader supports `application/geofeed+csv` only,
+case-insensitively and without parameters. Unsupported media types stop this reader;
+that is not a claim that the registry cannot serve geofeed data.
+
+The declaration and the link are separate. A geofeed link is accepted without
+`geofeed1`. A missing declaration is not proof of missing service capability.
+Reports distinguish the saved view with these fixed values:
+
+| `rdap_link_status` | What was observed |
+| --- | --- |
+| `link_returned` | One supported geofeed link was used, with explicit selection when required. |
+| `not_returned_with_extension` | The reply declares `geofeed1` but returns no link for this object. |
+| `availability_not_measured` | Neither the declaration nor a geofeed link was returned. |
+
+`rdap_geofeed1_advertised` reports the exact declaration separately. These fields
+describe supplied data. They do not establish current server state, authenticity,
+permissions, privacy-related omissions or what an omitted parent/child would return.
+Coverage called `unreferenced` means no applicable reference in the supplied set.
+It does not mean the registry has no reference anywhere.
+
+Only the current network's root links are used. Entity links, nested networks, free
+text remarks and administrative country values do not locate customer addresses.
+Self, parent and other URLs are never fetched. Obtain needed parent/child replies
+separately; the checker does not prove that the set contains the complete hierarchy.
+Known child references retain the shared most-specific scope rule across files.
+
+## Choosing a declared language
+
+[RFC 9877](https://www.rfc-editor.org/rfc/rfc9877.html#section-2.2) allows several
+geofeed links for language alternatives. The default still refuses several links,
+including repeated URLs. To choose a declared language, add `--rdap-language en`
+to the saved RDAP command. The same choice applies to every supplied file.
+
+For example, in Bash on Linux:
+
+```bash
+isp-geofeed-generator check-registry --registry-format rdap --rdap-language en --registry-records /etc/isp-geofeed-generator/rdap.json --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed /var/lib/isp-geofeed-generator/candidate.csv --feed-url 'https://example.net/geofeed.csv'
+```
+
+In PowerShell on Windows:
+
+```powershell
+isp-geofeed-generator check-registry --registry-format rdap --rdap-language en --registry-records 'C:\ProgramData\ISP Geofeed Generator\rdap.json' --registry-observed-at 'YYYY-MM-DDTHH:MM:SSZ' --feed 'C:\ProgramData\ISP Geofeed Generator\candidate.csv' --feed-url 'https://example.net/geofeed.csv'
+```
+
+Each geofeed link must have a supported `hreflang` string or an array of 1 to 20
+tags. A requested tag must match exactly, ignoring ASCII case. `en` does not match
+`en-US`, and `en-CA` does not match `en-US`. The checker never chooses from machine
+locale, response order, a language prefix or the expected feed URL. A selected link
+pointing to another URL still produces an inconsistent comparison.
+
+The initial subset is `language[-Script][-REGION]`: 2 to 8 ASCII letters for language,
+an optional four-letter script, then an optional two-letter or three-digit region.
+Examples are `en`, `en-US`, `zh-Hant-TW` and `es-419`. Tags are bounded to 32 characters
+and never truncated. Variants, extlangs, extensions, private-use and grandfathered
+forms need further reader support. They may be valid
+[BCP 47 tags](https://www.rfc-editor.org/rfc/rfc5646.html). This reader checks shape,
+not IANA registration, aliases, actual content language or translation.
+
+Every geofeed link is checked before selection, including unselected alternatives.
+Missing or malformed labels, unsupported tags, repeated labels within or across
+links, and no exact match refuse the whole set. Repeated labels are refused even on
+unselected links. Do not edit labels, drop alternatives or change privacy settings
+to force a pass. These refusals describe reader limits or ambiguous supplied data;
+they do not establish that a platform cannot model language alternatives.
+
+With no geofeed links, the existing absent/unknown-availability result remains.
+With no language option, a single link still works without relying on its language
+metadata. The option is refused for other saved formats and publication commands.
+No link is fetched, and this does not choose the language of a published feed.
+
+A set mixing labeled alternatives with a single unlabeled geofeed link cannot be
+checked in one command today. With the option, the unlabeled link is refused; without
+it, several links are refused. Separate commands can inspect each supported subset,
+but they lose the combined parent/child reference precedence across those subsets.
+Do not sum their coverage counts or treat separate consistent reports as one combined
+result. Keep the original records; do not invent labels or drop a child to force a pass.
+The current option requires declared language metadata on every link. Supporting
+unlabeled singletons would need a separate selection status and summary counts;
+those are not implemented. [Claude's #100 review](https://github.com/MHammett/isp-geofeed-generator/pull/100#pullrequestreview-5966653130)
+identified this usability limit.
+
+## Refusals and bounds
+
+One command accepts at most 32 files. RDAP initially supports one network object per
+file, so it can compare up to 32 supplied RDAP objects. Shared limits also bound total
+original bytes and the combined normalized snapshot to 8 MB each. Links are limited
+to 200 per reply, conformance entries to 100 and root notices/remarks to 100 each.
+Handles are limited to 256 characters, link targets and contexts to 2,048 characters.
+Relevant strings must be single-line. Original JSON is also checked for duplicate
+keys, non-finite numbers, invalid encoding and excessive nesting.
+
+Errors and typed truncation in root notices/remarks stop the comparison.
+Informational terms notices can remain. Free text is not parsed
+to guess whether more data exists; an unflagged incomplete reply cannot be detected
+from these files alone. Do not strip an error or truncation marker to force a pass.
+
+The truncation refusal also applies when one valid geofeed link was returned.
+In a [2026-11-18 review](https://github.com/MHammett/isp-geofeed-generator/pull/96#pullrequestreview-5966652162),
+Claude reported a NIC.br reply for `200.160.0.0/20`, reached through LACNIC's redirect,
+with a supported geofeed link and a root `object truncated due to server policy` remark.
+The reader keeps refusing that shape. A returned link is positive evidence that the
+server can supply geofeed links, but it does not prove a second alternative or other
+discovery data was not removed. This is a documented reader limit, not platform
+incapability or an operator setup error. No privacy setting change is requested.
+
+### Contact redaction
+
+[RFC 9537](https://www.rfc-editor.org/rfc/rfc9537.html#section-4.2) lets servers
+describe removed or changed fields. This reader can accept those declarations only
+when every declared path stays inside the root `entities` subtree. That subtree is
+ignored by this checker. Redaction of the root, network bounds, identity, conformance,
+notices or links stops the entire comparison. Unsupported expressions stop it too.
+These are reader limits, not proof that the registry lacks geofeed support.
+
+The reader parses a small subset of
+[JSONPath](https://www.rfc-editor.org/rfc/rfc9535.html). It never runs expressions,
+resolves matches, fetches linked data or changes the saved reply. The root must be
+exactly `$.entities` or `$['entities']` (double quotes work too). Downward steps may
+use ASCII member names, quoted keys, nonnegative indices, wildcards and slices with
+nonnegative bounds and no step. Filters may compare a relative singular member/index
+path with a quoted string, such as `$.entities[?(@.handle=='EXAMPLE-1')].vcardArray[1]`.
+One pair of filter parentheses is optional. Quoted values remain literal data.
+Unions, recursive steps, root references in filters, functions, logical operators,
+escaped root aliases and unconsumed trailing expressions are refused.
+
+Quoted tokens also follow the quote and Unicode-scalar rules in
+[RFC 9535 section 2.3.1.1](https://www.rfc-editor.org/rfc/rfc9535.html#section-2.3.1.1).
+Only the enclosing quote can use its quote escape; the opposite quote can appear
+literally. Raw surrogate code points are refused. Escaped high surrogates need an
+adjacent escaped low surrogate; lone or malformed pairs are refused. Valid paired
+escapes and raw supplementary characters still work. This checks syntax without
+decoding keys, evaluating expressions or accepting escaped root aliases.
+
+The first parser accepted those malformed quoted forms. A 2026-11-19 offline probe
+and new tests reproduced that defect. The entity-boundary proof still held in those
+cases. The reader now refuses the malformed strings, including in filter constants
+and replacement paths. Correct the export at its source; do not strip declarations
+to force a pass. This is our parser fix, not an operator setup requirement.
+
+`pathLang` must be `jsonpath`; its default is supported. The default method is
+`removal`. This subset requires `prePath` for removal and `postPath` for `emptyValue`
+or `partialValue`. `replacementValue` can use an in-place `postPath`. When it uses
+`prePath`, this reader also requires `replacementPath`. If a replacement path is
+declared, it must pass the same scope proof. A declaration cannot have both
+`prePath` and `postPath`. Human names and reasons never decide which fields are safe.
+The reply must declare `redacted` in `rdapConformance`.
+
+Limits are 100 declarations per reply, 2,048 characters and 256 tokens per path,
+256 characters per quoted token, 64 characters per unquoted member name and six
+digits per index. Names and reasons use nonempty standard string fields, limited
+to 1,024 single-line characters each. Empty or malformed metadata is refused.
+Do not remove a declaration or change a path to force acceptance.
+
+On 2026-11-18, offline classification of an unchanged saved public RIPE NCC reply
+accepted all 12 entity-only declarations. Its original SHA-256 is
+`c619e63c5d4992ba5cfa33b0c2657435f72f53580209c3c3d44528ff71e76003`.
+The earlier reader had refused it. The original lookup time was not retained, so
+a correctly dated CLI import of that reply remains unmeasured. No new lookup was
+made for this follow-up. Classification does not establish full interoperability,
+that a path matches data, or that a server applied redaction correctly.
+
+Several geofeed links require the explicit supported language choice described
+above. Without it, they still stop the comparison. An ambiguous or unsafe later
+file stops the whole command without a partial report.
+Duplicate object versions, same-scope ambiguity and crossing scopes retain the
+existing shared checks. No link or later file is silently dropped.
+
+## Report and recovery
+
+Single-file reports retain original and normalized hashes and label the source as
+`operator_supplied_rdap`. Several-file reports retain each input's hashes, dates and
+RDAP metadata. `rdap_redaction_status` is `not_present` or `ignored_entities_only`.
+`rdap_ignored_entity_redactions` counts accepted declarations, not matched fields.
+The multi-file summary totals that count as well as advertised, linked and
+unknown-absence inputs. The oldest date describes the combined comparison. Original-file hashes stay
+in `snapshot_inputs`; the top-level snapshot hash describes combined normalized data.
+See [multi-file hash meanings](ripe-registry-input.md#more-than-one-response).
+
+`rdap_requested_language` is the lowercased requested tag or null.
+`rdap_geofeed_link_count` counts the original object's geofeed links.
+`rdap_link_selection` is `single_link`, `exact_language` or `no_link`. Multi-file
+reports keep those per-input fields, the common requested language and a total
+`rdap_language_selected_inputs`. These fields describe declared metadata only.
+
+Reports omit raw contacts, handles, reference URLs and input paths. Dates are supplied
+by the operator. Reads occur separately and do not form an atomic snapshot. No report
+claims publication health. Bootstrap authority, ownership, signatures, current
+allocation, public retrieval and provider ingestion remain unverified. Existing
+`not_measured` fields still apply.
+
+On refusal, keep feed, status and recovery files intact. Correct the saved input set
+and rerun the read-only check. Return to the prior compatible version and its saved
+RIPE or normalized input to undo this source change. No registry or hosting migration
+is needed. Live lookup, further language-tag support, signatures and discovery work stay
+open under [#70](https://github.com/MHammett/isp-geofeed-generator/issues/70).

@@ -1,0 +1,15 @@
+[
+  {"name":"valid-crlf","kind":"valid","csv":"11.22.33.0/24,US,US-IL,Example,\r\n","core_refuses":false},
+  {"name":"valid-lf","kind":"valid","csv":"11.22.33.0/24,US,US-IL,Example,\n","core_refuses":false},
+  {"name":"valid-unicode","kind":"valid","csv":"11.22.33.0/24,BR,BR-SP,Example é,\r\n","core_refuses":false},
+  {"name":"valid-ipv6","kind":"valid","csv":"2001:4860:1234::/48,GB,GB-ENG,Example,\r\n","core_refuses":false},
+  {"name":"invalid-prefix","kind":"format","csv":"999.0.0.0/24,US,US-IL,Example,\r\n","core_refuses":true},
+  {"name":"invalid-country","kind":"iso","csv":"11.22.33.0/24,XX,,Example,\r\n","core_refuses":true},
+  {"name":"invalid-subdivision","kind":"iso","csv":"11.22.33.0/24,US,US-ZZZ,Example,\r\n","core_refuses":true},
+  {"name":"country-region-mismatch","kind":"iso","csv":"11.22.33.0/24,US,GB-ENG,Example,\r\n","core_refuses":true},
+  {"name":"duplicate","kind":"feed","csv":"11.22.33.0/24,US,US-IL,Example,\r\n11.22.33.0/24,US,US-IL,Example,\r\n","core_refuses":true},
+  {"name":"nested-overlap","kind":"publisher-policy","csv":"11.22.33.0/24,US,US-IL,Example,\r\n11.22.33.0/25,US,US-IL,Example,\r\n","core_refuses":true},
+  {"name":"missing-city","kind":"publisher-policy","csv":"11.22.33.0/24,US,US-IL,,\r\n","core_refuses":true},
+  {"name":"extra-column","kind":"publisher-policy","csv":"11.22.33.0/24,US,US-IL,Example,,extra\r\n","core_refuses":true},
+  {"name":"postal-code","kind":"publisher-policy","csv":"11.22.33.0/24,US,US-IL,Example,12345\r\n","core_refuses":true}
+]

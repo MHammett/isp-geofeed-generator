@@ -1,0 +1,15 @@
+# Initial support for Powercode's legacy readAddressRanges action (public V20 docs).
+state_dir: state
+source:
+  type: powercode
+  range_ids: ["101"] # Raw addressRangeID values from discovery.
+  facility_ids: [facility-1] # Operator-defined IDs, not an API-provided join.
+  allow_initial: false
+credentials:
+  POWERCODE_API_KEY: systemd:POWERCODE_API_KEY
+allowed_prefixes: [192.0.2.0/24] # Replace documentation space with your allocation.
+pool_sites:
+  "range:101": facility-1
+site_locations:
+  facility-1: {country: US, region: US-IL, city: Example City}
+publish: {type: file, path: output/geofeed.csv}

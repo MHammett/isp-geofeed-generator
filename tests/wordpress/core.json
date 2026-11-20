@@ -1,0 +1,7 @@
+{
+  "version": "7.1.4",
+  "url": "https://downloads.wordpress.org/release/wordpress-7.1.4.zip",
+  "sha256": "a147146c159362778ecbbbfb07bb20ddf4e85b130f971c824e656a8f938c5f87",
+  "max_archive_bytes": 50000000,
+  "max_expanded_bytes": 200000000
+}

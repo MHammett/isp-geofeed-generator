@@ -1,0 +1,28 @@
+[Unit]
+Description=ISP public IP geolocation feed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=geofeed
+Group=geofeed
+Slice=isp_geofeed_generator.slice
+WorkingDirectory=/opt/isp-geofeed-generator
+EnvironmentFile=/etc/isp-geofeed-generator/runtime.env
+# Add LoadCredentialEncrypted entries in a service drop-in. See docs/security.md.
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/isp-geofeed-generator/venv/bin/python -m isp_geofeed_generator publish --config /etc/isp-geofeed-generator/config.yaml
+TimeoutStartSec=15min
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/isp-geofeed-generator
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes

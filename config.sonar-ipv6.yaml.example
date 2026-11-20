@@ -1,0 +1,19 @@
+# Fictional IDs and documentation prefixes. Replace with reviewed service subnets
+# and your own public allocations. Documentation space cannot be published.
+state_dir: /var/lib/isp-geofeed-generator
+source:
+  type: sonar
+  pool_ids: []  # IPv6-only: skip IPv4 pool reads. Omit to retain existing pools.
+  subnet_ids: ["201"]  # Native Sonar subnet IDs, not supernet IDs.
+  site_resolution: controllers
+credentials:
+  SONAR_API_TOKEN: systemd:SONAR_API_TOKEN
+allowed_prefixes:
+  - 2001:db8::/32
+pool_sites: {}  # Optional reviewed override: {"subnet:201": "11"}
+exclude_pools: {}
+site_locations: {}
+max_removed_fraction: 0.10
+publish:
+  type: file
+  path: /var/lib/isp-geofeed-generator/public/geofeed.csv

@@ -1,0 +1,34 @@
+# Fictional IDs, endpoints and documentation prefixes. Replace with reviewed data.
+# Keep this file outside the upstream checkout. Never put secret values here.
+state_dir: /var/lib/isp-geofeed-generator
+max_removed_fraction: 0.10
+max_relocated_fraction: 0.10
+allowed_prefixes:
+  - 192.0.2.0/24
+  - 2001:db8::/32
+inputs:
+  customers:
+    url: https://billing.example.net
+    source:
+      type: sonar
+      pool_ids: []
+      subnet_ids: ["201"]
+      site_resolution: controllers
+    credentials:
+      SONAR_API_TOKEN: systemd:EXT_CUSTOMER_SONAR
+    pool_sites: {} # Optional explicit mapping: {"subnet:201": "11"}
+    site_locations: {}
+    exclude_pools: {}
+  infrastructure:
+    url: https://ipam.example.net
+    source:
+      type: netbox
+      prefix_ids: ["101"] # Or a reviewed tag, not both.
+    credentials:
+      NETBOX_API_TOKEN: systemd:EXT_INFRA_NETBOX
+    pool_sites: {}
+    site_locations: {}
+    exclude_pools: {}
+publish:
+  type: file
+  path: /var/lib/isp-geofeed-generator/public/geofeed.csv

@@ -1,0 +1,80 @@
+"""Compare published location fields by exact retained address intersections."""
+import ipaddress
+import unicodedata
+from fractions import Fraction
+from .client import GeofeedError
+from .locations import validate_location
+
+
+def location_intervals(records):
+    rows = []
+    try:
+        for record in records:
+            net = ipaddress.ip_network(record['prefix'], strict=True)
+            location = validate_location(record['location'], set(record['location']))
+            signature = tuple((key, unicodedata.normalize('NFC', value) if isinstance(value, str) else value)
+                              for key, value in sorted(location.items()))
+            rows.append((net, signature))
+        rows.sort(key=lambda row: (row[0].version, int(row[0].network_address), row[0].prefixlen))
+        if any(a[0].version == b[0].version and a[0].overlaps(b[0]) for a, b in zip(rows, rows[1:])):
+            raise GeofeedError('Location comparison requires nonoverlapping records')
+        return rows
+    except (KeyError, TypeError, ValueError):
+        raise GeofeedError('Invalid location comparison records') from None
+
+
+def fraction_limit(limit, name):
+    if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not 0 <= limit <= 1:
+        raise GeofeedError(f'{name} must be between 0 and 1')
+    return Fraction(str(limit))
+
+
+def coverage_percent(part, total):
+    hundredths, remainder = divmod(part * 10_000, total)
+    if part and not hundredths:
+        return '<0.01%'
+    value = f'{hundredths // 100}.{hundredths % 100:02d}%'
+    return value + (' (rounded down)' if remainder else '')
+
+
+def effective_change_guard(old, new, max_removed_fraction=0.10, max_relocated_fraction=0.10, *, fields=None):
+    """Union coverage and whole-location changes under explicit longest-prefix policy."""
+    from ._effective import compare_effective
+    from .locations import COARSE_FIELDS
+    removed_limit = fraction_limit(max_removed_fraction, 'max_removed_fraction')
+    moved_limit = fraction_limit(max_relocated_fraction, 'max_relocated_fraction')
+    result = compare_effective(old, new, fields=COARSE_FIELDS if fields is None else fields)
+    for version, counts in result.items():
+        if counts.old and counts.removed * removed_limit.denominator > counts.old * removed_limit.numerator:
+            raise GeofeedError(f'IPv{version} feed removal exceeds configured change limit')
+        if counts.retained and counts.relocated * moved_limit.denominator > counts.retained * moved_limit.numerator:
+            raise GeofeedError(f'IPv{version} location changes affect {coverage_percent(counts.relocated, counts.retained)} of retained address coverage; '
+                               f'limit {coverage_percent(moved_limit.numerator, moved_limit.denominator)} (compared exactly); '
+                               'output stopped. Review a generated candidate before approving its exact hash')
+    return result
+
+
+def relocation_guard(old, new, max_relocated_fraction=0.10):
+    limit = max_relocated_fraction
+    threshold = fraction_limit(limit, 'max_relocated_fraction')
+    before, after = location_intervals(old), location_intervals(new)
+    for version in (4, 6):
+        left = [(net, loc) for net, loc in before if net.version == version]
+        right = [(net, loc) for net, loc in after if net.version == version]
+        retained = moved = i = j = 0
+        while i < len(left) and j < len(right):
+            a, a_location = left[i]; b, b_location = right[j]
+            start = max(int(a.network_address), int(b.network_address))
+            end = min(int(a.broadcast_address), int(b.broadcast_address))
+            overlap = max(0, end - start + 1)
+            retained += overlap
+            if a_location != b_location:
+                moved += overlap
+            if int(a.broadcast_address) < int(b.broadcast_address):
+                i += 1
+            else:
+                j += 1
+        if retained and moved * threshold.denominator > retained * threshold.numerator:
+            raise GeofeedError(f'IPv{version} location changes affect {coverage_percent(moved, retained)} of retained address coverage; '
+                               f'limit {coverage_percent(threshold.numerator, threshold.denominator)} (compared exactly); '
+                               'output stopped. Review a generated candidate before approving its exact hash')

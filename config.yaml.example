@@ -1,0 +1,34 @@
+# Use digit-string Sonar IDs. This file contains fictional IDs and locations.
+# Leave real config.yaml, discovery reports and credentials out of public git.
+state_dir: /var/lib/isp-geofeed-generator
+source:
+  type: sonar
+  site_resolution: controllers # Or configured, for explicit pool_sites mappings only.
+  # subnet_ids: ["201"]  # Explicit native IPv4/IPv6 subnet IDs. Maps use subnet:201.
+  # pool_ids: []  # Skip IPv4 pools for a subnet-only run. Omit to keep existing pools.
+credentials:
+  SONAR_API_TOKEN: systemd:SONAR_API_TOKEN
+  WP_APP_PASSWORD: systemd:WP_APP_PASSWORD
+allowed_prefixes:
+  - 192.0.2.0/24  # Documentation only. Replace with your public allocation(s).
+pool_sites:
+  "101": "11"
+  "102": "12"
+exclude_pools:
+  "103": "Infrastructure addresses, not customer service"
+site_locations: {}
+# Optional per-site corrections without changing Sonar:
+# site_locations:
+#   "11":
+#     address_id: "501"  # Required if a site has several addresses.
+#     city: Example City
+#     country: US
+#     region: US-IL
+max_removed_fraction: 0.10
+max_relocated_fraction: 0.10 # Changed location coverage among retained addresses, per family.
+publish:
+  type: wordpress
+# Or host the output with any web server:
+# publish:
+#   type: file
+#   path: /var/www/html/geofeed.csv

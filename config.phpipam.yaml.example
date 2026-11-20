@@ -1,0 +1,14 @@
+state_dir: state
+source:
+  type: phpipam
+  # Use a read-only API app in SSL with App code token mode for unattended runs.
+  # User tokens expire; this reader does not renew them.
+  subnet_ids: ["101"]
+  allow_initial: false
+credentials:
+  PHPIPAM_API_TOKEN: systemd:PHPIPAM_API_TOKEN
+allowed_prefixes: [192.0.2.0/24]
+pool_sites: {} # Uses subnet.location by default.
+site_locations:
+  "11": {country: US, region: US-IL, city: Example City}
+publish: {type: file, path: output/geofeed.csv}

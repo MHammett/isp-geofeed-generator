@@ -1,0 +1,16 @@
+{
+  "maxmind_version": "5.0.0",
+  "maxmind": {
+    "linux_amd64": {
+      "url": "https://github.com/maxmind/mm-geofeed-verifier/releases/download/v5.0.0/mm-geofeed-verifier_5.0.0_linux_amd64.tar.gz",
+      "archive_sha256": "aca1c817ceec39c858c369e6ad2a1878842e2b0b53b196a6afc1f6851f0f3fbe",
+      "executable_sha256": "b098dd004c806cbc92de873e79d1ee39d566560decd6792cfa5136c45136d14b"
+    },
+    "windows_amd64": {
+      "url": "https://github.com/maxmind/mm-geofeed-verifier/releases/download/v5.0.0/mm-geofeed-verifier_5.0.0_windows_amd64.tar.gz",
+      "archive_sha256": "1386b215ea83bce03bd2cf0d69b5d232ef477a473bb077755339756c378ddf7a",
+      "executable_sha256": "12b68735edc4a335fa7874cb8863d0c0f881e991cc84fd2ee0648a1e382670ae"
+    }
+  },
+  "candela_revision": "ede8916ee1045fa806554bb76112d0fecc63b40d"
+}
