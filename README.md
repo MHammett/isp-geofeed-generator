@@ -17,6 +17,8 @@ The [capture-folder input](docs/rdap-capture-input.md) checks that saved evidenc
 offline and uses its recorded date without a manual override.
 
 This is an independent community project. Contributions are welcome.
+The [0.3.0 release and first-deployment guide](docs/release-0.3.0.md) records the
+candidate, artifact hashes, runner rehearsal and remaining operational checks.
 Built-in source adapters are read-only.
 Combine Sonar customer space and NetBox infrastructure space with [named inputs](docs/multiple-inputs.md).
 No customer records or street addresses are published. Coordinates require explicit output selection.
